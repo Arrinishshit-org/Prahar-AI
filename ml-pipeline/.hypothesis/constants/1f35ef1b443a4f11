@@ -1,0 +1,4 @@
+# file: D:\Projects\AI4Bharat\ml-pipeline\src\user_classifier.py
+# hypothesis_version: 6.151.9
+
+[0.7, 1.0, 1.2, 300, 'age', 'age_range', 'annual_income', 'centroid', 'cluster_metadata', 'common_gender', 'common_rural_urban', 'common_state', 'confidence', 'education_level', 'employment_status', 'feature_stats', 'features', 'gender', 'groups', 'income_range', 'inertia', 'is_fitted', 'kmeans', 'marital_status', 'max', 'mean', 'member_count', 'min', 'n_clusters', 'n_samples', 'random_state', 'rb', 'rural_urban', 'scaler', 'size', 'state', 'std', 'timestamp', 'typical_profile', 'unknown', 'user_id', 'wb']

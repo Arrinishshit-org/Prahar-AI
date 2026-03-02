@@ -1,0 +1,29 @@
+{
+  "name": "personalized-scheme-recommendation-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered platform for personalized government scheme recommendations",
+  "workspaces": [
+    "backend",
+    "ml-pipeline",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:ml",
+    "install:ml": "cd ml-pipeline && python -m venv venv && . venv/bin/activate && pip install -r requirements.txt",
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "husky": "^8.0.3",
+    "lint-staged": "^15.5.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
