@@ -53,10 +53,11 @@ class SchemeSyncAgent {
       console.log('📥 Initial sync needed, starting...');
       await this.syncSchemes();
     } else {
-      console.log(`✅ Schemes are up to date. Next sync: ${status.nextSync}`);
+      console.log(`✅ Schemes are up to date (${status.totalSchemes} schemes). Last sync: ${status.lastSync}`);
+      console.log(`⏰ Next sync scheduled in 48 hours`);
     }
 
-    // Schedule periodic sync
+    // Schedule periodic sync (48 hours from now)
     this.scheduleNextSync();
   }
 

@@ -170,18 +170,18 @@ export default function LandingPage() {
             <div>
               <h5 className="font-bold mb-4">Connect</h5>
               <ul className="space-y-2 text-white/70">
-                <li><a href="#" className="hover:text-white transition-colors">Facebook</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">WhatsApp</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Twitter</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">LinkedIn</a></li>
+                <li><button onClick={() => navigate('/contact')} className="hover:text-white transition-colors">Contact Us</button></li>
+                <li><a href="https://wa.me/1234567890" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">WhatsApp</a></li>
+                <li><a href="tel:1800-000-0000" className="hover:text-white transition-colors">Call Support</a></li>
+                <li><button onClick={() => navigate('/assistant')} className="hover:text-white transition-colors">AI Assistant</button></li>
               </ul>
             </div>
           </div>
           <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-white/50">
             <p>© 2024 Prahar AI. All rights reserved.</p>
             <div className="flex gap-6">
-              <a href="#" className="hover:text-white">Privacy Policy</a>
-              <a href="#" className="hover:text-white">Terms of Service</a>
+              <button onClick={() => navigate('/contact')} className="hover:text-white">Contact Us</button>
+              <button onClick={() => navigate('/schemes')} className="hover:text-white">Browse Schemes</button>
             </div>
           </div>
         </div>

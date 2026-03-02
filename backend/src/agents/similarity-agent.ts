@@ -157,7 +157,7 @@ class SimilarityAgent {
         // Find schemes matching ANY of the categories (union)
         const query = `
           MATCH (s:Scheme)-[:BELONGS_TO]->(c:Category)
-          WHERE (c.type, c.value) IN $categoryPairs OR c.value = 'Any'
+          WHERE ANY(pair IN $categoryPairs WHERE c.type = pair[0] AND c.value = pair[1]) OR c.value = 'Any'
           WITH DISTINCT s
           OPTIONAL MATCH (s)-[:BELONGS_TO]->(cat:Category)
           RETURN s, collect({type: cat.type, value: cat.value}) as categories

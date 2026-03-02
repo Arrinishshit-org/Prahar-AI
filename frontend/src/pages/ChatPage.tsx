@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Send, Bot, User, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -35,16 +34,32 @@ export default function ChatPage() {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     
+    const currentInput = input;
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
     
     try {
+      const token = localStorage.getItem('accessToken');
+      
+      // Build conversation history - include last 20 messages for context
+      const conversationHistory = messages
+        .slice(-20)
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+        .concat([{ role: 'user', content: currentInput }]);
+      
       const response = await fetch('http://localhost:3000/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify({ 
-          message: input,
+          message: currentInput,
+          conversationHistory,
           userId: user?.userId 
         }),
       });
@@ -95,8 +110,8 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-6">
+      {/* Chat Area - Increased height */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-6 pb-32">{/* Added pb-32 for more space */}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
@@ -136,8 +151,8 @@ export default function ChatPage() {
         )}
       </main>
 
-      {/* Input Area */}
-      <footer className="p-4 bg-white border-t border-primary/10">
+      {/* Input Area - Fixed at bottom */}
+      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-primary/10 z-10">
         <div className="max-w-4xl mx-auto flex items-center gap-3">
           <div className="flex-1 relative flex items-center bg-slate-100 rounded-2xl">
             <input 

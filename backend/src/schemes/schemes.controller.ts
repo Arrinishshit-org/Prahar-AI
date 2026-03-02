@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { similarityAgent } from '../agents/similarity-agent';
 import { indiaGovService } from './india-gov.service';
+import { sampleSchemes } from './sample-schemes';
 
 export class SchemesController {
   /**
@@ -29,47 +30,63 @@ export class SchemesController {
           schemes = await similarityAgent.searchSchemes('', limitNum);
         }
 
-        res.json({
-          total: schemes.length,
-          schemes: schemes.map((s) => ({
-            schemeId: s.schemeId,
-            name: s.name,
-            description: s.description,
-            ministry: s.ministry,
-            state: s.state,
-            tags: s.tags,
-            category: s.rawCategory,
-          })),
-        });
+        // Return flat array with correct field names
+        res.json(schemes.map((s) => ({
+          id: s.schemeId,
+          title: s.name,
+          description: s.description || 'No description available',
+          category: s.rawCategory || s.categories?.[0]?.type || 'General',
+          benefits: s.ministry || 'Government of India',
+          eligibility: s.tags?.join(', ') || 'Check official website',
+        })));
       } catch (dbError) {
         // Fallback to direct API if Neo4j is not available
         console.log('Neo4j not available, falling back to direct API');
         
-        const result = await indiaGovService.fetchSchemes({
-          pageNumber: pageNum,
-          pageSize: limitNum,
-        });
+        try {
+          const result = await indiaGovService.fetchSchemes({
+            pageNumber: pageNum,
+            pageSize: limitNum,
+          });
 
-        let schemes = result.schemes;
+          let schemes = result.schemes;
 
-        if (q) {
-          schemes = indiaGovService.searchSchemes(schemes, q as string);
+          if (q) {
+            schemes = indiaGovService.searchSchemes(schemes, q as string);
+          }
+
+          // Return flat array with correct field names
+          res.json(schemes.map((s) => ({
+            id: s.schemeId,
+            title: s.name,
+            description: s.description || 'No description available',
+            category: Array.isArray(s.category) ? s.category[0] : (s.category || 'General'),
+            benefits: s.ministry || 'Government of India',
+            eligibility: Array.isArray(s.tags) ? s.tags.join(', ') : 'Check official website',
+          })));
+        } catch (apiError) {
+          // Fallback to sample data if API also fails
+          console.log('API also failed, using sample data');
+          let schemes = sampleSchemes;
+
+          if (q) {
+            const lowerQuery = q.toString().toLowerCase();
+            schemes = sampleSchemes.filter(s => 
+              s.name.toLowerCase().includes(lowerQuery) ||
+              s.description.toLowerCase().includes(lowerQuery) ||
+              s.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
+            );
+          }
+
+          res.json(schemes.map((s) => ({
+            id: s.schemeId,
+            title: s.name,
+            description: s.description || 'No description available',
+            category: Array.isArray(s.category) ? s.category[0] : (s.category || 'General'),
+            benefits: s.ministry || 'Government of India',
+            eligibility: Array.isArray(s.tags) ? s.tags.join(', ') : 'Check official website',
+          })));
         }
-
-        res.json({
-          total: result.total,
-          page: pageNum,
-          pageSize: limitNum,
-          schemes: schemes.map((s) => ({
-            schemeId: s.schemeId,
-            name: s.name,
-            description: s.description,
-            ministry: s.ministry,
-            state: s.state,
-            tags: s.tags,
-            category: s.category,
-          })),
-        });
       }
     } catch (error: any) {
       console.error('Error in getSchemes:', error);
@@ -97,27 +114,57 @@ export class SchemesController {
         }
 
         res.json({
-          schemeId: scheme.schemeId,
-          name: scheme.name,
-          description: scheme.description,
-          ministry: scheme.ministry,
-          state: scheme.state,
-          tags: scheme.tags,
-          category: scheme.rawCategory,
-          categories: scheme.categories,
+          id: scheme.schemeId,
+          title: scheme.name,
+          description: scheme.description || 'No description available',
+          category: scheme.rawCategory || scheme.categories?.[0]?.type || 'General',
+          benefits: scheme.ministry || 'Government of India',
+          eligibility: scheme.tags?.join(', ') || 'Check official website',
+          applicationProcess: 'Visit the official government portal to apply',
+          requiredDocuments: ['Aadhaar Card', 'Income Certificate', 'Residence Proof'],
         });
       } catch (dbError) {
         // Fallback to direct API
         console.log('Neo4j not available, falling back to direct API');
         
-        const result = await indiaGovService.fetchSchemes({ pageSize: 100 });
-        const scheme = result.schemes.find((s) => s.schemeId === schemeId);
+        try {
+          const result = await indiaGovService.fetchSchemes({ pageSize: 100 });
+          const scheme = result.schemes.find((s) => s.schemeId === schemeId);
 
-        if (!scheme) {
-          return res.status(404).json({ error: 'Scheme not found' });
+          if (!scheme) {
+            return res.status(404).json({ error: 'Scheme not found' });
+          }
+
+          res.json({
+            id: scheme.schemeId,
+            title: scheme.name,
+            description: scheme.description || 'No description available',
+            category: scheme.category || 'General',
+            benefits: scheme.ministry || 'Government of India',
+            eligibility: scheme.tags?.join(', ') || 'Check official website',
+            applicationProcess: 'Visit the official government portal to apply',
+            requiredDocuments: ['Aadhaar Card', 'Income Certificate', 'Residence Proof'],
+          });
+        } catch (apiError) {
+          // Fallback to sample data
+          console.log('API also failed, using sample data');
+          const scheme = sampleSchemes.find((s) => s.schemeId === schemeId);
+
+          if (!scheme) {
+            return res.status(404).json({ error: 'Scheme not found' });
+          }
+
+          res.json({
+            id: scheme.schemeId,
+            title: scheme.name,
+            description: scheme.description || 'No description available',
+            category: Array.isArray(scheme.category) ? scheme.category[0] : 'General',
+            benefits: scheme.ministry || 'Government of India',
+            eligibility: Array.isArray(scheme.tags) ? scheme.tags.join(', ') : 'Check official website',
+            applicationProcess: 'Visit the official government portal to apply',
+            requiredDocuments: ['Aadhaar Card', 'Income Certificate', 'Residence Proof'],
+          });
         }
-
-        res.json(scheme);
       }
     } catch (error: any) {
       console.error('Error in getSchemeById:', error);
@@ -179,16 +226,15 @@ export class SchemesController {
         const matches = await similarityAgent.findMatchingSchemes(userProfile, 10);
 
         const recommendations = matches.map((match) => ({
-          schemeId: match.schemeId,
-          schemeName: match.name,
+          id: match.schemeId,
+          title: match.name,
+          description: match.description || 'No description available',
+          category: match.categories?.[0]?.type || 'General',
+          benefits: match.ministry || 'Government of India',
           eligibilityScore: match.eligibilityScore,
-          explanation: match.explanation,
-          category: match.categories.map((c) => c.type),
-          tags: match.tags,
-          matchedCategories: match.matchedCategories,
         }));
 
-        res.json({ recommendations });
+        res.json(recommendations);
       } catch (dbError) {
         // Fallback to simple API-based recommendations
         console.log('Neo4j not available, using simple recommendations');
@@ -211,15 +257,15 @@ export class SchemesController {
         }
 
         const recommendations = allRecommendations.map((scheme) => ({
-          schemeId: scheme.schemeId,
-          schemeName: scheme.name,
+          id: scheme.schemeId,
+          title: scheme.name,
+          description: scheme.description || 'No description available',
+          category: scheme.category || 'General',
+          benefits: scheme.ministry || 'Government of India',
           eligibilityScore: Math.floor(Math.random() * 30) + 70,
-          explanation: `Based on your profile, you may be eligible for this scheme. ${scheme.description.substring(0, 100)}...`,
-          category: scheme.category,
-          tags: scheme.tags,
         }));
 
-        res.json({ recommendations });
+        res.json(recommendations);
       }
     } catch (error: any) {
       console.error('Error in getRecommendations:', error);

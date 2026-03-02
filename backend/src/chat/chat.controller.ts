@@ -12,17 +12,18 @@ export class ChatController {
    */
   async sendMessage(req: Request, res: Response): Promise<void> {
     try {
-      const { message } = req.body;
+      const { message, conversationHistory } = req.body;
       const userId = (req as any).userId || 'admin123'; // From auth middleware
       const userProfile = (req as any).userProfile || {}; // From auth middleware
+      const history = (req as any).conversationHistory || conversationHistory || []; // From server or request body
 
       if (!message || typeof message !== 'string') {
         res.status(400).json({ error: 'Message is required' });
         return;
       }
 
-      // Process message with chat service
-      const response = await chatService.processMessage(userId, message, userProfile);
+      // Process message with chat service, including conversation history
+      const response = await chatService.processMessage(userId, message, userProfile, history);
 
       res.json(response);
     } catch (error: any) {

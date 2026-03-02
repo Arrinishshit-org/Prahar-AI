@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Filter, ExternalLink, Home, User } from 'lucide-react';
+import { Search, Filter, ExternalLink, Home, User, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -13,11 +13,14 @@ interface Scheme {
   benefits?: string;
   eligibility?: string;
   deadline?: string;
+  eligibilityScore?: number;
 }
 
 export default function SchemesPage() {
   const [schemes, setSchemes] = useState<Scheme[]>([]);
+  const [personalizedSchemes, setPersonalizedSchemes] = useState<Scheme[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPersonalized, setLoadingPersonalized] = useState(false);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -26,7 +29,10 @@ export default function SchemesPage() {
 
   useEffect(() => {
     fetchSchemes();
-  }, []);
+    if (user) {
+      fetchPersonalizedSchemes();
+    }
+  }, [user]);
 
   const fetchSchemes = async () => {
     try {
@@ -34,22 +40,47 @@ export default function SchemesPage() {
       if (!response.ok) throw new Error('Failed to fetch schemes');
       
       const data = await response.json();
-      setSchemes(data);
+      // Ensure data is an array
+      const schemesArray = Array.isArray(data) ? data : [];
+      setSchemes(schemesArray);
     } catch (err: any) {
+      console.error('Error fetching schemes:', err);
       setError(err.message);
+      setSchemes([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredSchemes = schemes.filter(scheme => {
+  const fetchPersonalizedSchemes = async () => {
+    if (!user) return;
+    
+    setLoadingPersonalized(true);
+    try {
+      const response = await fetch(`http://localhost:3000/api/users/${user.userId}/recommendations`);
+      if (!response.ok) throw new Error('Failed to fetch recommendations');
+      
+      const data = await response.json();
+      // Handle both array and object responses
+      const recommendations = Array.isArray(data) ? data : (data.schemes || data.recommendations || []);
+      setPersonalizedSchemes(recommendations.slice(0, 6)); // Show top 6 personalized
+    } catch (err: any) {
+      console.error('Error fetching personalized schemes:', err);
+      setPersonalizedSchemes([]);
+    } finally {
+      setLoadingPersonalized(false);
+    }
+  };
+
+  // Ensure schemes is always an array before filtering
+  const filteredSchemes = Array.isArray(schemes) ? schemes.filter(scheme => {
     const matchesSearch = scheme.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          scheme.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !selectedCategory || scheme.category === selectedCategory;
     return matchesSearch && matchesCategory;
-  });
+  }) : [];
 
-  const categories = Array.from(new Set(schemes.map(s => s.category)));
+  const categories = Array.isArray(schemes) ? Array.from(new Set(schemes.map(s => s.category))) : [];
 
   if (loading) {
     return (
@@ -128,12 +159,87 @@ export default function SchemesPage() {
 
       {/* Main Content */}
       <main className="flex-1 p-4 max-w-7xl mx-auto w-full">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-primary">
-            {selectedCategory ? `${selectedCategory} Schemes` : 'All Schemes'}
-          </h2>
-          <span className="text-sm font-medium text-primary/60">{filteredSchemes.length} Schemes found</span>
-        </div>
+        {/* Personalized Schemes Section - Only show when logged in */}
+        {user && personalizedSchemes.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="w-6 h-6 text-primary" />
+              <h2 className="text-xl font-bold text-primary">Personalized for You</h2>
+            </div>
+            
+            {loadingPersonalized ? (
+              <div className="flex justify-center py-8">
+                <LoadingSpinner />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                {personalizedSchemes.map((scheme, index) => (
+                  <motion.div 
+                    key={scheme.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-5 shadow-sm border-2 border-primary/20 flex flex-col gap-4 hover:shadow-lg transition-all"
+                  >
+                    <div className="flex justify-between items-start">
+                      <h3 className="text-lg font-bold leading-snug flex-1">{scheme.title}</h3>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-xs font-bold px-2 py-1 rounded bg-primary text-white">
+                          {scheme.category}
+                        </span>
+                        {scheme.eligibilityScore && (
+                          <span className="text-xs font-bold px-2 py-1 rounded bg-green-500 text-white">
+                            {scheme.eligibilityScore}% Match
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-slate-700 line-clamp-3">{scheme.description}</p>
+
+                    {scheme.benefits && (
+                      <div className="bg-white/80 rounded-lg p-3 border-l-4 border-primary">
+                        <span className="text-xs font-bold text-primary/70 uppercase tracking-wider">Benefit</span>
+                        <p className="text-sm font-semibold text-primary mt-1">{scheme.benefits}</p>
+                      </div>
+                    )}
+
+                    <button 
+                      onClick={() => navigate(`/schemes/${scheme.id}`)}
+                      className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      View Details
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
+            <div className="border-t-2 border-primary/10 pt-8 mb-4">
+              <h2 className="text-xl font-bold text-slate-900 mb-4">Browse All Schemes</h2>
+            </div>
+          </div>
+        )}
+
+        {/* All Schemes Section */}
+        {!user && (
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-primary">
+              {selectedCategory ? `${selectedCategory} Schemes` : 'All Schemes'}
+            </h2>
+            <span className="text-sm font-medium text-primary/60">{filteredSchemes.length} Schemes found</span>
+          </div>
+        )}
+
+        {user && personalizedSchemes.length === 0 && !loadingPersonalized && (
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-primary">
+              {selectedCategory ? `${selectedCategory} Schemes` : 'All Schemes'}
+            </h2>
+            <span className="text-sm font-medium text-primary/60">{filteredSchemes.length} Schemes found</span>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">

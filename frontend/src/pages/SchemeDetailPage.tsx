@@ -147,8 +147,17 @@ export default function SchemeDetailPage() {
             )}
 
             <div className="pt-6 border-t border-slate-200">
-              <button className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg transition-all flex items-center justify-center gap-2">
-                Apply Now
+              <button 
+                onClick={() => {
+                  if (user) {
+                    alert('Application feature coming soon! For now, please visit the official government portal.');
+                  } else {
+                    navigate('/register');
+                  }
+                }}
+                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                {user ? 'Apply Now' : 'Register to Apply'}
                 <ExternalLink className="w-5 h-5" />
               </button>
             </div>

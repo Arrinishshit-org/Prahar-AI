@@ -42,9 +42,15 @@ export default function DashboardPage() {
       if (!response.ok) throw new Error('Failed to fetch recommendations');
       
       const data = await response.json();
-      setRecommendations(data.slice(0, 5)); // Show top 5
+      console.log('Recommendations data:', data);
+      
+      // Handle both array and object responses
+      const schemes = Array.isArray(data) ? data : (data.schemes || data.recommendations || []);
+      setRecommendations(schemes.slice(0, 5)); // Show top 5
     } catch (err: any) {
+      console.error('Error fetching recommendations:', err);
       setError(err.message);
+      setRecommendations([]); // Set empty array on error
     } finally {
       setLoading(false);
     }

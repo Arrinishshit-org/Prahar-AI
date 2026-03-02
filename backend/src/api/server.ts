@@ -6,6 +6,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import { ProfileExtractor } from '../utils/profile-extractor';
 
 const app = express();
 
@@ -199,8 +200,9 @@ import { chatController } from '../chat';
 
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, conversationHistory = [] } = req.body;
     console.log('Chat message received:', message);
+    console.log('Conversation history items:', conversationHistory.length);
 
     // Get user info from token (mock)
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -211,73 +213,78 @@ app.post('/api/chat', async (req, res) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    // Handle profile updates in the message
-    const lowerMessage = message.toLowerCase();
+    // Use intelligent profile extractor
+    console.log(`\n📊 Extracting profile data from message: "${message}"`);
+    const extraction = ProfileExtractor.extract(message);
+    const updates = extraction.updates;
+    const updateMessages = extraction.messages;
+
+    // Also extract from conversation history for context
+    console.log(`📁 Extracting context from ${conversationHistory.length} previous messages...`);
+    const historyContext = ProfileExtractor.extractFromHistory(conversationHistory);
+    console.log('Context extracted from history:', historyContext);
+
+    // Apply updates to user profile
     let profileUpdated = false;
-    let updateMessage = '';
+    const appliedUpdates: string[] = [];
 
-    // Update age
-    if (lowerMessage.match(/(?:my age is|age is|update.*age|set.*age).*?(\d+)/)) {
-      const ageMatch = lowerMessage.match(/(\d+)/);
-      if (ageMatch) {
-        user.age = parseInt(ageMatch[1]);
-        profileUpdated = true;
-        updateMessage = `✅ Updated your age to ${user.age} years. `;
-      }
-    }
-    // Update income
-    else if (lowerMessage.match(/(?:my income is|income is|update.*income|set.*income|earn)/)) {
-      const incomeMatch = lowerMessage.match(/(\d+)/);
-      if (incomeMatch) {
-        user.income = parseInt(incomeMatch[1]);
-        profileUpdated = true;
-        updateMessage = `✅ Updated your income to ₹${user.income}. `;
-      } else if (lowerMessage.includes('below') || lowerMessage.includes('bpl')) {
-        user.income = 50000;
-        profileUpdated = true;
-        updateMessage = `✅ Noted that your income is below poverty line. `;
-      }
-    }
-    // Update state
-    else if (lowerMessage.match(/(?:my state is|state is|update.*state|set.*state|from|live in)/)) {
-      const states = ['maharashtra', 'delhi', 'karnataka', 'tamil nadu', 'gujarat', 'rajasthan', 'uttar pradesh', 'west bengal', 'punjab', 'haryana', 'kerala', 'andhra pradesh'];
-      const foundState = states.find(s => lowerMessage.includes(s));
-      if (foundState) {
-        user.state = foundState.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        profileUpdated = true;
-        updateMessage = `✅ Updated your state to ${user.state}. `;
-      }
-    }
-    // Update employment
-    else if (lowerMessage.match(/(?:i am|i'm|update.*employment|set.*employment).*(employed|unemployed|student|self-employed|self employed|retired)/)) {
-      const employmentMatch = lowerMessage.match(/(employed|unemployed|student|self-employed|self employed|retired)/);
-      if (employmentMatch) {
-        user.employment = employmentMatch[1].replace('self employed', 'self-employed');
-        profileUpdated = true;
-        updateMessage = `✅ Updated your employment status to ${user.employment}. `;
-      }
-    }
-    // Update education
-    else if (lowerMessage.match(/(?:my education is|education is|update.*education|set.*education|studied)/)) {
-      const educationLevels = ['primary', 'secondary', 'graduate', 'post graduate', 'postgraduate', 'professional'];
-      const foundEducation = educationLevels.find(e => lowerMessage.includes(e));
-      if (foundEducation) {
-        user.education = foundEducation;
-        profileUpdated = true;
-        updateMessage = `✅ Updated your education to ${foundEducation}. `;
-      }
+    if (updates.age !== undefined) {
+      user.age = updates.age;
+      profileUpdated = true;
+      appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('age'))] || '');
     }
 
-    // Attach user profile to request for chat service
+    if (updates.income !== undefined) {
+      user.income = updates.income;
+      profileUpdated = true;
+      appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('income'))] || '');
+    }
+
+    if (updates.state !== undefined) {
+      user.state = updates.state;
+      profileUpdated = true;
+      appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('state'))] || '');
+    }
+
+    if (updates.employment !== undefined) {
+      user.employment = updates.employment;
+      profileUpdated = true;
+      appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('employment'))] || '');
+    }
+
+    if (updates.education !== undefined) {
+      user.education = updates.education;
+      profileUpdated = true;
+      appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('education'))] || '');
+    }
+
+    if (updates.disability !== undefined) {
+      user.isDisabled = updates.disability;
+      profileUpdated = true;
+      appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('disability'))] || '');
+    }
+
+    if (updates.minority !== undefined) {
+      user.isMinority = updates.minority;
+      profileUpdated = true;
+      appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('minority'))] || '');
+    }
+
+    console.log(`✅ Profile updated: ${profileUpdated}, Updates applied:`, appliedUpdates.filter(Boolean));
+
+    // Attach user profile and conversation history to request for chat service
     (req as any).userId = userId;
     (req as any).userProfile = user;
+    (req as any).conversationHistory = conversationHistory;
+    (req as any).extractedContext = historyContext;
 
-    // If profile was updated, prepend the update message to the response
-    if (profileUpdated) {
+    // If profile was updated, prepend the update messages to the response
+    if (profileUpdated && appliedUpdates.length > 0) {
       const originalSend = res.json.bind(res);
       res.json = function(data: any) {
         if (data.response) {
-          data.response = updateMessage + data.response;
+          const updatePrefix = appliedUpdates.filter(Boolean).join(' ');
+          data.response = updatePrefix + '\n\n' + data.response;
         }
         return originalSend(data);
       };

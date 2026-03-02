@@ -8,24 +8,15 @@
  * - Natural language interaction
  */
 
+import { SchemeInformationService } from '../services/scheme-information.service';
 import { similarityAgent } from '../agents/similarity-agent';
+import { findMatchingIntent, getResponseForIntent } from '../utils/training-data';
 import { ReActAgent } from '../react-agent/react-agent';
 import { ConversationContext, Tool, ToolResult } from '../react-agent/types';
-
-interface ChatMessage {
-  role: 'user' | 'agent';
-  content: string;
-  timestamp: Date;
-}
 
 interface ChatResponse {
   response: string;
   suggestions?: string[];
-}
-
-interface UserContext {
-  userId: string;
-  profile: any;
 }
 
 class ChatService {
@@ -48,13 +39,15 @@ class ChatService {
   async processMessage(
     userId: string,
     message: string,
-    userProfile: any
+    userProfile: any,
+    conversationHistory: any[] = []
   ): Promise<ChatResponse> {
     try {
       // Get or create conversation context
       let context = this.conversations.get(userId);
       if (!context) {
         context = {
+          sessionId: `session_${userId}_${Date.now()}`,
           userId,
           userProfile,
           messageHistory: [],
@@ -66,13 +59,28 @@ class ChatService {
       // Update user profile in context
       context.userProfile = userProfile;
 
+      // Import and sync conversation history from frontend if provided
+      if (conversationHistory && conversationHistory.length > 0) {
+        console.log(`Syncing ${conversationHistory.length} messages from frontend for user ${userId}`);
+        // Convert incoming history to Message objects if needed
+        const incomingMessages = conversationHistory.map((msg: any, idx: number) => ({
+          messageId: `sync_${idx}`,
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date(),
+        }));
+        
+        // Replace message history with incoming history to maintain context
+        context.messageHistory = incomingMessages;
+      }
+
       // Check for profile queries and updates first (fast path)
       const quickResponse = await this.handleQuickResponses(message, userProfile);
       if (quickResponse) {
         return quickResponse;
       }
 
-      // Use ReAct agent for complex queries
+      // Use ReAct agent for complex queries, including conversation history
       const agentResponse = await this.agent.processQuery(message, context);
 
       return {
@@ -96,6 +104,72 @@ class ChatService {
     userProfile: any
   ): Promise<ChatResponse | null> {
     const lowerMessage = message.toLowerCase();
+
+    // Scheme information queries
+    if (
+      lowerMessage.includes('tell me about') ||
+      lowerMessage.includes('what is') ||
+      lowerMessage.includes('info about') ||
+      lowerMessage.includes('details about')
+    ) {
+      // Extract scheme name from message
+      const schemeInfo = SchemeInformationService.getSchemeInfo(message);
+      if (schemeInfo) {
+        return {
+          response: schemeInfo.info,
+          suggestions: schemeInfo.suggestions,
+        };
+      }
+    }
+
+    // Eligibility check queries
+    if (
+      lowerMessage.includes('am i eligible') ||
+      lowerMessage.includes('can i apply') ||
+      lowerMessage.includes('do i qualify')
+    ) {
+      // Extract scheme name from message
+      let schemeName = '';
+      const schemeMatch = message.match(/(for|to)\s+(.+?)(?:\?|$)/i);
+      if (schemeMatch) {
+        schemeName = schemeMatch[2];
+      }
+
+      if (schemeName) {
+        return {
+          response: SchemeInformationService.checkEligibility(userProfile, schemeName),
+          suggestions: ['How to apply', 'Required documents', 'Find other schemes'],
+        };
+      }
+    }
+
+    // How to apply queries
+    if (
+      lowerMessage.includes('how to apply') ||
+      lowerMessage.includes('apply for') ||
+      lowerMessage.includes('application process')
+    ) {
+      const schemeMatch = message.match(/(for|to)\s+(.+?)(?:\?|$)/i);
+      if (schemeMatch) {
+        const schemeName = schemeMatch[2];
+        return {
+          response: SchemeInformationService.getApplicationInfo(schemeName),
+          suggestions: ['Check eligibility', 'Required documents', 'Find more schemes'],
+        };
+      }
+    }
+
+    // Browse all schemes
+    if (
+      lowerMessage.includes('show all') ||
+      lowerMessage.includes('list all') ||
+      lowerMessage.includes('available schemes')
+    ) {
+      return {
+        response: SchemeInformationService.getAllSchemes(),
+        suggestions: ['Tell me more about a scheme', 'Find schemes for me'],
+      };
+    }
 
     // Profile viewing
     if (
@@ -157,12 +231,15 @@ class ChatService {
       };
     }
 
-    // Scheme queries - use similarity agent
+    // Scheme queries - use training data
     if (
       lowerMessage.includes('scheme') ||
       lowerMessage.includes('eligible') ||
       lowerMessage.includes('recommend') ||
-      lowerMessage.includes('find')
+      lowerMessage.includes('find') ||
+      lowerMessage.includes('scholarship') ||
+      lowerMessage.includes('benefit') ||
+      lowerMessage.includes('grant')
     ) {
       return await this.handleSchemeQuery(userProfile, message);
     }
@@ -178,99 +255,41 @@ class ChatService {
     message: string
   ): Promise<ChatResponse> {
     try {
-      // Build profile for matching
-      const profileForMatching = {
-        userId: userProfile.userId || 'unknown',
-        employment: userProfile.employment,
-        income: this.mapIncomeToCategory(userProfile.income),
-        locality: userProfile.locality || 'urban',
-        socialCategory: userProfile.socialCategory || 'general',
-        education: userProfile.education,
-        povertyLine: this.mapIncomeToPovertyLine(userProfile.income),
-        state: userProfile.state,
-        age: userProfile.age,
-        interests: [message],
-      };
+      const lowerMessage = message.toLowerCase();
 
-      try {
-        // Try using similarity agent (Neo4j)
-        const matches = await similarityAgent.findMatchingSchemes(profileForMatching, 5);
-
-        if (matches.length === 0) {
-          return {
-            response:
-              "I couldn't find any schemes matching your profile right now. This could be because:\n\n" +
-              "• Your profile is incomplete\n• The scheme database is being updated\n\n" +
-              "Try completing your profile by telling me:\n" +
-              "• Your age\n• Your income\n• Your state\n• Your employment status",
-            suggestions: ['Show my profile', 'Update my details'],
-          };
-        }
-
-        // Format response with top schemes
-        let response = `Based on your profile, here are the top schemes for you:\n\n`;
-
-        matches.slice(0, 3).forEach((match, index) => {
-          response += `${index + 1}. ${match.name}\n`;
-          response += `   Eligibility: ${match.eligibilityScore}%\n`;
-          response += `   ${match.description.substring(0, 100)}...\n\n`;
-        });
-
-        response += `\nCheck the Dashboard to see all ${matches.length} recommended schemes and apply!`;
-
+      // First check if asking about specific scheme info
+      const schemeInfo = SchemeInformationService.getSchemeInfo(message);
+      if (schemeInfo) {
         return {
-          response,
-          suggestions: [
-            'Tell me more about scheme 1',
-            'How do I apply?',
-            'Show more schemes',
-          ],
-        };
-      } catch (dbError) {
-        // Fallback to direct API
-        console.log('Neo4j not available, using direct API for schemes');
-        
-        const { indiaGovService } = await import('../schemes/india-gov.service');
-        
-        // Fetch schemes from API
-        const result = await indiaGovService.fetchSchemes({
-          pageNumber: 1,
-          pageSize: 5,
-        });
-
-        if (result.schemes.length === 0) {
-          return {
-            response:
-              "I couldn't fetch schemes right now. The API might be temporarily unavailable. Please try again in a moment.",
-            suggestions: ['Show my profile', 'Try again'],
-          };
-        }
-
-        // Format response with schemes
-        let response = `Here are some government schemes that might interest you:\n\n`;
-
-        result.schemes.slice(0, 3).forEach((scheme, index) => {
-          response += `${index + 1}. ${scheme.name}\n`;
-          response += `   ${scheme.description.substring(0, 100)}...\n\n`;
-        });
-
-        response += `\nCheck the Dashboard to explore more schemes!`;
-
-        return {
-          response,
-          suggestions: [
-            'Tell me more',
-            'Show my profile',
-            'Update my details',
-          ],
+          response: schemeInfo.info,
+          suggestions: schemeInfo.suggestions,
         };
       }
+
+      // Check if asking for eligibility
+      if (lowerMessage.includes('eligible') || lowerMessage.includes('qualify')) {
+        const schemeMatch = message.match(/(for|to)\s+(.+?)(?:\?|$)/i);
+        if (schemeMatch) {
+          const schemeName = schemeMatch[2];
+          return {
+            response: SchemeInformationService.checkEligibility(userProfile, schemeName),
+            suggestions: ['How to apply', 'Find more schemes', 'Check another scheme'],
+          };
+        }
+      }
+
+      // Default: show available schemes related to keywords
+      const allSchemes = SchemeInformationService.getAllSchemes();
+      return {
+        response: allSchemes + `\n\n💡 Based on your profile (${userProfile.employment || 'Any'} employment, Age: ${userProfile.age || 'Not specified'}), ask me "am I eligible for [scheme name]?" to check your eligibility!`,
+        suggestions: ['Tell me more about a scheme', 'Check my eligibility', 'Show my profile'],
+      };
     } catch (error: any) {
       console.error('Scheme query error:', error);
       return {
         response:
-          "I'm having trouble fetching schemes right now. Please try again in a moment.",
-        suggestions: ['Show my profile', 'Try again'],
+          "I'm having trouble fetching scheme information. Please try asking about a specific scheme or check the Schemes page.",
+        suggestions: ['Browse Schemes', 'Show my profile', 'Try again'],
       };
     }
   }
@@ -418,7 +437,7 @@ class ChatService {
           return {
             success: true,
             data: {
-              eligibleSchemes: matches.filter((m) => m.eligibilityScore >= 60),
+              eligibleSchemes: matches.filter((m: any) => m.eligibilityScore >= 60),
               totalChecked: matches.length,
             },
             metadata: {

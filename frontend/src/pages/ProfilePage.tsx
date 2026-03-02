@@ -106,7 +106,10 @@ export default function ProfilePage() {
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-slate-900">{profile?.name}</h2>
-                <button className="text-primary p-2 hover:bg-primary/5 rounded-lg">
+                <button 
+                  onClick={() => alert('Profile editing feature coming soon!')}
+                  className="text-primary p-2 hover:bg-primary/5 rounded-lg"
+                >
                   <Edit3 className="w-5 h-5" />
                 </button>
               </div>

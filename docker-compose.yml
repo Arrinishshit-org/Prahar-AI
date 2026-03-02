@@ -29,9 +29,23 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: scheme-recommender-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=scheme_user
+      - POSTGRES_PASSWORD=scheme_password
+      - POSTGRES_DB=scheme_recommender
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
 volumes:
   neo4j_data:
   neo4j_logs:
   neo4j_import:
   neo4j_plugins:
   redis_data:
+  postgres_data:
