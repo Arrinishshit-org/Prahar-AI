@@ -73,79 +73,76 @@ export default function ChatAssistant() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background-light">
-      {/* Header */}
-      <header className="bg-white p-4 border-b border-primary/10 flex items-center justify-between sticky top-0 z-10">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-surface">
+
+      {/* ── Chat Header ── */}
+      <div className="bg-white border-b border-border px-6 py-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="size-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-            <Bot className="size-6" />
+          <div className="relative">
+            <div className="size-10 rounded-full bg-primary flex items-center justify-center">
+              <Bot className="size-5 text-white" />
+            </div>
+            <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-green-500 border-2 border-white" />
           </div>
           <div>
-            <h1 className="font-bold text-primary">Prahar AI</h1>
-            <div className="flex items-center gap-1">
-              <span className="size-2 bg-green-500 rounded-full" />
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Online</span>
-            </div>
+            <h1 className="font-semibold text-ink text-sm">Prahar AI Assistant</h1>
+            <p className="text-[10px] text-green-600 font-semibold uppercase tracking-widest">Online</p>
           </div>
         </div>
-        <button className="flex items-center gap-1 px-3 py-1.5 bg-primary/5 rounded-full text-primary text-xs font-bold">
-          <Sparkles className="size-3" />
-          English
-        </button>
-        {!isAuthenticated && (
-          <span className="bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
-            <AlertCircle className="size-3" />
-            Sign in for personal results
+        <div className="flex items-center gap-2">
+          {!isAuthenticated && (
+            <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-semibold px-2.5 py-1 rounded-full">
+              <AlertCircle className="size-3" /> Sign in for personalised results
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 bg-primary-50 text-primary text-[10px] font-semibold px-2.5 py-1 rounded-full border border-primary-100">
+            <Sparkles className="size-3" /> Powered by Prahar AI
           </span>
-        )}
-      </header>
+        </div>
+      </div>
 
-      {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
+      {/* ── Messages ── */}
+      <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5 no-scrollbar max-w-4xl mx-auto w-full">
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+          <div key={msg.id} className={`flex gap-3 ${
+            msg.role === 'user' ? 'flex-row-reverse' : ''
+          }`}>
             <div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
-              msg.role === 'assistant' ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'
+              msg.role === 'assistant' ? 'bg-primary text-white' : 'bg-primary-100 text-primary'
             }`}>
-              {msg.role === 'assistant' ? <Bot className="size-5" /> : <User className="size-5" />}
+              {msg.role === 'assistant' ? <Bot className="size-4" /> : <User className="size-4" />}
             </div>
-            
-            <div className={`max-w-[80%] space-y-2 ${msg.role === 'user' ? 'items-end' : ''}`}>
-              <div className={`p-4 rounded-2xl shadow-sm ${
-                msg.role === 'assistant' 
-                ? 'bg-white text-slate-700 rounded-tl-none' 
-                : 'bg-primary text-white rounded-tr-none'
+            <div className={`max-w-[75%] space-y-2 ${
+              msg.role === 'user' ? 'items-end' : ''
+            }`}>
+              <div className={`px-4 py-3 rounded-xl ${
+                msg.role === 'assistant'
+                  ? 'bg-white border border-border text-ink shadow-sm rounded-tl-sm'
+                  : 'bg-primary text-white rounded-tr-sm'
               }`}>
-                <p className="text-sm leading-relaxed">{msg.content}</p>
-                
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                 {msg.schemes && (
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-3 space-y-2 border-t border-white/20 pt-3">
                     {msg.schemes.map(s => (
-                      <div key={s.id} className="bg-white border border-primary/10 p-4 rounded-xl shadow-sm">
-                        <h4 className="font-bold text-primary text-sm">{s.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">{s.eligibility}</p>
-                        <button className="mt-3 text-primary text-xs font-bold flex items-center gap-1 hover:underline">
-                          View Details
-                          <ChevronRight className="size-3" />
+                      <div key={s.id} className="bg-white/10 border border-white/20 p-3 rounded-lg">
+                        <p className="font-semibold text-sm">{s.title}</p>
+                        <p className="text-xs opacity-75 mt-0.5">{s.eligibility}</p>
+                        <button className="mt-2 text-xs font-semibold flex items-center gap-1 opacity-90 hover:opacity-100">
+                          View Details <ChevronRight className="size-3" />
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block px-1">
-                {msg.timestamp}
-              </span>
-              
+              <p className="text-[10px] text-muted font-medium px-1 block ${
+                msg.role === 'user' ? 'text-right' : ''
+              }">{msg.timestamp}</p>
               {msg.suggestions && (
-                <div className="flex flex-wrap gap-2 mt-4">
+                <div className="flex flex-wrap gap-2">
                   {msg.suggestions.map((s, i) => (
-                    <button 
-                      key={i}
-                      onClick={() => handleSend(s)}
-                      disabled={loading}
-                      className="px-4 py-2 bg-white border border-primary/10 rounded-full text-xs font-medium text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
-                    >
+                    <button key={i} onClick={() => handleSend(s)} disabled={loading}
+                      className="px-3 py-1.5 bg-white border border-border rounded-full text-xs font-medium text-primary hover:bg-primary-50 hover:border-primary/40 transition-colors disabled:opacity-40">
                       {s}
                     </button>
                   ))}
@@ -155,52 +152,44 @@ export default function ChatAssistant() {
           </div>
         ))}
 
-        {/* Typing indicator */}
         {loading && (
           <div className="flex gap-3">
-            <div className="size-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0">
-              <Bot className="size-5" />
+            <div className="size-8 rounded-full bg-primary flex items-center justify-center">
+              <Bot className="size-4 text-white" />
             </div>
-            <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm flex items-center gap-2">
+            <div className="bg-white border border-border rounded-xl rounded-tl-sm px-4 py-3 flex items-center gap-2">
               <Loader2 className="size-4 text-primary animate-spin" />
-              <span className="text-sm text-slate-500">Prahar is thinking…</span>
+              <span className="text-sm text-muted">Prahar is thinking…</span>
             </div>
           </div>
         )}
-
         <div ref={bottomRef} />
-
       </main>
 
-      {/* Input Area */}
-      <footer className="p-4 bg-white border-t border-primary/10 pb-24">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <div className="flex-1 relative flex items-center bg-slate-100 rounded-2xl">
-            <input 
+      {/* ── Input ── */}
+      <div className="bg-white border-t border-border px-4 py-4 pb-6 md:pb-4 shrink-0">
+        <div className="max-w-4xl mx-auto flex items-end gap-3">
+          <div className="flex-1 relative">
+            <input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Ask Prahar…"
+              placeholder="Ask about a scheme, eligibility, or benefit…"
               disabled={loading}
-              className="w-full bg-transparent border-none focus:ring-0 py-4 pl-6 pr-14 text-sm outline-none"
+              className="input-base !py-3.5 !pr-14"
             />
-            <button 
+            <button
               onClick={() => handleSend()}
               disabled={loading || !input.trim()}
-              className="absolute right-3 p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors disabled:opacity-40"
+              className="absolute right-2 top-1/2 -translate-y-1/2 size-9 bg-primary rounded-lg flex items-center justify-center text-white hover:bg-primary-700 transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
-              <Send className="size-5" />
+              <Send className="size-4" />
             </button>
           </div>
-          <button className="size-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
-            <Mic className="size-6" />
-          </button>
         </div>
-        <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-4">
-          Powered by Digital India
-        </p>
-      </footer>
+        <p className="text-center text-[10px] text-muted mt-2 uppercase tracking-widest">Powered by Digital India · Prahar AI</p>
+      </div>
     </div>
   );
 }

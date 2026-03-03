@@ -1,27 +1,125 @@
-@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;0,900;1,700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
-  
-  --color-primary: #1a5275;
-  --color-background-light: #f6f7f8;
-  --color-background-dark: #131a1f;
-  
-  --radius-xl: 1rem;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+
+  /* ── Primary palette: Deep India Navy ── */
+  --color-primary:     #0B1E34;
+  --color-primary-800: #112845;
+  --color-primary-700: #1A3A5C;
+  --color-primary-600: #234E78;
+  --color-primary-400: #3A6FA0;
+  --color-primary-200: #B0CCE6;
+  --color-primary-100: #D8E8F5;
+  --color-primary-50:  #EFF5FB;
+
+  /* ── Accent: Saffron / Amber ── */
+  --color-accent:      #E07A25;
+  --color-accent-700:  #BF6318;
+  --color-accent-100:  #FDEFD8;
+  --color-accent-50:   #FFF8F0;
+
+  /* ── Success: India Green ── */
+  --color-success:     #16A34A;
+  --color-success-50:  #F0FDF4;
+
+  /* ── Neutrals ── */
+  --color-surface:     #F3F5F8;
+  --color-border:      #E1E7EF;
+  --color-ink:         #0F1821;
+  --color-muted:       #64748B;
+
+  /* ── Legacy aliases for backwards compat ── */
+  --color-background-light: #F3F5F8;
+  --color-background-dark:  #0B1E34;
+
+  --radius-sm:  0.375rem;
+  --radius-md:  0.5rem;
+  --radius-lg:  0.75rem;
+  --radius-xl:  1rem;
   --radius-2xl: 1.5rem;
 }
 
 @layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
   body {
-    @apply bg-background-light text-slate-900 font-sans;
+    @apply bg-surface text-ink font-sans;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--color-ink);
   }
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* ── Utility: hide scrollbars ── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Tricolor accent bar ── */
+.tricolor-bar {
+  background: linear-gradient(to right,
+    #FF9933 0% 33.33%,
+    #FFFFFF 33.33% 66.66%,
+    #138808 66.66% 100%
+  );
+  height: 3px;
 }
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+
+/* ── Frosted glass ── */
+.glass {
+  backdrop-filter: blur(12px) saturate(160%);
+  background: rgba(255, 255, 255, 0.82);
 }
+
+/* ── Animated gradient ── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Card base ── */
+.card {
+  @apply bg-white rounded-lg border border-border shadow-sm;
+}
+
+/* ── Section heading ── */
+.section-title {
+  font-family: var(--font-display);
+  @apply text-2xl font-bold text-ink;
+}
+
+/* ── Form input base ── */
+.input-base {
+  @apply w-full bg-white border border-border rounded-lg px-4 py-3 text-sm 
+         text-ink placeholder:text-muted focus:outline-none focus:ring-2 
+         focus:ring-primary/30 focus:border-primary-600 transition-colors;
+}
+
+/* ── Button variants ── */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 bg-accent text-white 
+         font-semibold rounded-lg px-5 py-2.5 text-sm transition-all 
+         hover:bg-accent-700 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+}
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 text-primary font-semibold 
+         rounded-lg px-5 py-2.5 text-sm transition-all hover:bg-primary-50 
+         active:scale-95 border border-primary/20;
+}
+.btn-navy {
+  @apply inline-flex items-center justify-center gap-2 bg-primary text-white 
+         font-semibold rounded-lg px-5 py-2.5 text-sm transition-all 
+         hover:bg-primary-800 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+}
+

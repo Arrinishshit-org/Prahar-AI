@@ -1,5 +1,4 @@
-import { motion } from 'motion/react';
-import { User, MapPin, ShieldCheck, Edit3, ClipboardList, CheckCircle2, Calendar, FileText, Upload, Download, Eye, Bot, LogOut } from 'lucide-react';
+﻿import { User, MapPin, ShieldCheck, Edit3, CheckCircle2, Calendar, FileText, Upload, Download, Eye, LayoutGrid, LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { View } from '../types';
 
@@ -14,224 +13,182 @@ export default function UserProfile({ onNavigate }: UserProfileProps) {
   const displayAge = user?.age ?? '—';
   const displayState = user?.state || '—';
   const displayIncome = user?.income ? `₹${(user.income / 100000).toFixed(1)}L` : '—';
-  const displayGender = (user as any)?.gender || '—';
 
   return (
-    <div className="flex flex-col min-h-screen bg-background-light">
-      {/* Header */}
-      <header className="bg-white p-4 border-b border-primary/10 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="size-10 bg-primary text-white rounded-lg flex items-center justify-center">
-            <Bot className="size-6" />
-          </div>
-          <h1 className="font-bold text-primary text-lg">Prahar AI</h1>
-        </div>
-        <button
-          onClick={logout}
-          className="flex items-center gap-1 px-3 py-1.5 bg-red-50 rounded-full text-red-600 text-xs font-bold hover:bg-red-100 transition-colors"
-        >
-          <LogOut className="size-3" />
-          Sign Out
-        </button>
-      </header>
+    <div className="min-h-screen bg-surface">
 
-      <main className="p-4 space-y-6 pb-24 max-w-2xl mx-auto w-full">
-        {/* Profile Card */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-primary/5 relative overflow-hidden">
-          <div className="flex items-start gap-4 relative z-10">
-            <div className="relative">
-              <div className="size-20 rounded-full bg-primary/10 overflow-hidden border-4 border-primary/5 flex items-center justify-center">
-                <span className="text-2xl font-black text-primary">
-                  {displayName.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div className="absolute bottom-1 right-1 size-4 bg-green-500 border-2 border-white rounded-full" />
+      {/* ── Profile Banner ── */}
+      <div className="bg-primary">
+        <div className="max-w-5xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-start sm:items-end gap-6">
+          <div className="relative">
+            <div className="size-20 rounded-xl bg-white/10 border-2 border-white/20 flex items-center justify-center">
+              <span className="font-display text-3xl font-bold text-white">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
             </div>
-            
-              <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-slate-900">{displayName}</h2>
-                <button className="text-primary p-1 hover:bg-primary/5 rounded-lg">
-                  <Edit3 className="size-5" />
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-slate-500">
-                {displayAge !== '—' && (
-                  <div className="flex items-center gap-1">
-                    <User className="size-3" />
-                    Age: {displayAge}
-                  </div>
-                )}
-                {displayIncome !== '—' && (
-                  <div className="flex items-center gap-1">
-                    <FileText className="size-3" />
-                    Income: {displayIncome}
-                  </div>
-                )}
-                {displayState !== '—' && (
-                  <div className="flex items-center gap-1">
-                    <MapPin className="size-3" />
-                    {displayState}
-                  </div>
-                )}
-                {displayGender !== '—' && (
-                  <div className="flex items-center gap-1">
-                    <User className="size-3" />
-                    {displayGender}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aadhar Verified</span>
-            <div className="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
-              <ShieldCheck className="size-3" />
-              1234 XXXX 9012
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-primary/5">
-            <div className="size-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-3">
-              <ClipboardList className="size-6" />
-            </div>
-            <p className="text-3xl font-black text-slate-900">05</p>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">Eligible Schemes</p>
-          </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-primary/5">
-            <div className="size-10 bg-green-50 text-green-600 rounded-xl flex items-center justify-center mb-3">
-              <CheckCircle2 className="size-6" />
-            </div>
-            <p className="text-3xl font-black text-slate-900">02</p>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">Applied</p>
-          </div>
-        </div>
-
-        {/* Deadline Alert */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-primary/5 flex items-center gap-4">
-          <div className="size-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
-            <Calendar className="size-7" />
+            <div className="absolute -bottom-1 -right-1 size-5 bg-green-400 border-2 border-white rounded-full" />
           </div>
           <div className="flex-1">
-            <p className="text-2xl font-black text-slate-900">01</p>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Upcoming Deadline</p>
-          </div>
-          <div className="bg-amber-100/50 p-3 rounded-xl border border-amber-200">
-            <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">UP Scholarship Portal</p>
-            <p className="text-xs font-bold text-amber-600">Closes in 3 days</p>
-          </div>
-        </div>
-
-        {/* Active Applications */}
-        <div>
-          <div className="flex items-center justify-between mb-4 px-1">
-            <h3 className="font-bold text-primary">Active Applications</h3>
-            <button className="text-xs font-bold text-primary hover:underline">View All</button>
-          </div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-primary/5 space-y-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-bold text-slate-900">PM Awas Yojana (Rural)</h4>
-                <p className="text-xs text-slate-500 mt-1">Application ID: #PM-882910</p>
-              </div>
-              <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Processing</span>
+            <h1 className="font-display text-2xl font-bold text-white">{displayName}</h1>
+            <div className="flex flex-wrap gap-4 mt-2">
+              {displayAge !== '—' && <span className="text-white/60 text-xs flex items-center gap-1"><User className="size-3" /> Age {displayAge}</span>}
+              {displayState !== '—' && <span className="text-white/60 text-xs flex items-center gap-1"><MapPin className="size-3" /> {displayState}</span>}
+              {displayIncome !== '—' && <span className="text-white/60 text-xs flex items-center gap-1"><FileText className="size-3" /> {displayIncome}</span>}
             </div>
-            
-            <div className="relative px-2">
-              <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2" />
-              <div className="absolute top-1/2 left-0 w-1/3 h-1 bg-primary -translate-y-1/2" />
-              <div className="flex justify-between relative z-10">
-                {[
-                  { label: 'Submitted', active: true },
-                  { label: 'Verified', active: true },
-                  { label: 'Approved', active: false },
-                  { label: 'Fund Transfer', active: false }
-                ].map((step, i) => (
-                  <div key={i} className="flex flex-col items-center gap-2">
-                    <div className={`size-4 rounded-full border-2 ${
-                      step.active ? 'bg-primary border-primary' : 'bg-white border-slate-200'
-                    }`} />
-                    <span className={`text-[8px] font-bold uppercase tracking-wider ${
-                      step.active ? 'text-primary' : 'text-slate-400'
-                    }`}>{step.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <button className="w-full flex items-center justify-between p-3 bg-primary/5 rounded-xl text-xs font-bold text-primary">
-              <span>Next Step: Verification by Block Officer</span>
-              <ChevronRight className="size-4" />
+          </div>
+          <div className="flex gap-2 mt-4 sm:mt-0">
+            <button className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg border border-white/25 text-white/80 hover:bg-white/10 transition-colors">
+              <Edit3 className="size-3.5" /> Edit Profile
+            </button>
+            <button onClick={logout} className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg border border-white/25 text-white/60 hover:bg-white/10 transition-colors">
+              <LogOut className="size-3.5" /> Sign Out
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Required Documents */}
-        <div>
-          <h3 className="font-bold text-primary mb-4 px-1">Required Documents</h3>
-          <div className="space-y-3">
-            <div className="bg-white p-4 rounded-xl border border-primary/5 shadow-sm flex items-center gap-4">
-              <div className="size-10 bg-slate-50 text-slate-400 rounded-lg flex items-center justify-center">
-                <FileText className="size-6" />
+      <main className="max-w-5xl mx-auto px-6 py-8 space-y-6 pb-16">
+
+        {/* ── Stats Row ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Eligible Schemes', value: '05', icon: LayoutGrid, color: 'text-primary' },
+            { label: 'Applied', value: '02', icon: CheckCircle2, color: 'text-success' },
+            { label: 'Upcoming', value: '01', icon: Calendar, color: 'text-accent' },
+            { label: 'Profile', value: `${user?.completeness ?? 70}%`, icon: ShieldCheck, color: 'text-green-600' },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <div key={label} className="card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-muted uppercase tracking-wider">{label}</span>
+                <Icon className={`size-4 ${color}`} />
               </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-slate-900">Income Certificate</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Required for 3 schemes</p>
-              </div>
-              <button className="bg-primary text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md">Upload</button>
+              <p className={`font-display text-3xl font-bold ${color}`}>{value}</p>
             </div>
-            <div className="bg-white p-4 rounded-xl border border-primary/5 shadow-sm flex items-center gap-4">
-              <div className="size-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center">
-                <ShieldCheck className="size-6" />
+          ))}
+        </div>
+
+        {/* ── Aadhaar Verification Banner ── */}
+        <div className="card p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-lg bg-green-50 flex items-center justify-center">
+              <ShieldCheck className="size-5 text-green-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-ink text-sm">Aadhaar Verified</p>
+              <p className="text-xs text-muted">1234 XXXX 9012</p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-3 py-1 rounded-full">Verified</span>
+        </div>
+
+        {/* ── Deadline Alert ── */}
+        <div className="card p-5 flex items-center gap-4 border-l-4 border-accent">
+          <div className="size-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+            <Calendar className="size-5 text-accent" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-ink text-sm">Upcoming Deadline</p>
+            <p className="text-xs text-muted mt-0.5">UP Scholarship Portal</p>
+          </div>
+          <span className="text-xs font-bold text-accent bg-amber-50 border border-accent/30 px-3 py-1.5 rounded-full">Closes in 3 days</span>
+        </div>
+
+        {/* ── Active Applications ── */}
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-display text-lg font-bold text-ink">Active Applications</h3>
+            <button className="text-xs font-semibold text-primary hover:underline">View All</button>
+          </div>
+          <div className="flex justify-between items-start mb-5">
+            <div>
+              <h4 className="font-semibold text-ink">PM Awas Yojana (Rural)</h4>
+              <p className="text-xs text-muted mt-0.5">Application ID: #PM-882910</p>
+            </div>
+            <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">Processing</span>
+          </div>
+          <div className="relative px-2 mb-5">
+            <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2" />
+            <div className="absolute top-1/2 left-0 w-1/3 h-1 bg-primary -translate-y-1/2" />
+            <div className="flex justify-between relative z-10">
+              {[
+                { label: 'Submitted', active: true },
+                { label: 'Verified', active: true },
+                { label: 'Approved', active: false },
+                { label: 'Fund Transfer', active: false }
+              ].map((step, i) => (
+                <div key={i} className="flex flex-col items-center gap-2">
+                  <div className={`size-4 rounded-full border-2 ${
+                    step.active ? 'bg-primary border-primary' : 'bg-white border-slate-200'
+                  }`} />
+                  <span className={`text-[8px] font-bold uppercase tracking-wider ${
+                    step.active ? 'text-primary' : 'text-slate-400'
+                  }`}>{step.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <button className="flex items-center justify-between p-3 bg-primary-50 rounded-lg text-xs font-semibold text-primary w-full border border-primary/20">
+            <span>Next Step: Verification by Block Officer</span>
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+
+        {/* ── Required Documents ── */}
+        <div className="card p-6">
+          <h3 className="font-display text-lg font-bold text-ink mb-5">Required Documents</h3>
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 p-4 bg-surface rounded-lg border border-border">
+              <div className="size-10 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+                <FileText className="size-5 text-muted" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-slate-900">Aadhar Card</h4>
-                <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Verified</p>
+                <h4 className="text-sm font-semibold text-ink">Income Certificate</h4>
+                <p className="text-xs text-muted mt-0.5">Required for 3 schemes</p>
               </div>
-              <button className="text-primary p-2 hover:bg-primary/5 rounded-lg">
-                <Eye className="size-5" />
+              <button className="btn-navy !py-2 !px-4 text-xs flex items-center gap-1.5">
+                <Upload className="size-3.5" /> Upload
+              </button>
+            </div>
+            <div className="flex items-center gap-4 p-4 bg-surface rounded-lg border border-border">
+              <div className="size-10 bg-green-50 rounded-lg flex items-center justify-center shrink-0">
+                <ShieldCheck className="size-5 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-ink">Aadhaar Card</h4>
+                <p className="text-xs text-green-600 font-semibold mt-0.5">Verified</p>
+              </div>
+              <button className="text-muted hover:text-primary p-2 rounded-lg hover:bg-primary-50 transition-colors">
+                <Eye className="size-4" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Download Forms */}
-        <div>
-          <h3 className="font-bold text-primary mb-4 px-1">Download Forms</h3>
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+        {/* ── Download Forms ── */}
+        <div className="card p-6">
+          <h3 className="font-display text-lg font-bold text-ink mb-5">Download Forms</h3>
+          <div className="grid sm:grid-cols-2 gap-4">
             {[
               { title: 'Farmer Subsidy Application', size: '1.2 MB' },
               { title: 'Birth Registration Form', size: '840 KB' }
             ].map((form, i) => (
-              <div key={i} className="min-w-[200px] bg-white p-5 rounded-2xl border border-primary/5 shadow-sm space-y-4">
-                <div className="size-10 bg-red-50 text-red-500 rounded-lg flex items-center justify-center">
-                  <FileText className="size-6" />
+              <div key={i} className="flex items-center gap-4 p-4 bg-surface rounded-lg border border-border">
+                <div className="size-10 bg-red-50 rounded-lg flex items-center justify-center shrink-0">
+                  <FileText className="size-5 text-red-500" />
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 leading-snug">{form.title}</h4>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">PDF • {form.size}</p>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-semibold text-ink truncate">{form.title}</h4>
+                  <p className="text-xs text-muted mt-0.5">PDF · {form.size}</p>
                 </div>
-                <button className="w-full border border-primary/20 text-primary py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-primary/5">
-                  <Download className="size-3" />
-                  Download
+                <button className="btn-ghost !py-2 !px-3 text-xs shrink-0 flex items-center gap-1">
+                  <Download className="size-3.5" />
                 </button>
               </div>
             ))}
           </div>
         </div>
+
       </main>
     </div>
-  );
-}
-
-function ChevronRight({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="9 5l7 7-7 7" />
-    </svg>
   );
 }

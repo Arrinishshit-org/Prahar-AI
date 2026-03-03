@@ -1,12 +1,21 @@
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { motion } from 'motion/react';
-import { Bot, Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, Loader2, ShieldCheck, CheckCircle2, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { View } from '../types';
 
+const INDIA_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Puducherry', 'Chandigarh',
+];
+
 interface LoginPageProps {
   onNavigate: (view: View) => void;
-  onLoginSuccess?: () => void;  // optional callback after successful login/register
+  onLoginSuccess?: () => void;
 }
 
 export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps) {
@@ -29,7 +38,7 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
   const update = (field: string, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -57,93 +66,101 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background-light">
-      {/* Header */}
-      <header className="bg-white p-4 border-b border-primary/10 flex items-center sticky top-0 z-10">
-        <button
-          onClick={() => onNavigate('home')}
-          className="size-10 flex items-center justify-center text-primary hover:bg-primary/10 rounded-full"
-        >
-          <ArrowLeft className="size-6" />
-        </button>
-        <h1 className="flex-1 text-center text-lg font-bold text-primary pr-10">
-          {mode === 'login' ? 'Sign In' : 'Create Account'}
-        </h1>
-      </header>
+    <div className="min-h-screen flex">
 
-      <main className="flex-1 flex flex-col items-center justify-center px-4 pb-24">
+      {/* ── Left Branding Panel ── */}
+      <div className="hidden lg:flex lg:w-5/12 bg-primary flex-col justify-between p-12 relative overflow-hidden">
+        <div className="absolute -right-16 -bottom-16 w-80 h-80 opacity-5">
+          <svg viewBox="0 0 100 100" fill="none" className="w-full h-full">
+            <circle cx="50" cy="50" r="46" stroke="white" strokeWidth="1.5" />
+            <circle cx="50" cy="50" r="8" stroke="white" strokeWidth="1.5" />
+            {Array.from({ length: 24 }).map((_, i) => {
+              const a = (i * 360) / 24, r = (a * Math.PI) / 180;
+              return <line key={i} x1={50+10*Math.cos(r)} y1={50+10*Math.sin(r)} x2={50+44*Math.cos(r)} y2={50+44*Math.sin(r)} stroke="white" strokeWidth="1" />;
+            })}
+          </svg>
+        </div>
+        <button onClick={() => onNavigate('home')} className="flex items-center gap-3">
+          <div className="size-10 bg-white/10 rounded-xl flex items-center justify-center">
+            <svg viewBox="0 0 100 100" className="size-6 text-white" fill="none">
+              <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="5" />
+              <circle cx="50" cy="50" r="8" stroke="currentColor" strokeWidth="5" />
+              {Array.from({ length: 24 }).map((_, i) => { const a=(i*360)/24, r=(a*Math.PI)/180; return <line key={i} x1={50+10*Math.cos(r)} y1={50+10*Math.sin(r)} x2={50+44*Math.cos(r)} y2={50+44*Math.sin(r)} stroke="currentColor" strokeWidth="3"/>; })}
+            </svg>
+          </div>
+          <span className="font-display text-2xl font-bold text-white">Prahar AI</span>
+        </button>
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-display text-4xl font-bold text-white leading-tight mb-4">
+              Your gateway to<br /><span className="text-accent italic">government benefits.</span>
+            </h2>
+            <p className="text-white/60 text-base leading-relaxed max-w-sm">
+              Sign in to access personalised scheme recommendations tailored to your profile — in your language.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {['1,200+ schemes from Central & State Governments', 'Personalised eligibility matching in seconds', 'Available in 22+ Indian languages'].map((p, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <CheckCircle2 className="size-4 text-accent shrink-0" />
+                <span className="text-white/75 text-sm">{p}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-white/30 text-xs">© {new Date().getFullYear()} Prahar AI · Government of India Partner</p>
+      </div>
+
+      {/* ── Right Form Panel ── */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-surface">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          key={mode}
+          initial={{ opacity: 0, x: 12 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.25 }}
           className="w-full max-w-md"
         >
-          {/* Logo */}
-          <div className="flex flex-col items-center mb-8">
-            <div className="size-16 bg-primary text-white rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-primary/30">
-              <Bot className="size-9" />
-            </div>
-            <h2 className="text-2xl font-black text-slate-900">Prahar AI</h2>
-            <p className="text-sm text-slate-500 mt-1">Your Government Schemes Assistant</p>
+          <button onClick={() => onNavigate('home')} className="lg:hidden flex items-center gap-1 text-sm text-muted mb-6 hover:text-primary transition-colors">
+            <ChevronLeft className="size-4" /> Back to Home
+          </button>
+          <div className="mb-8">
+            <h1 className="font-display text-3xl font-bold text-ink mb-2">{mode === 'login' ? 'Welcome back' : 'Create account'}</h1>
+            <p className="text-muted text-sm">{mode === 'login' ? 'Sign in to access your personalised scheme dashboard.' : 'Register to start finding government schemes you qualify for.'}</p>
+          </div>
+          <div className="flex gap-1 p-1 bg-white border border-border rounded-lg mb-6">
+            {(['login', 'register'] as const).map((m) => (
+              <button key={m} onClick={() => { setMode(m); setError(''); }}
+                className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${
+                  mode === m ? 'bg-primary text-white shadow-sm' : 'text-muted hover:text-ink'
+                }`}>
+                {m === 'login' ? 'Sign In' : 'Register'}
+              </button>
+            ))}
           </div>
 
-          {/* Toggle */}
-          <div className="flex bg-white rounded-xl border border-primary/10 p-1 mb-6">
-            <button
-              onClick={() => setMode('login')}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                mode === 'login' ? 'bg-primary text-white shadow' : 'text-slate-500'
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => setMode('register')}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                mode === 'register' ? 'bg-primary text-white shadow' : 'text-slate-500'
-              }`}
-            >
-              Register
-            </button>
-          </div>
+          {error && <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => update('name', e.target.value)}
-                  placeholder="Rahul Kumar"
-                  className="w-full bg-white border border-primary/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+                <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Full Name</label>
+                <input type="text" required value={form.name} onChange={(e) => update('name', e.target.value)}
+                  placeholder="e.g. Priya Sharma" className="input-base" />
               </div>
             )}
 
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Email</label>
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => update('email', e.target.value)}
-                placeholder="you@example.com"
-                className="w-full bg-white border border-primary/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Email Address</label>
+              <input type="email" required value={form.email} onChange={(e) => update('email', e.target.value)}
+                placeholder="you@example.com" className="input-base" />
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Password</label>
+              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Password</label>
               <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={form.password}
+                <input type={showPassword ? 'text' : 'password'} required value={form.password}
                   onChange={(e) => update('password', e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-white border border-primary/15 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+                  placeholder="Minimum 6 characters" className="input-base !pr-12" />
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
@@ -156,92 +173,49 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
 
             {mode === 'register' && (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Age</label>
-                    <input
-                      type="number"
-                      value={form.age}
-                      onChange={(e) => update('age', e.target.value)}
-                      placeholder="25"
-                      min={1} max={120}
-                      className="w-full bg-white border border-primary/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
+                    <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Age</label>
+                    <input type="number" min={1} max={120} value={form.age} onChange={(e) => update('age', e.target.value)} placeholder="e.g. 35" className="input-base" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">State</label>
-                    <input
-                      type="text"
-                      value={form.state}
-                      onChange={(e) => update('state', e.target.value)}
-                      placeholder="Maharashtra"
-                      className="w-full bg-white border border-primary/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
+                    <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Gender</label>
+                    <select value={form.gender} onChange={(e) => update('gender', e.target.value)} className="input-base">
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Annual Income (₹)</label>
-                  <input
-                    type="number"
-                    value={form.income}
-                    onChange={(e) => update('income', e.target.value)}
-                    placeholder="300000"
-                    className="w-full bg-white border border-primary/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Gender</label>
-                  <select
-                    value={form.gender}
-                    onChange={(e) => update('gender', e.target.value)}
-                    className="w-full bg-white border border-primary/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 text-slate-700"
-                  >
-                    <option value="">Prefer not to say</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
+                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">State / UT</label>
+                  <select value={form.state} onChange={(e) => update('state', e.target.value)} className="input-base">
+                    <option value="">Select your state</option>
+                    {INDIA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">Annual Income (₹)</label>
+                  <input type="number" min={0} value={form.income} onChange={(e) => update('income', e.target.value)} placeholder="e.g. 300000" className="input-base" />
                 </div>
               </>
             )}
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-white py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  {mode === 'login' ? 'Signing in...' : 'Creating account...'}
-                </>
-              ) : mode === 'login' ? 'Sign In' : 'Create Account'}
+            <button type="submit" disabled={loading} className="btn-primary w-full !py-3 text-base mt-2">
+              {loading
+                ? <><Loader2 className="size-4 animate-spin" /> Processing…</>
+                : <>{mode === 'login' ? 'Sign In' : 'Create Account'} <ArrowRight className="size-4" /></>
+              }
             </button>
           </form>
 
-          {/* Demo credentials */}
-          {mode === 'login' && (
-            <div className="mt-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
-              <p className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Demo Credentials</p>
-              <p className="text-xs text-slate-600">Email: <span className="font-mono font-bold">admin@example.com</span></p>
-              <p className="text-xs text-slate-600">Password: <span className="font-mono font-bold">password</span></p>
-              <button
-                type="button"
-                onClick={() => { update('email', 'admin@example.com'); update('password', 'password'); }}
-                className="mt-2 text-xs font-bold text-primary hover:underline"
-              >
-                Auto-fill demo credentials →
-              </button>
-            </div>
-          )}
+          <div className="mt-6 flex items-center gap-2 text-xs text-muted">
+            <ShieldCheck className="size-3.5 shrink-0" />
+            Your data is encrypted and protected under India's IT Act 2000.
+          </div>
         </motion.div>
-      </main>
+      </div>
     </div>
   );
 }

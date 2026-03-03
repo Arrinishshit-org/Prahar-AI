@@ -110,10 +110,10 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         initial={{ opacity: 0, y: 60 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 60 }}
-        className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+        className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden border border-border"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-primary to-primary/80 p-6 text-white relative">
+        <div className="bg-primary p-6 text-white relative">
           <button
             onClick={onSkip}
             className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/20 transition-colors"
@@ -153,32 +153,32 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
               {step === 1 && (
                 <>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name *</label>
+                    <label className="block text-sm font-semibold text-ink mb-1.5">Full Name *</label>
                     <input
                       value={name}
                       onChange={e => setName(e.target.value)}
                       placeholder="e.g. Priya Sharma"
-                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="input-base"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1.5">Age</label>
+                      <label className="block text-sm font-semibold text-ink mb-1.5">Age</label>
                       <input
                         type="number"
                         value={age}
                         onChange={e => setAge(e.target.value)}
                         placeholder="e.g. 28"
                         min="5" max="120"
-                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="input-base"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1.5">Gender</label>
+                      <label className="block text-sm font-semibold text-ink mb-1.5">Gender</label>
                       <select
                         value={gender}
                         onChange={e => setGender(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+                        className="input-base"
                       >
                         <option value="">Select</option>
                         <option value="Male">Male</option>
@@ -189,11 +189,11 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">State / UT</label>
+                    <label className="block text-sm font-semibold text-ink mb-1.5">State / UT</label>
                     <select
                       value={state}
                       onChange={e => setState(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+                      className="input-base"
                     >
                       <option value="">Select state</option>
                       {STATES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -205,7 +205,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
               {step === 2 && (
                 <>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Employment Status *</label>
+                    <label className="block text-sm font-semibold text-ink mb-2">Employment Status *</label>
                     <div className="grid grid-cols-2 gap-2">
                       {['Salaried', 'Self-Employed', 'Unemployed', 'Student', 'Farmer', 'Retired'].map(opt => (
                         <button
@@ -213,8 +213,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                           onClick={() => setEmployment(opt)}
                           className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                             employment === opt
-                              ? 'bg-primary text-white border-primary'
-                              : 'border-slate-200 text-slate-600 hover:border-primary/40'
+                              ? 'bg-accent text-white border-accent'
+                              : 'border-border text-muted hover:border-accent/50'
                           }`}
                         >
                           {opt}
@@ -223,15 +223,15 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Annual Income (₹)</label>
+                    <label className="block text-sm font-semibold text-ink mb-1.5">Annual Income (₹)</label>
                     <input
                       type="number"
                       value={income}
                       onChange={e => setIncome(e.target.value)}
                       placeholder="e.g. 350000"
-                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="input-base"
                     />
-                    <p className="text-xs text-slate-400 mt-1">Used only to match relevant government schemes</p>
+                    <p className="text-xs text-muted mt-1">Used only to match relevant government schemes</p>
                   </div>
                 </>
               )}
@@ -239,7 +239,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
               {step === 3 && (
                 <>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Education Level *</label>
+                    <label className="block text-sm font-semibold text-ink mb-2">Education Level *</label>
                     <div className="grid grid-cols-2 gap-2">
                       {['Below 10th', '10th / SSC', '12th / HSC', 'Diploma', 'Graduate', 'Post-Graduate'].map(opt => (
                         <button
@@ -247,8 +247,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                           onClick={() => setEducation(opt)}
                           className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                             education === opt
-                              ? 'bg-primary text-white border-primary'
-                              : 'border-slate-200 text-slate-600 hover:border-primary/40'
+                              ? 'bg-accent text-white border-accent'
+                              : 'border-border text-muted hover:border-accent/50'
                           }`}
                         >
                           {opt}
@@ -257,7 +257,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Social Category</label>
+                    <label className="block text-sm font-semibold text-ink mb-2">Social Category</label>
                     <div className="grid grid-cols-2 gap-2">
                       {['General', 'OBC', 'SC', 'ST', 'EWS', 'Minority'].map(opt => (
                         <button
@@ -265,8 +265,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                           onClick={() => setSocialCategory(opt)}
                           className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                             socialCategory === opt
-                              ? 'bg-primary text-white border-primary'
-                              : 'border-slate-200 text-slate-600 hover:border-primary/40'
+                              ? 'bg-accent text-white border-accent'
+                              : 'border-border text-muted hover:border-accent/50'
                           }`}
                         >
                           {opt}
@@ -279,7 +279,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
 
               {step === 4 && (
                 <>
-                  <p className="text-sm text-slate-500">Select areas you're interested in (optional)</p>
+                  <p className="text-sm text-muted">Select areas you are interested in (optional)</p>
                   <div className="flex flex-wrap gap-2">
                     {INTERESTS.map(interest => (
                       <button
@@ -287,8 +287,8 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                         onClick={() => toggleInterest(interest)}
                         className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
                           interests.includes(interest)
-                            ? 'bg-primary text-white border-primary'
-                            : 'border-slate-200 text-slate-600 hover:border-primary/40'
+                            ? 'bg-accent text-white border-accent'
+                            : 'border-border text-muted hover:border-accent/50'
                         }`}
                       >
                         {interests.includes(interest) && <Check className="size-3 inline mr-1" />}
@@ -306,7 +306,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         <div className="px-6 pb-8 flex items-center justify-between gap-3">
           <button
             onClick={step === 1 ? onSkip : () => setStep(s => s - 1)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all"
+            className="btn-ghost text-sm"
           >
             {step === 1 ? (
               'Skip for now'
@@ -318,7 +318,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
           <button
             onClick={saveAndNext}
             disabled={!canProceed() || saving}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white text-sm font-bold disabled:opacity-40 hover:bg-primary/90 transition-all shadow-md"
+            className="btn-primary text-sm disabled:opacity-40"
           >
             {saving ? (
               <span className="animate-spin size-4 border-2 border-white/30 border-t-white rounded-full" />
