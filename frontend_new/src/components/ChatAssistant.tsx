@@ -1,55 +1,75 @@
-import { motion } from 'motion/react';
-import { Send, Mic, Bot, User, ChevronRight, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { Send, Mic, Bot, User, ChevronRight, Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { Message } from '../types';
+import { sendChatMessage } from '../api';
+import { useAuth } from '../AuthContext';
 
 const INITIAL_MESSAGES: Message[] = [
   {
     id: '1',
     role: 'assistant',
-    content: 'Namaste! I am Prahar, your assistant for government schemes. I can help you find scholarships, grants, and benefits tailored to your profile.',
-    timestamp: '10:02 AM',
-    suggestions: ['Schemes for students', 'PM-KISAN eligibility', 'Scholarships for women']
-  }
+    content: 'Namaste! I am Prahar, your assistant for government schemes. I can help you find scholarships, grants, and benefits tailored to your profile.\n\nSign in to get personalized recommendations, or ask me anything!',
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    suggestions: ['Schemes for students', 'PM-KISAN eligibility', 'Scholarships for women', 'Show all schemes'],
+  },
 ];
 
 export default function ChatAssistant() {
+  const { isAuthenticated } = useAuth();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  const handleSend = async (text?: string) => {
+    const content = (text || input).trim();
+    if (!content || loading) return;
+
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      content,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
-    
-    setMessages([...messages, userMsg]);
+
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
-    
-    // Mock response
-    setTimeout(() => {
+    setLoading(true);
+
+    try {
+      const history = messages.slice(-6).map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      }));
+
+      const data = await sendChatMessage(content, history);
+
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Based on your profile as a student from Rajasthan, here are the most relevant grants:',
+        content: data.response || 'I could not process that. Please try again.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        schemes: [
-          {
-            id: 's1',
-            title: 'Post-Matric Scholarship',
-            benefit: 'Covers tuition fees',
-            eligibility: 'SC/ST/OBC students',
-            deadline: '31st Oct',
-            category: 'Student'
-          }
-        ]
+        suggestions: data.suggestions,
       };
-      setMessages(prev => [...prev, botMsg]);
-    }, 1000);
+      setMessages((prev) => [...prev, botMsg]);
+    } catch {
+      const errMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: "I'm having trouble connecting to the server. Please check your connection and try again.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        suggestions: ['Try again', 'Show all schemes'],
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setLoading(false);
+      inputRef.current?.focus();
+    }
   };
 
   return (
@@ -72,6 +92,12 @@ export default function ChatAssistant() {
           <Sparkles className="size-3" />
           English
         </button>
+        {!isAuthenticated && (
+          <span className="bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+            <AlertCircle className="size-3" />
+            Sign in for personal results
+          </span>
+        )}
       </header>
 
       {/* Chat Area */}
@@ -116,8 +142,9 @@ export default function ChatAssistant() {
                   {msg.suggestions.map((s, i) => (
                     <button 
                       key={i}
-                      onClick={() => setInput(s)}
-                      className="px-4 py-2 bg-white border border-primary/10 rounded-full text-xs font-medium text-primary hover:bg-primary/5 transition-colors"
+                      onClick={() => handleSend(s)}
+                      disabled={loading}
+                      className="px-4 py-2 bg-white border border-primary/10 rounded-full text-xs font-medium text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
                     >
                       {s}
                     </button>
@@ -127,6 +154,22 @@ export default function ChatAssistant() {
             </div>
           </div>
         ))}
+
+        {/* Typing indicator */}
+        {loading && (
+          <div className="flex gap-3">
+            <div className="size-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0">
+              <Bot className="size-5" />
+            </div>
+            <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm flex items-center gap-2">
+              <Loader2 className="size-4 text-primary animate-spin" />
+              <span className="text-sm text-slate-500">Prahar is thinking…</span>
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} />
+
       </main>
 
       {/* Input Area */}
@@ -134,15 +177,18 @@ export default function ChatAssistant() {
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <div className="flex-1 relative flex items-center bg-slate-100 rounded-2xl">
             <input 
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Ask Prahar..."
-              className="w-full bg-transparent border-none focus:ring-0 py-4 pl-6 pr-14 text-sm"
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              placeholder="Ask Prahar…"
+              disabled={loading}
+              className="w-full bg-transparent border-none focus:ring-0 py-4 pl-6 pr-14 text-sm outline-none"
             />
             <button 
-              onClick={handleSend}
-              className="absolute right-3 p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors"
+              onClick={() => handleSend()}
+              disabled={loading || !input.trim()}
+              className="absolute right-3 p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors disabled:opacity-40"
             >
               <Send className="size-5" />
             </button>

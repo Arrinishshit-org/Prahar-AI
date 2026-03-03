@@ -1,4 +1,4 @@
-export type View = 'home' | 'schemes' | 'assistant' | 'profile' | 'about' | 'partner' | 'contact';
+export type View = 'home' | 'schemes' | 'assistant' | 'profile' | 'about' | 'partner' | 'contact' | 'login';
 
 export interface Scheme {
   id: string;

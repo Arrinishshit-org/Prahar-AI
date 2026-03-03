@@ -1,36 +1,57 @@
 import { motion } from 'motion/react';
-import { Search, Mic, Filter, ExternalLink, School, Tractor as Agriculture, Baby, HeartPulse, Map, Bookmark, MessageSquare, User, Home, Zap } from 'lucide-react';
+import { Search, Mic, Filter, ExternalLink, School, Tractor as Agriculture, Baby, HeartPulse, Map, Bookmark, MessageSquare, User, Home, Zap, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Scheme } from '../types';
+import { fetchSchemes } from '../api';
 
-const MOCK_SCHEMES: Scheme[] = [
-  {
-    id: '1',
-    title: 'PM-Kisan Samman Nidhi Yojana',
-    benefit: '₹6,000 / year',
-    eligibility: 'Small and marginal farmers with landholdings up to 2 hectares.',
-    deadline: 'Open year-round',
-    category: 'Farmer',
-    status: 'Active'
-  },
-  {
-    id: '2',
-    title: 'Post-Matric Scholarship Scheme',
-    benefit: 'Full Tuition Fee',
-    eligibility: 'SC/ST students with family income less than ₹2.5 Lakh per annum.',
-    deadline: 'Ends in 12 days (31st Oct)',
-    category: 'Student'
-  },
-  {
-    id: '3',
-    title: 'Lakhpati Didi Initiative',
-    benefit: 'Skill & Finance Support',
-    eligibility: 'Women members of Self Help Groups (SHGs).',
-    deadline: 'Ongoing Recruitment',
-    category: 'Women'
-  }
+const CATEGORIES = [
+  { icon: Agriculture, label: 'Farmer' },
+  { icon: School, label: 'Student' },
+  { icon: Baby, label: 'Women' },
+  { icon: HeartPulse, label: 'Health' },
+  { icon: Map, label: 'State' },
 ];
 
 export default function SchemeExplorer() {
+  const [schemes, setSchemes] = useState<Scheme[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('');
+
+  useEffect(() => {
+    loadSchemes();
+  }, []);
+
+  const loadSchemes = async (searchQuery = '', category = '') => {
+    setLoading(true);
+    setError('');
+    try {
+      const params: Record<string, string> = {};
+      if (searchQuery) params.q = searchQuery;
+      if (category) params.category = category;
+      const data = await fetchSchemes(params);
+      // API may return { schemes: [...] } or an array directly
+      const list: Scheme[] = Array.isArray(data) ? data : (data.schemes ?? data.data ?? []);
+      setSchemes(list.slice(0, 50)); // show up to 50
+    } catch {
+      setError('Could not load schemes. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    loadSchemes(query, activeCategory);
+  };
+
+  const handleCategory = (label: string) => {
+    const next = activeCategory === label ? '' : label;
+    setActiveCategory(next);
+    loadSchemes(query, next);
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background-light">
       {/* Header */}
@@ -49,32 +70,39 @@ export default function SchemeExplorer() {
           </div>
 
           {/* Search Bar */}
-          <div className="relative flex items-center bg-primary/5 rounded-xl border border-primary/10">
+          <form onSubmit={handleSearch} className="relative flex items-center bg-primary/5 rounded-xl border border-primary/10">
             <Search className="absolute left-4 text-primary/60 size-5" />
             <input 
-              className="w-full bg-transparent border-none focus:ring-0 py-3 pl-12 pr-12 text-base placeholder:text-primary/40" 
+              className="w-full bg-transparent border-none focus:ring-0 py-3 pl-12 pr-12 text-base placeholder:text-primary/40 outline-none" 
               placeholder="Search schemes (e.g., PM Kisan)..." 
               type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
             />
-            <button className="absolute right-4 text-primary">
+            <button type="submit" className="absolute right-4 text-primary">
               <Mic className="size-5" />
             </button>
-          </div>
+          </form>
 
           {/* Filter Chips */}
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            <button className="flex h-9 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-white px-4 text-sm font-semibold">
+            <button
+              onClick={() => { setActiveCategory(''); loadSchemes(query, ''); }}
+              className={`flex h-9 shrink-0 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
+                !activeCategory ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'
+              }`}
+            >
               <Filter className="size-4" />
               All Schemes
             </button>
-            {[
-              { icon: Agriculture, label: 'Farmer' },
-              { icon: School, label: 'Student' },
-              { icon: Baby, label: 'Women' },
-              { icon: HeartPulse, label: 'Health' },
-              { icon: Map, label: 'State' }
-            ].map((cat, i) => (
-              <button key={i} className="flex h-9 shrink-0 items-center justify-center gap-2 rounded-full bg-primary/10 text-primary px-4 text-sm font-medium hover:bg-primary/20 transition-colors">
+            {CATEGORIES.map((cat, i) => (
+              <button
+                key={i}
+                onClick={() => handleCategory(cat.label)}
+                className={`flex h-9 shrink-0 items-center justify-center gap-2 rounded-full px-4 text-sm font-medium transition-colors ${
+                  activeCategory === cat.label ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'
+                }`}
+              >
                 <cat.icon className="size-4" />
                 {cat.label}
               </button>
@@ -86,12 +114,41 @@ export default function SchemeExplorer() {
       {/* Main Content */}
       <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-primary">Recommended for you</h2>
-          <span className="text-sm font-medium text-primary/60">24 Schemes found</span>
+          <h2 className="text-lg font-bold text-primary">
+            {activeCategory ? `${activeCategory} Schemes` : 'All Schemes'}
+          </h2>
+          <span className="text-sm font-medium text-primary/60">
+            {loading ? 'Loading…' : `${schemes.length} found`}
+          </span>
         </div>
 
+        {/* Loading */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-primary/60">
+            <Loader2 className="size-10 animate-spin" />
+            <p className="text-sm font-medium">Fetching schemes…</p>
+          </div>
+        )}
+
+        {/* Error */}
+        {!loading && error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 flex items-center gap-3">
+            <AlertCircle className="size-5 shrink-0" />
+            <p className="text-sm">{error}</p>
+            <button onClick={() => loadSchemes(query, activeCategory)} className="ml-auto text-xs font-bold underline">Retry</button>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !error && schemes.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
+            <Search className="size-10" />
+            <p className="text-sm font-medium">No schemes found. Try a different search.</p>
+          </div>
+        )}
+
         <div className="space-y-4 pb-24">
-          {MOCK_SCHEMES.map((scheme) => (
+          {!loading && schemes.map((scheme) => (
             <motion.div 
               key={scheme.id}
               initial={{ opacity: 0, y: 10 }}

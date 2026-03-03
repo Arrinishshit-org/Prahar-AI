@@ -42,11 +42,11 @@ Write-Host ""
 
 # Install frontend dependencies
 Write-Host "Installing frontend dependencies..." -ForegroundColor Yellow
-Set-Location frontend
+Set-Location frontend_new
 if (Test-Path "node_modules") {
     Write-Host "✓ Frontend dependencies already installed" -ForegroundColor Green
 } else {
-    npm install
+    npm install --ignore-scripts
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✓ Frontend dependencies installed successfully" -ForegroundColor Green
     } else {
@@ -73,7 +73,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd backend; npm r
 Start-Sleep -Seconds 3
 
 # Start frontend in a new window
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend_new; npm run dev"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan

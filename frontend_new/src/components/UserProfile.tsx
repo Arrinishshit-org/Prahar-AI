@@ -1,7 +1,15 @@
 import { motion } from 'motion/react';
-import { User, MapPin, ShieldCheck, Edit3, ClipboardList, CheckCircle2, Calendar, FileText, Upload, Download, Eye, Bot } from 'lucide-react';
+import { User, MapPin, ShieldCheck, Edit3, ClipboardList, CheckCircle2, Calendar, FileText, Upload, Download, Eye, Bot, LogOut } from 'lucide-react';
+import { useAuth } from '../AuthContext';
 
 export default function UserProfile() {
+  const { user, logout } = useAuth();
+
+  const displayName = user?.name || user?.email?.split('@')[0] || 'User';
+  const displayAge = user?.age ?? '—';
+  const displayState = user?.state || '—';
+  const displayIncome = user?.income ? `₹${(user.income / 100000).toFixed(1)}L` : '—';
+
   return (
     <div className="flex flex-col min-h-screen bg-background-light">
       {/* Header */}
@@ -12,8 +20,12 @@ export default function UserProfile() {
           </div>
           <h1 className="font-bold text-primary text-lg">Prahar AI</h1>
         </div>
-        <button className="flex items-center gap-1 px-3 py-1.5 bg-primary/5 rounded-full text-primary text-xs font-bold">
-          हिंदी
+        <button
+          onClick={logout}
+          className="flex items-center gap-1 px-3 py-1.5 bg-red-50 rounded-full text-red-600 text-xs font-bold hover:bg-red-100 transition-colors"
+        >
+          <LogOut className="size-3" />
+          Sign Out
         </button>
       </header>
 
@@ -22,37 +34,40 @@ export default function UserProfile() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-primary/5 relative overflow-hidden">
           <div className="flex items-start gap-4 relative z-10">
             <div className="relative">
-              <div className="size-20 rounded-full bg-slate-200 overflow-hidden border-4 border-primary/5">
-                <img 
-                  src="https://picsum.photos/seed/rahul/200/200" 
-                  alt="Rahul Kumar" 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="size-20 rounded-full bg-primary/10 overflow-hidden border-4 border-primary/5 flex items-center justify-center">
+                <span className="text-2xl font-black text-primary">
+                  {displayName.charAt(0).toUpperCase()}
+                </span>
               </div>
               <div className="absolute bottom-1 right-1 size-4 bg-green-500 border-2 border-white rounded-full" />
             </div>
             
-            <div className="flex-1">
+              <div className="flex-1">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-slate-900">Rahul Kumar</h2>
+                <h2 className="text-xl font-bold text-slate-900">{displayName}</h2>
                 <button className="text-primary p-1 hover:bg-primary/5 rounded-lg">
                   <Edit3 className="size-5" />
                 </button>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-slate-500">
-                <div className="flex items-center gap-1">
-                  <User className="size-3" />
-                  Age: 28
-                </div>
-                <div className="flex items-center gap-1">
-                  <FileText className="size-3" />
-                  Income: ₹2.5L
-                </div>
-                <div className="flex items-center gap-1">
-                  <MapPin className="size-3" />
-                  Uttar Pradesh
-                </div>
+                {displayAge !== '—' && (
+                  <div className="flex items-center gap-1">
+                    <User className="size-3" />
+                    Age: {displayAge}
+                  </div>
+                )}
+                {displayIncome !== '—' && (
+                  <div className="flex items-center gap-1">
+                    <FileText className="size-3" />
+                    Income: {displayIncome}
+                  </div>
+                )}
+                {displayState !== '—' && (
+                  <div className="flex items-center gap-1">
+                    <MapPin className="size-3" />
+                    {displayState}
+                  </div>
+                )}
               </div>
             </div>
           </div>

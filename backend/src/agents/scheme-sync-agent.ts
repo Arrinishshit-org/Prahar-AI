@@ -142,45 +142,23 @@ class SchemeSyncAgent {
 
     try {
       console.log('🚀 Starting scheme sync from India.gov.in...');
+      console.log('📡 Fetching all schemes from API...');
 
-      // Fetch all schemes from API in batches
-      console.log('📡 Fetching schemes from API in batches...');
-      const batchSize = 500;
-      const allSchemes: Scheme[] = [];
-      let batch = 1;
-      
-      while (true) {
-        try {
-          const schemes = await indiaGovService.fetchAllSchemes(batchSize);
-          
-          if (schemes.length === 0) break;
-          
-          allSchemes.push(...schemes);
-          console.log(`✅ Fetched batch ${batch}: ${schemes.length} schemes (Total: ${allSchemes.length})`);
-          
-          // Store this batch immediately
-          await this.storeBatch(schemes);
-          
-          if (schemes.length < batchSize) break; // Last batch
-          
-          batch++;
-          
-          // Small delay to avoid overwhelming the API
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
-          console.error(`Error fetching batch ${batch}:`, error);
-          break;
-        }
+      // Fetch all schemes in one paginated call
+      const allSchemes = await indiaGovService.fetchAllSchemes(500);
+
+      if (allSchemes.length === 0) {
+        console.log('⚠️  No schemes fetched from API');
+        return;
       }
-      
-      console.log(`✅ Fetched total of ${allSchemes.length} schemes from API`);
 
-      // Store schemes in Neo4j
-      console.log('💾 All schemes stored successfully');
+      console.log(`✅ Fetched ${allSchemes.length} schemes from API`);
+
+      // Store all schemes
+      await this.storeBatch(allSchemes);
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       console.log(`✅ Sync complete! Stored ${allSchemes.length} schemes in ${duration}s`);
-      console.log(`📊 Storage: Neo4j + In-Memory Cache`);
     } catch (error: any) {
       console.error('❌ Sync failed:', error);
       throw error;
@@ -193,24 +171,24 @@ class SchemeSyncAgent {
    * Store a batch of schemes
    */
   private async storeBatch(schemes: Scheme[]): Promise<void> {
-    let useNeo4j = true;
+    // Check Neo4j availability first (fast check, no repeated errors)
+    const neo4jUp = await neo4jService.isAvailable();
 
-    // Try Neo4j first
-    try {
-      for (const scheme of schemes) {
-        await this.storeScheme(scheme);
+    if (neo4jUp) {
+      try {
+        for (const scheme of schemes) {
+          await this.storeScheme(scheme);
+        }
+        console.log(`  ✓ Stored ${schemes.length} schemes in Neo4j`);
+      } catch (neo4jError) {
+        console.warn('  ⚠️  Neo4j storage failed, using in-memory cache only');
       }
-      console.log(`  ✓ Stored ${schemes.length} schemes in Neo4j`);
-    } catch (neo4jError) {
-      console.warn('  ⚠️  Neo4j storage failed for this batch, using cache');
-      useNeo4j = false;
     }
 
-    // Always store in cache as well for fast access
+    // Always store in cache for fast access
     schemesCacheService.storeSchemes(schemes);
-    
-    if (!useNeo4j) {
-      console.log(`  ✓ Stored ${schemes.length} schemes in cache`);
+    if (!neo4jUp) {
+      console.log(`  ✓ Stored ${schemes.length} schemes in in-memory cache`);
     }
   }
 

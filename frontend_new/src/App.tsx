@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Home, Search, MessageSquare, User, Info, Handshake, PhoneCall, LayoutGrid } from 'lucide-react';
 import { View } from './types';
+import { AuthProvider, useAuth } from './AuthContext';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -11,28 +12,41 @@ import UserProfile from './components/UserProfile';
 import AboutPage from './components/AboutPage';
 import PartnerPortal from './components/PartnerPortal';
 import ContactPage from './components/ContactPage';
+import LoginPage from './components/LoginPage';
 
-export default function App() {
+function AppContent() {
   const [currentView, setCurrentView] = useState<View>('home');
+  const { isAuthenticated } = useAuth();
+
+  // Redirect to login for protected views
+  const navigate = (view: View) => {
+    if ((view === 'assistant' || view === 'profile') && !isAuthenticated) {
+      setCurrentView('login');
+      return;
+    }
+    setCurrentView(view);
+  };
 
   const renderView = () => {
     switch (currentView) {
       case 'home':
-        return <LandingPage onNavigate={setCurrentView} />;
+        return <LandingPage onNavigate={navigate} />;
       case 'schemes':
         return <SchemeExplorer />;
       case 'assistant':
         return <ChatAssistant />;
       case 'profile':
-        return <UserProfile />;
+        return <UserProfile onNavigate={navigate} />;
       case 'about':
-        return <AboutPage onNavigate={setCurrentView} />;
+        return <AboutPage onNavigate={navigate} />;
       case 'partner':
         return <PartnerPortal />;
       case 'contact':
-        return <ContactPage onNavigate={setCurrentView} />;
+        return <ContactPage onNavigate={navigate} />;
+      case 'login':
+        return <LoginPage onNavigate={navigate} />;
       default:
-        return <LandingPage onNavigate={setCurrentView} />;
+        return <LandingPage onNavigate={navigate} />;
     }
   };
 
@@ -67,7 +81,7 @@ export default function App() {
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setCurrentView(item.id as View)}
+              onClick={() => navigate(item.id as View)}
               className={`flex flex-col items-center gap-1 transition-all ${
                 currentView === item.id ? 'text-primary scale-110' : 'text-slate-400 hover:text-primary/60'
               }`}
@@ -83,5 +97,13 @@ export default function App() {
         </div>
       </nav>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
