@@ -1,4 +1,0 @@
-# file: D:\Projects\AI4Bharat\ml-pipeline\src\eligibility_engine.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.1, 0.15, 0.2, 1.0, 100, 150, 10000000, ', ', 'Not required', 'Required', 'age', 'age_max', 'age_min', 'annual_income', 'calculated_at', 'caste', 'castes', 'category', 'disability', 'education', 'education_level', 'education_levels', 'eligibility', 'employed', 'employment_status', 'family_size', 'female', 'gaps', 'gender', 'general', 'highly_eligible', 'income', 'income_max', 'location', 'low_eligibility', 'male', 'marital_status', 'married', 'met_criteria', 'name', 'occupation', 'occupations', 'other', 'percentage', 'potentially_eligible', 'recommendations', 'required', 'requirement', 'rural_urban', 'scheme_id', 'score', 'secondary', 'state', 'states', 'strengths', 'summary', 'unmet_criteria', 'urban', 'user_id', 'user_value', 'weight']

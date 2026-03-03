@@ -176,10 +176,8 @@ class SimilarityAgent {
           categories: record.get('categories'),
         }));
       } catch (neo4jError) {
-        // Fallback to cache
-        console.log('Neo4j query failed, using cache');
+        // Fallback to cache (silent — Neo4j unavailable is expected without Docker)
         const schemes = schemesCacheService.findSchemesByCategories(categories, limit);
-        
         return schemes.map((scheme) => ({
           ...scheme,
           categories: scheme.categories,
@@ -323,7 +321,6 @@ class SimilarityAgent {
         }));
       } catch (neo4jError) {
         // Fallback to cache
-        console.log('Neo4j search failed, using cache');
         return schemesCacheService.searchSchemes(query, limit);
       }
     } catch (error) {
@@ -353,7 +350,6 @@ class SimilarityAgent {
         };
       } catch (neo4jError) {
         // Fallback to cache
-        console.log('Neo4j getById failed, using cache');
         return schemesCacheService.getSchemeById(schemeId);
       }
     } catch (error) {
@@ -390,7 +386,6 @@ class SimilarityAgent {
         return categories;
       } catch (neo4jError) {
         // Fallback to cache
-        console.log('Neo4j getAllCategories failed, using cache');
         return schemesCacheService.getAllCategories();
       }
     } catch (error) {

@@ -1,4 +1,0 @@
-# file: D:\Projects\AI4Bharat\ml-pipeline\src\recommendation_engine.py
-# hypothesis_version: 6.151.9
-
-[0.1, 0.4, 0.5, 0.6, 1.0, ', ', 'age', 'caste', 'category', 'combined_score', 'disability', 'education', 'eligibility', 'eligibility_score', 'explanation', 'generated_at', 'group_relevance', 'groups', 'highly_eligible', 'income', 'location', 'matching_criteria', 'met_criteria', 'name', 'occupation', 'percentage', 'potentially_eligible', 'rank', 'recommendations', 'relevance_score', 'scheme', 'scheme_id', 'scheme_name', 'score', 'timestamp', 'user_id', 'user_value', 'weight']

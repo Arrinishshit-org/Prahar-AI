@@ -1,4 +1,0 @@
-# file: D:\Projects\AI4Bharat\ml-pipeline\src\feature_extractor.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1.0, 100, 10000000, 'Andhra Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Delhi', 'Gujarat', 'Haryana', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Odisha', 'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'West Bengal', 'age', 'age_normalized', 'annual_income', 'caste', 'disability', 'divorced', 'education_level', 'employed', 'employment_status', 'family_size', 'female', 'gender', 'general', 'graduate', 'higher_secondary', 'income_normalized', 'male', 'marital_status', 'married', 'no_formal', 'obc', 'other', 'postgraduate', 'prefer_not_to_say', 'primary', 'retired', 'rural', 'rural_urban', 'sc', 'secondary', 'self_employed', 'semi_urban', 'single', 'st', 'state', 'student', 'unemployed', 'urban', 'widowed']

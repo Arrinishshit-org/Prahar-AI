@@ -54,3 +54,14 @@ ml-pipeline/models/*.pkl
 ml-pipeline/models/*.pth
 ml-pipeline/models/*.bin
 !ml-pipeline/models/.gitkeep
+
+# Coverage artifacts
+.coverage
+coverage.json
+*.lcov
+
+# Hypothesis test cache
+.hypothesis/
+
+# Keys (never commit private keys)
+backend/keys/*.pem
