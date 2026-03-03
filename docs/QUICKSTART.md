@@ -55,10 +55,9 @@ MYSCHEME_API_KEY=your_api_key
 NEO4J_PASSWORD=your_secure_password
 ```
 
-**frontend/.env:**
+**frontend_new/.env:**
 ```env
 VITE_API_URL=http://localhost:3000
-VITE_MCP_WS_URL=ws://localhost:3001
 ```
 
 ### 4. Start Databases
@@ -125,7 +124,7 @@ ML service will run on http://localhost:5000
 
 **Terminal 3 - Frontend:**
 ```bash
-cd frontend
+cd frontend_new
 npm run dev
 ```
 Frontend will run on http://localhost:5173

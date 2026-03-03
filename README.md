@@ -8,13 +8,13 @@ This is a monorepo containing three main workspaces:
 
 - **backend**: TypeScript-based API server, MCP Server, and ReAct Agent
 - **ml-pipeline**: Python-based ML services for classification, clustering, and eligibility matching
-- **frontend**: React-based user interface
+- **frontend_new**: React 19 user interface (Tailwind v4, Vite 6)
 
 ## Technology Stack
 
 - **Backend**: Node.js, TypeScript, Express, WebSocket
 - **ML Pipeline**: Python, scikit-learn, PyTorch, Transformers
-- **Frontend**: React, TypeScript, Vite
+- **Frontend**: React 19, TypeScript, Vite 6, Tailwind CSS v4
 - **Database**: Neo4j (graph database)
 - **Cache**: Redis
 - **Testing**: Jest, fast-check, Hypothesis, Playwright
@@ -56,7 +56,7 @@ cd ..
 # Copy example environment files
 cp backend/.env.example backend/.env
 cp ml-pipeline/.env.example ml-pipeline/.env
-cp frontend/.env.example frontend/.env
+cp frontend_new/.env.example frontend_new/.env
 
 # Edit the .env files with your configuration
 ```
@@ -83,7 +83,7 @@ source venv/bin/activate
 python src/main.py
 
 # Terminal 3: Frontend
-cd frontend
+cd frontend_new
 npm run dev
 ```
 
@@ -97,7 +97,7 @@ npm test
 
 # Run tests for specific workspace
 npm test --workspace=backend
-npm test --workspace=frontend
+npm test --workspace=frontend_new
 
 # Run Python tests
 cd ml-pipeline
@@ -149,13 +149,13 @@ npm run build --workspace=backend
 │   ├── requirements.txt
 │   └── setup.py
 │
-├── frontend/               # React frontend
+├── frontend_new/            # React 19 frontend (Tailwind v4)
 │   ├── src/
 │   │   ├── main.tsx        # Entry point
-│   │   ├── components/     # React components
-│   │   ├── pages/          # Page components
-│   │   ├── hooks/          # Custom hooks
-│   │   └── utils/          # Utilities
+│   │   ├── App.tsx         # Root component + navigation
+│   │   ├── api.ts          # Backend API service layer
+│   │   ├── AuthContext.tsx  # Auth context provider
+│   │   └── components/     # React components
 │   ├── package.json
 │   └── vite.config.ts
 │

@@ -30,7 +30,7 @@ We follow a comprehensive testing strategy that includes:
 - **fast-check**: Property-based testing library
 - **ts-jest**: TypeScript support for Jest
 
-### Frontend (React/TypeScript)
+### Frontend (React 19/TypeScript)
 
 - **Vitest**: Fast unit testing framework
 - **React Testing Library**: Component testing utilities
@@ -51,7 +51,7 @@ Test individual functions, classes, and components in isolation.
 
 **Location:**
 - Backend: `backend/src/**/__tests__/*.test.ts`
-- Frontend: `frontend/src/**/*.test.tsx`
+- Frontend: `frontend_new/src/**/*.test.tsx`
 - ML Pipeline: `ml-pipeline/tests/test_*.py`
 
 **Example (Backend):**
@@ -174,7 +174,7 @@ npm test -- --testNamePattern="Property:"
 
 ```bash
 # Run unit tests
-cd frontend
+cd frontend_new
 npm test
 
 # Run tests in watch mode

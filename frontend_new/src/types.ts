@@ -3,11 +3,14 @@ export type View = 'home' | 'schemes' | 'assistant' | 'profile' | 'about' | 'par
 export interface Scheme {
   id: string;
   title: string;
-  benefit: string;
+  description?: string;
+  category: string;
+  benefits?: string;
   eligibility: string;
-  deadline: string;
-  category: 'Farmer' | 'Student' | 'Women' | 'Health' | 'General';
-  status?: 'Active' | 'Applied' | 'Processing';
+  /** @deprecated kept for backwards compat with mock data */
+  benefit?: string;
+  deadline?: string;
+  status?: string;
 }
 
 export interface Message {

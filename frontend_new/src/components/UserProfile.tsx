@@ -1,8 +1,13 @@
 import { motion } from 'motion/react';
 import { User, MapPin, ShieldCheck, Edit3, ClipboardList, CheckCircle2, Calendar, FileText, Upload, Download, Eye, Bot, LogOut } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import { View } from '../types';
 
-export default function UserProfile() {
+interface UserProfileProps {
+  onNavigate: (view: View) => void;
+}
+
+export default function UserProfile({ onNavigate }: UserProfileProps) {
   const { user, logout } = useAuth();
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';

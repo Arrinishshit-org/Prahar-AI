@@ -27,13 +27,12 @@ export default function SchemeExplorer() {
     setLoading(true);
     setError('');
     try {
-      const params: Record<string, string> = {};
-      if (searchQuery) params.q = searchQuery;
-      if (category) params.category = category;
-      const data = await fetchSchemes(params);
-      // API may return { schemes: [...] } or an array directly
-      const list: Scheme[] = Array.isArray(data) ? data : (data.schemes ?? data.data ?? []);
-      setSchemes(list.slice(0, 50)); // show up to 50
+      // Backend only supports `q` — merge search + category into one query
+      const combined = [searchQuery, category].filter(Boolean).join(' ');
+      const data = await fetchSchemes(combined || undefined, 50);
+      // API returns a flat array
+      const list: Scheme[] = Array.isArray(data) ? data : (data.schemes ?? data.data ?? data.value ?? []);
+      setSchemes(list.slice(0, 50));
     } catch {
       setError('Could not load schemes. Please try again.');
     } finally {
@@ -157,35 +156,28 @@ export default function SchemeExplorer() {
             >
               <div className="flex justify-between items-start">
                 <h3 className="text-lg font-bold leading-snug flex-1">{scheme.title}</h3>
-                <span className={`text-xs font-bold px-2 py-1 rounded ${
-                  scheme.category === 'Student' ? 'bg-blue-100 text-blue-700' : 
-                  scheme.category === 'Women' ? 'bg-pink-100 text-pink-700' : 
-                  'bg-green-100 text-green-700'
-                }`}>
-                  {scheme.status || scheme.category}
+                <span className="text-xs font-bold px-2 py-1 rounded bg-primary/10 text-primary">
+                  {scheme.category || 'General'}
                 </span>
               </div>
 
-              <div className="bg-primary/5 rounded-lg p-3 flex items-center justify-between border-l-4 border-primary">
-                <span className="text-sm font-medium text-primary/70">Benefit Amount</span>
-                <span className="text-lg font-bold text-primary">{scheme.benefit}</span>
-              </div>
+              {scheme.description && (
+                <p className="text-sm text-slate-600 leading-relaxed line-clamp-2">{scheme.description}</p>
+              )}
+
+              {(scheme.benefits || scheme.benefit) && (
+                <div className="bg-primary/5 rounded-lg p-3 flex items-center justify-between border-l-4 border-primary">
+                  <span className="text-sm font-medium text-primary/70">Benefit / Ministry</span>
+                  <span className="text-sm font-bold text-primary">{scheme.benefits || scheme.benefit}</span>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <User className="text-primary/60 size-5 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Eligibility</p>
-                    <p className="text-sm text-slate-700">{scheme.eligibility}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Filter className="text-primary/60 size-5 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Deadline</p>
-                    <p className={`text-sm font-semibold ${scheme.deadline.includes('Ends') ? 'text-red-500' : 'text-slate-700'}`}>
-                      {scheme.deadline}
-                    </p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Eligibility / Tags</p>
+                    <p className="text-sm text-slate-700">{scheme.eligibility || 'Check official website'}</p>
                   </div>
                 </div>
               </div>

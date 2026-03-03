@@ -44,9 +44,9 @@ if (-not (Test-Path ml-pipeline\.env)) {
     Write-Host "✅ Created ml-pipeline/.env" -ForegroundColor Green
 }
 
-if (-not (Test-Path frontend\.env)) {
-    Copy-Item frontend\.env.example frontend\.env
-    Write-Host "✅ Created frontend/.env" -ForegroundColor Green
+if (-not (Test-Path frontend_new\.env)) {
+    Copy-Item frontend_new\.env.example frontend_new\.env
+    Write-Host "✅ Created frontend_new/.env" -ForegroundColor Green
 }
 
 # Setup Git hooks
@@ -62,4 +62,4 @@ Write-Host "2. Start databases: docker-compose up -d"
 Write-Host "3. Run development servers:"
 Write-Host "   - Backend: cd backend && npm run dev"
 Write-Host "   - ML Pipeline: cd ml-pipeline && .\venv\Scripts\Activate.ps1 && python src/main.py"
-Write-Host "   - Frontend: cd frontend && npm run dev"
+Write-Host "   - Frontend: cd frontend_new && npm run dev"

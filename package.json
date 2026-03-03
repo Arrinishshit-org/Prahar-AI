@@ -6,7 +6,7 @@
   "workspaces": [
     "backend",
     "ml-pipeline",
-    "frontend"
+    "frontend_new"
   ],
   "scripts": {
     "install:all": "npm install && npm run install:ml",
