@@ -159,16 +159,13 @@ class ChatService {
       }
     }
 
-    // Browse all schemes
+    // Browse all schemes — use database
     if (
       lowerMessage.includes('show all') ||
       lowerMessage.includes('list all') ||
       lowerMessage.includes('available schemes')
     ) {
-      return {
-        response: SchemeInformationService.getAllSchemes(),
-        suggestions: ['Tell me more about a scheme', 'Find schemes for me'],
-      };
+      return await this.handleSchemeQuery(userProfile, message);
     }
 
     // Profile viewing
@@ -248,7 +245,7 @@ class ChatService {
   }
 
   /**
-   * Handle scheme-related queries
+   * Handle scheme-related queries — uses real database via SimilarityAgent
    */
   private async handleSchemeQuery(
     userProfile: any,
@@ -257,7 +254,7 @@ class ChatService {
     try {
       const lowerMessage = message.toLowerCase();
 
-      // First check if asking about specific scheme info
+      // First check if asking about a specific well-known scheme
       const schemeInfo = SchemeInformationService.getSchemeInfo(message);
       if (schemeInfo) {
         return {
@@ -278,10 +275,61 @@ class ChatService {
         }
       }
 
-      // Default: show available schemes related to keywords
-      const allSchemes = SchemeInformationService.getAllSchemes();
+      // Extract meaningful keywords from the message for search
+      const stopWords = new Set(['find', 'me', 'show', 'get', 'list', 'what', 'are', 'the', 'for', 'my', 'i', 'a', 'an', 'to', 'in', 'of', 'and', 'is', 'can', 'please', 'some', 'any', 'all', 'scheme', 'schemes', 'government']);
+      const keywords = lowerMessage.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+      const searchQuery = keywords.join(' ');
+
+      // Use real database via SimilarityAgent
+      let schemes: any[] = [];
+      if (searchQuery.length > 0) {
+        schemes = await similarityAgent.searchSchemes(searchQuery, 6);
+      }
+
+      // If text search found nothing, try profile-based matching
+      if (schemes.length === 0) {
+        const profileForMatching = {
+          userId: userProfile.userId || 'chat-user',
+          employment: userProfile.employment,
+          income: userProfile.income ? this.mapIncomeToCategory(userProfile.income) : undefined,
+          locality: userProfile.locality || 'Urban',
+          socialCategory: userProfile.socialCategory,
+          education: userProfile.education,
+          povertyLine: userProfile.income ? this.mapIncomeToPovertyLine(userProfile.income) : undefined,
+          state: userProfile.state,
+          age: userProfile.age,
+          interests: keywords.length > 0 ? keywords : ['general'],
+        };
+        const matches = await similarityAgent.findMatchingSchemes(profileForMatching, 6);
+        schemes = matches.map(m => ({
+          schemeId: m.schemeId,
+          name: m.name,
+          description: m.description,
+          ministry: m.ministry,
+          tags: m.tags,
+          eligibilityScore: m.eligibilityScore,
+        }));
+      }
+
+      if (schemes.length === 0) {
+        return {
+          response: "I couldn't find any matching schemes right now. Try refining your query or browse the Schemes page.",
+          suggestions: ['Browse Schemes', 'Show my profile', 'Find agriculture schemes'],
+        };
+      }
+
+      // Format the results
+      let response = `📚 **Matching Government Schemes** (from ${schemes.length.toLocaleString()} results)\n\n`;
+      for (const s of schemes) {
+        const name = s.name || s.title || 'Unknown';
+        const desc = (s.description || '').substring(0, 120);
+        const score = s.eligibilityScore ? ` (Score: ${s.eligibilityScore}%)` : '';
+        response += `• **${name}**${score}\n  ${desc}${desc.length >= 120 ? '...' : ''}\n\n`;
+      }
+      response += `💡 Based on your profile (${userProfile.employment || 'Any'} employment, Age: ${userProfile.age || 'Not specified'}), ask me "am I eligible for [scheme name]?" to check your eligibility!`;
+
       return {
-        response: allSchemes + `\n\n💡 Based on your profile (${userProfile.employment || 'Any'} employment, Age: ${userProfile.age || 'Not specified'}), ask me "am I eligible for [scheme name]?" to check your eligibility!`,
+        response,
         suggestions: ['Tell me more about a scheme', 'Check my eligibility', 'Show my profile'],
       };
     } catch (error: any) {

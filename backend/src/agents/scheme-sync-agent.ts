@@ -2,31 +2,14 @@
  * Scheme Sync Agent
  * 
  * Responsibilities:
- * 1. Fetch all schemes from India.gov.in API every 48 hours
- * 2. Extract categories from tags and descriptions
- * 3. Store schemes in Neo4j with categorical relationships
- * 4. Maintain sync status and timestamps
+ * 1. On startup: check if SQLite already has fresh data (< 24 h old) — skip API fetch if so
+ * 2. If data is stale or missing: fetch all schemes from India.gov.in API and persist to SQLite
+ * 3. Schedule periodic re-sync every 24 hours
+ * 4. Expose forceSyncNow() for manual trigger
  */
 
-import { indiaGovService, Scheme } from '../schemes/india-gov.service';
-import { neo4jService } from '../db/neo4j.service';
-import { schemesCacheService } from '../schemes/schemes-cache.service';
-import {
-  SCHEMA_QUERIES,
-  CATEGORY_RULES,
-  CategoryType,
-  EmploymentStatus,
-  IncomeLevel,
-  LocalityType,
-  SocialCategory,
-  EducationLevel,
-  PovertyLine,
-} from '../db/schemes-schema';
-
-interface CategoryMapping {
-  type: CategoryType;
-  value: string;
-}
+import { indiaGovService } from '../schemes/india-gov.service';
+import { sqliteService } from '../db/sqlite.service';
 
 interface SyncStatus {
   totalSchemes: number;
@@ -35,7 +18,7 @@ interface SyncStatus {
 }
 
 class SchemeSyncAgent {
-  private readonly SYNC_INTERVAL_MS = 48 * 60 * 60 * 1000; // 48 hours
+  private readonly SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
   private syncTimer: NodeJS.Timeout | null = null;
   private isSyncing = false;
 
@@ -45,19 +28,19 @@ class SchemeSyncAgent {
   async start() {
     console.log('🔄 Scheme Sync Agent starting...');
 
-    // Check if initial sync is needed
-    const status = await this.getSyncStatus();
-    const needsSync = this.needsSync(status);
+    // Initialize SQLite database
+    sqliteService.init();
 
-    if (needsSync) {
-      console.log('📥 Initial sync needed, starting...');
-      await this.syncSchemes();
+    // Check if we already have fresh data
+    if (sqliteService.isFresh(this.SYNC_INTERVAL_MS)) {
+      const meta = sqliteService.getSyncMeta();
+      console.log(`✅ SQLite has ${meta.total_schemes} schemes (synced ${meta.last_sync}). Skipping API fetch.`);
     } else {
-      console.log(`✅ Schemes are up to date (${status.totalSchemes} schemes). Last sync: ${status.lastSync}`);
-      console.log(`⏰ Next sync scheduled in 48 hours`);
+      console.log('📥 Scheme data is stale or missing, syncing from India.gov.in...');
+      await this.syncSchemes();
     }
 
-    // Schedule periodic sync (48 hours from now)
+    // Schedule periodic sync
     this.scheduleNextSync();
   }
 
@@ -69,6 +52,7 @@ class SchemeSyncAgent {
       clearTimeout(this.syncTimer);
       this.syncTimer = null;
     }
+    sqliteService.close();
     console.log('🛑 Scheme Sync Agent stopped');
   }
 
@@ -76,48 +60,22 @@ class SchemeSyncAgent {
    * Get current sync status
    */
   async getSyncStatus(): Promise<SyncStatus> {
-    try {
-      const result = await neo4jService.executeQuery(
-        SCHEMA_QUERIES.getSyncStatus,
-        {}
-      );
-
-      const record = result.records[0];
-      const totalSchemes = record?.get('totalSchemes')?.toNumber() || 0;
-      const lastSync = record?.get('lastSync') || null;
-
-      const nextSync = lastSync
-        ? new Date(new Date(lastSync).getTime() + this.SYNC_INTERVAL_MS).toISOString()
-        : null;
-
-      return { totalSchemes, lastSync, nextSync };
-    } catch (error) {
-      console.error('Error getting sync status:', error);
-      return { totalSchemes: 0, lastSync: null, nextSync: null };
-    }
-  }
-
-  /**
-   * Check if sync is needed
-   */
-  private needsSync(status: SyncStatus): boolean {
-    if (status.totalSchemes === 0) return true;
-    if (!status.lastSync) return true;
-
-    const lastSyncTime = new Date(status.lastSync).getTime();
-    const now = Date.now();
-    const timeSinceSync = now - lastSyncTime;
-
-    return timeSinceSync >= this.SYNC_INTERVAL_MS;
+    const meta = sqliteService.getSyncMeta();
+    const nextSync = meta.last_sync
+      ? new Date(new Date(meta.last_sync + 'Z').getTime() + this.SYNC_INTERVAL_MS).toISOString()
+      : null;
+    return {
+      totalSchemes: meta.total_schemes,
+      lastSync: meta.last_sync,
+      nextSync,
+    };
   }
 
   /**
    * Schedule next sync
    */
   private scheduleNextSync() {
-    if (this.syncTimer) {
-      clearTimeout(this.syncTimer);
-    }
+    if (this.syncTimer) clearTimeout(this.syncTimer);
 
     this.syncTimer = setTimeout(async () => {
       await this.syncSchemes();
@@ -129,7 +87,7 @@ class SchemeSyncAgent {
   }
 
   /**
-   * Main sync function
+   * Main sync function — fetches from API and stores in SQLite
    */
   async syncSchemes(): Promise<void> {
     if (this.isSyncing) {
@@ -142,9 +100,6 @@ class SchemeSyncAgent {
 
     try {
       console.log('🚀 Starting scheme sync from India.gov.in...');
-      console.log('📡 Fetching all schemes from API...');
-
-      // Fetch all schemes in one paginated call
       const allSchemes = await indiaGovService.fetchAllSchemes(500);
 
       if (allSchemes.length === 0) {
@@ -154,234 +109,21 @@ class SchemeSyncAgent {
 
       console.log(`✅ Fetched ${allSchemes.length} schemes from API`);
 
-      // Store all schemes
-      await this.storeBatch(allSchemes);
+      // Persist to SQLite (single transaction, ~200 ms for 4600 schemes)
+      sqliteService.storeSchemes(allSchemes);
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(`✅ Sync complete! Stored ${allSchemes.length} schemes in ${duration}s`);
+      console.log(`✅ Sync complete! ${allSchemes.length} schemes persisted to SQLite in ${duration}s`);
     } catch (error: any) {
-      console.error('❌ Sync failed:', error);
-      throw error;
+      console.error('❌ Sync failed:', error.message || error);
+      // On failure, existing SQLite data remains intact — no data loss
     } finally {
       this.isSyncing = false;
     }
   }
 
   /**
-   * Store a batch of schemes
-   */
-  private async storeBatch(schemes: Scheme[]): Promise<void> {
-    // Check Neo4j availability first (fast check, no repeated errors)
-    const neo4jUp = await neo4jService.isAvailable();
-
-    if (neo4jUp) {
-      try {
-        for (const scheme of schemes) {
-          await this.storeScheme(scheme);
-        }
-        console.log(`  ✓ Stored ${schemes.length} schemes in Neo4j`);
-      } catch (neo4jError) {
-        console.warn('  ⚠️  Neo4j storage failed, using in-memory cache only');
-      }
-    }
-
-    // Always store in cache for fast access
-    schemesCacheService.storeSchemes(schemes);
-    if (!neo4jUp) {
-      console.log(`  ✓ Stored ${schemes.length} schemes in in-memory cache`);
-    }
-  }
-
-  /**
-   * Store a single scheme in Neo4j with categories
-   */
-  private async storeScheme(scheme: Scheme): Promise<void> {
-    try {
-      // Create scheme node
-      await neo4jService.executeQuery(SCHEMA_QUERIES.createScheme, {
-        schemeId: scheme.schemeId,
-        name: scheme.name,
-        description: scheme.description,
-        ministry: scheme.ministry,
-        state: scheme.state,
-        tags: scheme.tags,
-        rawCategory: scheme.category,
-        lastUpdated: new Date().toISOString(),
-      });
-
-      // Extract and create categories
-      const categories = this.extractCategories(scheme);
-
-      for (const category of categories) {
-        // Create category node
-        await neo4jService.executeQuery(SCHEMA_QUERIES.createCategory, {
-          type: category.type,
-          value: category.value,
-        });
-
-        // Link scheme to category
-        await neo4jService.executeQuery(SCHEMA_QUERIES.linkSchemeToCategory, {
-          schemeId: scheme.schemeId,
-          type: category.type,
-          value: category.value,
-        });
-      }
-    } catch (error) {
-      console.error(`Error storing scheme ${scheme.schemeId}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Extract categories from scheme data
-   */
-  private extractCategories(scheme: Scheme): CategoryMapping[] {
-    const categories: CategoryMapping[] = [];
-    const text = `${scheme.name} ${scheme.description} ${scheme.tags.join(' ')}`.toLowerCase();
-
-    // Extract Employment categories
-    for (const [key, keywords] of Object.entries(CATEGORY_RULES.employment)) {
-      if (keywords.some((kw) => text.includes(kw))) {
-        categories.push({
-          type: CategoryType.EMPLOYMENT,
-          value: this.mapEmploymentKey(key),
-        });
-      }
-    }
-
-    // Extract Income categories
-    for (const [key, keywords] of Object.entries(CATEGORY_RULES.income)) {
-      if (keywords.some((kw) => text.includes(kw))) {
-        categories.push({
-          type: CategoryType.INCOME,
-          value: this.mapIncomeKey(key),
-        });
-      }
-    }
-
-    // Extract Locality categories
-    for (const [key, keywords] of Object.entries(CATEGORY_RULES.locality)) {
-      if (keywords.some((kw) => text.includes(kw))) {
-        categories.push({
-          type: CategoryType.LOCALITY,
-          value: this.mapLocalityKey(key),
-        });
-      }
-    }
-
-    // Extract Social Category
-    for (const [key, keywords] of Object.entries(CATEGORY_RULES.socialCategory)) {
-      if (keywords.some((kw) => text.includes(kw))) {
-        categories.push({
-          type: CategoryType.SOCIAL_CATEGORY,
-          value: this.mapSocialCategoryKey(key),
-        });
-      }
-    }
-
-    // Extract Education categories
-    for (const [key, keywords] of Object.entries(CATEGORY_RULES.education)) {
-      if (keywords.some((kw) => text.includes(kw))) {
-        categories.push({
-          type: CategoryType.EDUCATION,
-          value: this.mapEducationKey(key),
-        });
-      }
-    }
-
-    // Extract Poverty Line categories
-    for (const [key, keywords] of Object.entries(CATEGORY_RULES.povertyLine)) {
-      if (keywords.some((kw) => text.includes(kw))) {
-        categories.push({
-          type: CategoryType.POVERTY_LINE,
-          value: this.mapPovertyLineKey(key),
-        });
-      }
-    }
-
-    // If no categories found, add "Any" for each type
-    if (categories.length === 0) {
-      categories.push(
-        { type: CategoryType.EMPLOYMENT, value: EmploymentStatus.ANY },
-        { type: CategoryType.INCOME, value: IncomeLevel.ANY },
-        { type: CategoryType.LOCALITY, value: LocalityType.ANY },
-        { type: CategoryType.SOCIAL_CATEGORY, value: SocialCategory.ANY },
-        { type: CategoryType.EDUCATION, value: EducationLevel.ANY },
-        { type: CategoryType.POVERTY_LINE, value: PovertyLine.ANY }
-      );
-    }
-
-    return categories;
-  }
-
-  // Mapping helpers
-  private mapEmploymentKey(key: string): string {
-    const map: Record<string, string> = {
-      employed: EmploymentStatus.EMPLOYED,
-      unemployed: EmploymentStatus.UNEMPLOYED,
-      selfEmployed: EmploymentStatus.SELF_EMPLOYED,
-      student: EmploymentStatus.STUDENT,
-      retired: EmploymentStatus.RETIRED,
-    };
-    return map[key] || EmploymentStatus.ANY;
-  }
-
-  private mapIncomeKey(key: string): string {
-    const map: Record<string, string> = {
-      below1Lakh: IncomeLevel.BELOW_1_LAKH,
-      '1To3Lakh': IncomeLevel.ONE_TO_THREE_LAKH,
-      '3To5Lakh': IncomeLevel.THREE_TO_FIVE_LAKH,
-      '5To10Lakh': IncomeLevel.FIVE_TO_TEN_LAKH,
-      above10Lakh: IncomeLevel.ABOVE_TEN_LAKH,
-    };
-    return map[key] || IncomeLevel.ANY;
-  }
-
-  private mapLocalityKey(key: string): string {
-    const map: Record<string, string> = {
-      rural: LocalityType.RURAL,
-      urban: LocalityType.URBAN,
-      semiUrban: LocalityType.SEMI_URBAN,
-    };
-    return map[key] || LocalityType.ANY;
-  }
-
-  private mapSocialCategoryKey(key: string): string {
-    const map: Record<string, string> = {
-      sc: SocialCategory.SC,
-      st: SocialCategory.ST,
-      obc: SocialCategory.OBC,
-      minority: SocialCategory.MINORITY,
-      women: SocialCategory.WOMEN,
-      pwd: SocialCategory.PWD,
-      general: SocialCategory.GENERAL,
-    };
-    return map[key] || SocialCategory.ANY;
-  }
-
-  private mapEducationKey(key: string): string {
-    const map: Record<string, string> = {
-      noFormal: EducationLevel.NO_FORMAL,
-      primary: EducationLevel.PRIMARY,
-      secondary: EducationLevel.SECONDARY,
-      higherSecondary: EducationLevel.HIGHER_SECONDARY,
-      graduate: EducationLevel.GRADUATE,
-      postGraduate: EducationLevel.POST_GRADUATE,
-      professional: EducationLevel.PROFESSIONAL,
-    };
-    return map[key] || EducationLevel.ANY;
-  }
-
-  private mapPovertyLineKey(key: string): string {
-    const map: Record<string, string> = {
-      bpl: PovertyLine.BPL,
-      apl: PovertyLine.APL,
-    };
-    return map[key] || PovertyLine.ANY;
-  }
-
-  /**
-   * Force sync now (for manual trigger)
+   * Force sync now (for manual trigger via API)
    */
   async forceSyncNow(): Promise<void> {
     console.log('🔄 Force sync triggered');

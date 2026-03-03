@@ -2,15 +2,14 @@
  * Similarity Check Agent
  * 
  * Responsibilities:
- * 1. Perform semantic similarity matching on schemes
- * 2. Match user profiles with schemes based on categories
- * 3. Calculate eligibility scores
- * 4. Rank and recommend schemes
+ * 1. Match user profiles with schemes based on categories
+ * 2. Calculate eligibility scores
+ * 3. Rank and recommend schemes
+ * 
+ * Reads from SQLite (persistent) as the primary data source.
  */
 
-import { schemesCacheService } from '../schemes/schemes-cache.service';
-import { neo4jService } from '../db/neo4j.service';
-import { SCHEMA_QUERIES, CategoryType } from '../db/schemes-schema';
+import { sqliteService, CategoryMapping, SchemeRow } from '../db/sqlite.service';
 
 interface UserProfile {
   userId: string;
@@ -39,11 +38,6 @@ interface SchemeMatch {
   explanation: string;
 }
 
-interface CategoryMapping {
-  type: string;
-  value: string;
-}
-
 class SimilarityAgent {
   /**
    * Find matching schemes for a user profile
@@ -55,21 +49,14 @@ class SimilarityAgent {
     try {
       console.log(`🔍 Finding schemes for user ${profile.userId}`);
 
-      // Build category filters from user profile
       const categoryFilters = this.buildCategoryFilters(profile);
+      const rows = this.findSchemesByCategories(categoryFilters, limit * 3);
 
-      // Find schemes matching categories
-      const schemes = await this.findSchemesByCategories(categoryFilters, limit * 3);
-
-      // Calculate similarity and eligibility scores
-      const matches = schemes.map((scheme) =>
-        this.calculateMatch(scheme, profile, categoryFilters)
+      const matches = rows.map((row) =>
+        this.calculateMatch(row, profile, categoryFilters)
       );
 
-      // Sort by eligibility score (descending)
       matches.sort((a, b) => b.eligibilityScore - a.eligibilityScore);
-
-      // Return top matches
       return matches.slice(0, limit);
     } catch (error) {
       console.error('Error finding matching schemes:', error);
@@ -82,174 +69,73 @@ class SimilarityAgent {
    */
   private buildCategoryFilters(profile: UserProfile): CategoryMapping[] {
     const filters: CategoryMapping[] = [];
-
-    if (profile.employment) {
-      filters.push({
-        type: CategoryType.EMPLOYMENT,
-        value: profile.employment,
-      });
-    }
-
-    if (profile.income) {
-      filters.push({
-        type: CategoryType.INCOME,
-        value: profile.income,
-      });
-    }
-
-    if (profile.locality) {
-      filters.push({
-        type: CategoryType.LOCALITY,
-        value: profile.locality,
-      });
-    }
-
-    if (profile.socialCategory) {
-      filters.push({
-        type: CategoryType.SOCIAL_CATEGORY,
-        value: profile.socialCategory,
-      });
-    }
-
-    if (profile.education) {
-      filters.push({
-        type: CategoryType.EDUCATION,
-        value: profile.education,
-      });
-    }
-
-    if (profile.povertyLine) {
-      filters.push({
-        type: CategoryType.POVERTY_LINE,
-        value: profile.povertyLine,
-      });
-    }
-
+    if (profile.employment) filters.push({ type: 'Employment', value: profile.employment });
+    if (profile.income) filters.push({ type: 'Income', value: profile.income });
+    if (profile.locality) filters.push({ type: 'Locality', value: profile.locality });
+    if (profile.socialCategory) filters.push({ type: 'SocialCategory', value: profile.socialCategory });
+    if (profile.education) filters.push({ type: 'Education', value: profile.education });
+    if (profile.povertyLine) filters.push({ type: 'PovertyLine', value: profile.povertyLine });
     return filters;
   }
 
   /**
-   * Find schemes by multiple categories
+   * Find schemes by multiple categories (reads from SQLite)
    */
-  private async findSchemesByCategories(
+  private findSchemesByCategories(
     categories: CategoryMapping[],
     limit: number
-  ): Promise<any[]> {
-    try {
-      // Try Neo4j first
-      try {
-        // If no categories, return all schemes
-        if (categories.length === 0) {
-          const result = await neo4jService.executeQuery(
-            `MATCH (s:Scheme)
-             OPTIONAL MATCH (s)-[:BELONGS_TO]->(c:Category)
-             RETURN s, collect({type: c.type, value: c.value}) as categories
-             LIMIT $limit`,
-            { limit }
-          );
-
-          return result.records.map((record: any) => ({
-            ...record.get('s').properties,
-            categories: record.get('categories'),
-          }));
-        }
-
-        // Find schemes matching ANY of the categories (union)
-        const query = `
-          MATCH (s:Scheme)-[:BELONGS_TO]->(c:Category)
-          WHERE ANY(pair IN $categoryPairs WHERE c.type = pair[0] AND c.value = pair[1]) OR c.value = 'Any'
-          WITH DISTINCT s
-          OPTIONAL MATCH (s)-[:BELONGS_TO]->(cat:Category)
-          RETURN s, collect({type: cat.type, value: cat.value}) as categories
-          LIMIT $limit
-        `;
-
-        const categoryPairs = categories.map((c) => [c.type, c.value]);
-
-        const result = await neo4jService.executeQuery(query, {
-          categoryPairs,
-          limit,
-        });
-
-        return result.records.map((record: any) => ({
-          ...record.get('s').properties,
-          categories: record.get('categories'),
-        }));
-      } catch (neo4jError) {
-        // Fallback to cache (silent — Neo4j unavailable is expected without Docker)
-        const schemes = schemesCacheService.findSchemesByCategories(categories, limit);
-        return schemes.map((scheme) => ({
-          ...scheme,
-          categories: scheme.categories,
-        }));
-      }
-    } catch (error) {
-      console.error('Error finding schemes by categories:', error);
-      throw error;
+  ): SchemeRow[] {
+    if (categories.length === 0) {
+      return sqliteService.getAllSchemes(limit);
     }
+    return sqliteService.findSchemesByCategories(categories, limit);
   }
 
   /**
-   * Calculate match score for a scheme
+   * Calculate match score for a scheme row
    */
   private calculateMatch(
-    scheme: any,
+    row: SchemeRow,
     profile: UserProfile,
     userCategories: CategoryMapping[]
   ): SchemeMatch {
-    const schemeCategories = scheme.categories || [];
+    const scheme = sqliteService.toScheme(row);
+    const schemeCategories: CategoryMapping[] = JSON.parse(row.categories_json || '[]');
     const matchedCategories: string[] = [];
     let categoryMatches = 0;
 
-    // Count category matches
     for (const userCat of userCategories) {
       const hasMatch = schemeCategories.some(
-        (schemeCat: CategoryMapping) =>
-          schemeCat.type === userCat.type &&
-          (schemeCat.value === userCat.value || schemeCat.value === 'Any')
+        (sc) => sc.type === userCat.type && (sc.value === userCat.value || sc.value === 'Any')
       );
-
       if (hasMatch) {
         categoryMatches++;
         matchedCategories.push(`${userCat.type}: ${userCat.value}`);
       }
     }
 
-    // Calculate similarity score (0-1)
-    const similarityScore =
-      userCategories.length > 0 ? categoryMatches / userCategories.length : 0.5;
-
-    // Calculate eligibility score (0-100)
+    const similarityScore = userCategories.length > 0 ? categoryMatches / userCategories.length : 0.5;
     let eligibilityScore = similarityScore * 100;
 
-    // Boost score for state match
-    if (profile.state && scheme.state === profile.state) {
+    if (profile.state && row.state === profile.state) {
       eligibilityScore = Math.min(100, eligibilityScore + 10);
     }
-
-    // Boost score for national schemes
-    if (!scheme.state) {
+    if (!row.state) {
       eligibilityScore = Math.min(100, eligibilityScore + 5);
     }
 
-    // Text similarity boost (simple keyword matching)
-    const textScore = this.calculateTextSimilarity(scheme, profile);
+    const textScore = this.calculateTextSimilarity(row, profile);
     eligibilityScore = Math.min(100, eligibilityScore + textScore * 10);
 
-    // Generate explanation
-    const explanation = this.generateExplanation(
-      matchedCategories,
-      eligibilityScore,
-      scheme
-    );
+    const explanation = this.generateExplanation(matchedCategories, eligibilityScore, scheme);
 
     return {
-      schemeId: scheme.schemeId,
-      name: scheme.name,
-      description: scheme.description,
-      ministry: scheme.ministry,
-      state: scheme.state,
-      tags: scheme.tags || [],
+      schemeId: row.scheme_id,
+      name: row.name,
+      description: row.description || '',
+      ministry: row.ministry,
+      state: row.state,
+      tags: JSON.parse(row.tags || '[]'),
       categories: schemeCategories,
       similarityScore: Math.round(similarityScore * 100) / 100,
       eligibilityScore: Math.round(eligibilityScore),
@@ -261,19 +147,18 @@ class SimilarityAgent {
   /**
    * Calculate text similarity using keyword matching
    */
-  private calculateTextSimilarity(scheme: any, profile: UserProfile): number {
+  private calculateTextSimilarity(row: SchemeRow, profile: UserProfile): number {
     if (!profile.interests || profile.interests.length === 0) return 0;
 
-    const schemeText = `${scheme.name} ${scheme.description} ${(scheme.tags || []).join(' ')}`.toLowerCase();
+    const tags: string[] = JSON.parse(row.tags || '[]');
+    const schemeText = `${row.name} ${row.description || ''} ${tags.join(' ')}`.toLowerCase();
     let matches = 0;
 
     for (const interest of profile.interests) {
-      if (schemeText.includes(interest.toLowerCase())) {
-        matches++;
-      }
+      if (schemeText.includes(interest.toLowerCase())) matches++;
     }
 
-    return profile.interests.length > 0 ? matches / profile.interests.length : 0;
+    return matches / profile.interests.length;
   }
 
   /**
@@ -289,10 +174,9 @@ class SimilarityAgent {
     }
 
     const categoryText = matchedCategories.join(', ');
-    const scoreText =
-      score >= 80 ? 'highly eligible' : score >= 60 ? 'eligible' : 'potentially eligible';
-
-    return `You are ${scoreText} for this scheme based on: ${categoryText}. ${scheme.description.substring(0, 100)}...`;
+    const scoreText = score >= 80 ? 'highly eligible' : score >= 60 ? 'eligible' : 'potentially eligible';
+    const desc = (scheme.description || '').substring(0, 100);
+    return `You are ${scoreText} for this scheme based on: ${categoryText}. ${desc}...`;
   }
 
   /**
@@ -300,29 +184,8 @@ class SimilarityAgent {
    */
   async searchSchemes(query: string, limit: number = 20): Promise<any[]> {
     try {
-      const lowerQuery = query.toLowerCase();
-
-      try {
-        // Try Neo4j first
-        const result = await neo4jService.executeQuery(
-          `MATCH (s:Scheme)
-           WHERE toLower(s.name) CONTAINS $query 
-              OR toLower(s.description) CONTAINS $query
-              OR ANY(tag IN s.tags WHERE toLower(tag) CONTAINS $query)
-           OPTIONAL MATCH (s)-[:BELONGS_TO]->(c:Category)
-           RETURN s, collect({type: c.type, value: c.value}) as categories
-           LIMIT $limit`,
-          { query: lowerQuery, limit }
-        );
-
-        return result.records.map((record: any) => ({
-          ...record.get('s').properties,
-          categories: record.get('categories'),
-        }));
-      } catch (neo4jError) {
-        // Fallback to cache
-        return schemesCacheService.searchSchemes(query, limit);
-      }
+      const rows = sqliteService.searchSchemes(query, limit);
+      return rows.map((row) => sqliteService.toScheme(row));
     } catch (error) {
       console.error('Error searching schemes:', error);
       throw error;
@@ -334,24 +197,9 @@ class SimilarityAgent {
    */
   async getSchemeById(schemeId: string): Promise<any | null> {
     try {
-      try {
-        // Try Neo4j first
-        const result = await neo4jService.executeQuery(
-          SCHEMA_QUERIES.getSchemeWithCategories,
-          { schemeId }
-        );
-
-        if (result.records.length === 0) return null;
-
-        const record = result.records[0];
-        return {
-          ...record.get('s').properties,
-          categories: record.get('categories').map((c: any) => c.properties),
-        };
-      } catch (neo4jError) {
-        // Fallback to cache
-        return schemesCacheService.getSchemeById(schemeId);
-      }
+      const row = sqliteService.getSchemeById(schemeId);
+      if (!row) return null;
+      return sqliteService.toScheme(row);
     } catch (error) {
       console.error('Error getting scheme by ID:', error);
       throw error;
@@ -363,31 +211,7 @@ class SimilarityAgent {
    */
   async getAllCategories(): Promise<Record<string, string[]>> {
     try {
-      try {
-        // Try Neo4j first
-        const result = await neo4jService.executeQuery(
-          SCHEMA_QUERIES.getAllCategories,
-          {}
-        );
-
-        const categories: Record<string, string[]> = {};
-
-        for (const record of result.records) {
-          const type = record.get('type');
-          const value = record.get('value');
-
-          if (!categories[type]) {
-            categories[type] = [];
-          }
-
-          categories[type].push(value);
-        }
-
-        return categories;
-      } catch (neo4jError) {
-        // Fallback to cache
-        return schemesCacheService.getAllCategories();
-      }
+      return sqliteService.getAllCategories();
     } catch (error) {
       console.error('Error getting all categories:', error);
       throw error;

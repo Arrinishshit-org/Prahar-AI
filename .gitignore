@@ -65,3 +65,6 @@ coverage.json
 
 # Keys (never commit private keys)
 backend/keys/*.pem
+
+# SQLite database (persistent local data)
+backend/data/
