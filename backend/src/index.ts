@@ -1,7 +1,6 @@
 import dotenv from 'dotenv';
 import app, { seedAdminUser } from './api/server';
 import { schemeSyncAgent } from './agents/scheme-sync-agent';
-import { sqliteService } from './db/sqlite.service';
 
 dotenv.config();
 
@@ -13,11 +12,11 @@ app.listen(PORT, async () => {
   console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
   console.log(`👤 Users API: http://localhost:${PORT}/api/users`);
   
-  // Start scheme sync agent (initialises SQLite + syncs from API if stale)
+  // Start scheme sync agent (initialises Neo4j + Redis + syncs from API if stale)
   console.log('\n🤖 Starting Scheme Sync Agent...');
   try {
     await schemeSyncAgent.start();
-    seedAdminUser(); // ensure admin exists after DB init
+    await seedAdminUser(); // ensure admin exists after DB init
     console.log('✅ Scheme Sync Agent started successfully\n');
   } catch (error) {
     console.error('❌ Failed to start Scheme Sync Agent:', error);
@@ -26,16 +25,14 @@ app.listen(PORT, async () => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down gracefully...');
-  schemeSyncAgent.stop();
-  sqliteService.close();
+  await schemeSyncAgent.stop();
   process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('\n🛑 Shutting down gracefully...');
-  schemeSyncAgent.stop();
-  sqliteService.close();
+  await schemeSyncAgent.stop();
   process.exit(0);
 });

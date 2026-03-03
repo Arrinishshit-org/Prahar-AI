@@ -1,15 +1,15 @@
 /**
  * Similarity Check Agent
- * 
+ *
  * Responsibilities:
- * 1. Match user profiles with schemes based on categories
+ * 1. Match user profiles with schemes based on graph categories
  * 2. Calculate eligibility scores
  * 3. Rank and recommend schemes — with optional ML re-ranking (T-10)
- * 
- * Reads from SQLite (persistent) as the primary data source.
+ *
+ * Reads from Neo4j graph database as the primary data source.
  */
 
-import { sqliteService, CategoryMapping, SchemeRow } from '../db/sqlite.service';
+import { neo4jService, CategoryMapping, SchemeRow } from '../db/neo4j.service';
 import { mlService } from '../services/ml.service';
 
 interface UserProfile {
@@ -52,7 +52,7 @@ class SimilarityAgent {
       console.log(`🔍 Finding schemes for user ${profile.userId}`);
 
       const categoryFilters = this.buildCategoryFilters(profile);
-      const rows = this.findSchemesByCategories(categoryFilters, limit * 3);
+      const rows = await this.findSchemesByCategories(categoryFilters, limit * 3);
 
       const matches = rows.map((row) =>
         this.calculateMatch(row, profile, categoryFilters)
@@ -71,16 +71,14 @@ class SimilarityAgent {
           }));
           const mlResult = await mlService.recommend(profile as any, schemesForML, limit);
           if (mlResult && mlResult.recommendations.length > 0) {
-            // Build a score map from ML results and merge into matches
             const mlScores = new Map<string, number>();
             mlResult.recommendations.forEach((r, idx) => {
               const id = r.id || r.schemeId || '';
-              mlScores.set(id, mlResult.recommendations.length - idx); // higher = better rank
+              mlScores.set(id, mlResult.recommendations.length - idx);
             });
             topMatches.forEach(m => {
               const mlScore = mlScores.get(m.schemeId);
               if (mlScore !== undefined) {
-                // Blend ML rank (40%) with original score (60%)
                 m.eligibilityScore = Math.round(m.eligibilityScore * 0.6 + (mlScore / limit) * 100 * 0.4);
               }
             });
@@ -89,7 +87,6 @@ class SimilarityAgent {
           }
         }
       } catch (mlErr) {
-        // ML re-ranking is best-effort — never block the response
         console.debug('ML re-ranking skipped:', (mlErr as Error).message);
       }
 
@@ -115,16 +112,16 @@ class SimilarityAgent {
   }
 
   /**
-   * Find schemes by multiple categories (reads from SQLite)
+   * Find schemes by multiple categories (graph traversal through Neo4j)
    */
-  private findSchemesByCategories(
+  private async findSchemesByCategories(
     categories: CategoryMapping[],
     limit: number
-  ): SchemeRow[] {
+  ): Promise<SchemeRow[]> {
     if (categories.length === 0) {
-      return sqliteService.getAllSchemes(limit);
+      return neo4jService.getAllSchemes(limit);
     }
-    return sqliteService.findSchemesByCategories(categories, limit);
+    return neo4jService.findSchemesByCategories(categories, limit);
   }
 
   /**
@@ -135,7 +132,7 @@ class SimilarityAgent {
     profile: UserProfile,
     userCategories: CategoryMapping[]
   ): SchemeMatch {
-    const scheme = sqliteService.toScheme(row);
+    const scheme = neo4jService.toScheme(row);
     const schemeCategories: CategoryMapping[] = JSON.parse(row.categories_json || '[]');
     const matchedCategories: string[] = [];
     let categoryMatches = 0;
@@ -221,8 +218,8 @@ class SimilarityAgent {
    */
   async searchSchemes(query: string, limit: number = 20): Promise<any[]> {
     try {
-      const rows = sqliteService.searchSchemes(query, limit);
-      return rows.map((row) => sqliteService.toScheme(row));
+      const rows = await neo4jService.searchSchemes(query, limit);
+      return rows.map((row) => neo4jService.toScheme(row));
     } catch (error) {
       console.error('Error searching schemes:', error);
       throw error;
@@ -234,9 +231,9 @@ class SimilarityAgent {
    */
   async getSchemeById(schemeId: string): Promise<any | null> {
     try {
-      const row = sqliteService.getSchemeById(schemeId);
+      const row = await neo4jService.getSchemeById(schemeId);
       if (!row) return null;
-      return sqliteService.toScheme(row);
+      return neo4jService.toScheme(row);
     } catch (error) {
       console.error('Error getting scheme by ID:', error);
       throw error;
@@ -248,7 +245,7 @@ class SimilarityAgent {
    */
   async getAllCategories(): Promise<Record<string, string[]>> {
     try {
-      return sqliteService.getAllCategories();
+      return await neo4jService.getAllCategories();
     } catch (error) {
       console.error('Error getting all categories:', error);
       throw error;
