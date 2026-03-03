@@ -1,13 +1,13 @@
 /**
  * Main API Server
  * Sets up Express server with all routes and middleware
- * Users persisted in SQLite; schemes served from SQLite via SchemeSyncAgent
+ * Users persisted in Neo4j; schemes served from Neo4j via SchemeSyncAgent
  */
 
 import express from 'express';
 import cors from 'cors';
 import { ProfileExtractor } from '../utils/profile-extractor';
-import { sqliteService } from '../db/sqlite.service';
+import { neo4jService } from '../db/neo4j.service';
 
 const app = express();
 
@@ -20,11 +20,11 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// ─── Seed admin user (called after sqliteService.init()) ──────────────────────
-export function seedAdminUser() {
-  const admin = sqliteService.getUserByEmail('admin@example.com');
+// ─── Seed admin user (called after neo4jService.init()) ──────────────────────
+export async function seedAdminUser() {
+  const admin = await neo4jService.getUserByEmail('admin@example.com');
   if (!admin) {
-    sqliteService.createUser({
+    await neo4jService.createUser({
       userId: 'admin123',
       email: 'admin@example.com',
       password: 'password',
@@ -42,7 +42,7 @@ function calculateProfileCompleteness(user: any): number {
 }
 
 // Mock authentication routes
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   try {
     console.log('=== REGISTRATION REQUEST ===');
     console.log('Body:', JSON.stringify(req.body, null, 2));
@@ -51,14 +51,14 @@ app.post('/api/auth/register', (req, res) => {
     console.log('Registration attempt:', { email, name });
 
     // Check if user already exists
-    const existingUser = sqliteService.getUserByEmail(email);
+    const existingUser = await neo4jService.getUserByEmail(email);
     if (existingUser) {
       console.log('User already exists:', email);
       return res.status(409).json({ error: 'User already exists' });
     }
 
     const userId = `user_${Date.now()}`;
-    sqliteService.createUser({
+    await neo4jService.createUser({
       userId,
       email,
       password,
@@ -88,12 +88,12 @@ app.post('/api/auth/register', (req, res) => {
   }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     console.log('Login attempt:', { email });
 
-    const user = sqliteService.getUserByEmail(email);
+    const user = await neo4jService.getUserByEmail(email);
     if (!user || user.password !== password) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -119,8 +119,8 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // Mock profile endpoints for testing (without database)
-app.get('/api/users/:userId/profile', (req, res) => {
-  const user = sqliteService.getUserById(req.params.userId);
+app.get('/api/users/:userId/profile', async (req, res) => {
+  const user = await neo4jService.getUserById(req.params.userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -140,8 +140,8 @@ app.get('/api/users/:userId/profile', (req, res) => {
   });
 });
 
-app.put('/api/users/:userId/profile', (req, res) => {
-  const user = sqliteService.getUserById(req.params.userId);
+app.put('/api/users/:userId/profile', async (req, res) => {
+  const user = await neo4jService.getUserById(req.params.userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -156,9 +156,9 @@ app.put('/api/users/:userId/profile', (req, res) => {
   for (const [k, col] of Object.entries(fieldMap)) {
     if (req.body[k] !== undefined) mappedFields[col] = req.body[k];
   }
-  sqliteService.updateUserProfile(req.params.userId, mappedFields);
+  await neo4jService.updateUserProfile(req.params.userId, mappedFields);
 
-  const updated = sqliteService.getUserById(req.params.userId)!;
+  const updated = (await neo4jService.getUserById(req.params.userId))!;
   return res.json({
     userId: updated.user_id,
     name: updated.name,
@@ -177,9 +177,9 @@ app.put('/api/users/:userId/profile', (req, res) => {
 // Real schemes endpoints using India.gov.in API
 import { schemesController } from '../schemes/schemes.controller';
 
-app.get('/api/schemes/stats', (_req, res) => {
+app.get('/api/schemes/stats', async (_req, res) => {
   try {
-    const meta = sqliteService.getSyncMeta();
+    const meta = await neo4jService.getSyncMeta();
     res.json({
       totalSchemes: meta.total_schemes,
       lastSync: meta.last_sync,
@@ -221,7 +221,7 @@ app.post('/api/chat', async (req, res) => {
     // Get user info from token (mock)
     const token = req.headers.authorization?.replace('Bearer ', '');
     const userId = token?.split('_').pop() || 'admin123';
-    const user = sqliteService.getUserById(userId);
+    const user = await neo4jService.getUserById(userId);
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
@@ -252,13 +252,13 @@ app.post('/api/chat', async (req, res) => {
 
     const profileUpdated = Object.keys(dbUpdates).length > 0;
     if (profileUpdated) {
-      try { sqliteService.updateUserProfile(userId, dbUpdates); } catch (e) { console.error('Profile update error', e); }
+      try { await neo4jService.updateUserProfile(userId, dbUpdates); } catch (e) { console.error('Profile update error', e); }
     }
 
     console.log(`✅ Profile updated: ${profileUpdated}, Updates applied:`, appliedUpdates.filter(Boolean));
 
     // Build enriched user object for chat context
-    const freshUser = sqliteService.getUserById(userId) || user;
+    const freshUser = (await neo4jService.getUserById(userId)) || user;
     const userForChat = {
       userId: freshUser.user_id,
       email: freshUser.email,
@@ -304,8 +304,8 @@ app.get('/health', (req, res) => {
 });
 
 // Debug endpoint to see all users
-app.get('/api/debug/users', (req, res) => {
-  const users = sqliteService.getAllUsers();
+app.get('/api/debug/users', async (req, res) => {
+  const users = await neo4jService.getAllUsers();
   res.json({
     users: users.map((u: any) => ({ userId: u.user_id, email: u.email, name: u.name })),
     count: users.length

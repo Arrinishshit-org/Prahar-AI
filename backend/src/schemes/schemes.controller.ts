@@ -1,7 +1,7 @@
 /**
  * Schemes Controller
  * Handles HTTP requests for government schemes
- * Reads from SQLite (via SimilarityAgent) with sample-data fallback
+ * Reads from Neo4j graph (via SimilarityAgent) with sample-data fallback
  */
 
 import { Request, Response } from 'express';
@@ -33,7 +33,7 @@ export class SchemesController {
           applicationUrl: s.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${s.schemeId}`,
         })));
       } catch (dbError) {
-        console.log('SQLite not ready, using sample data');
+        console.log('Neo4j not ready, using sample data');
         let schemes = sampleSchemes as any[];
         if (q) {
           const lq = q.toString().toLowerCase();
