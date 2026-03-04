@@ -10,6 +10,9 @@ const CATEGORIES = [
   { icon: Baby, label: 'Women' },
   { icon: HeartPulse, label: 'Health' },
   { icon: Map, label: 'State' },
+  { icon: Zap, label: 'Employment' },
+  { icon: BookOpen, label: 'Education' },
+  { icon: User, label: 'Social welfare' },
 ];
 
 export default function SchemeExplorer() {
@@ -29,10 +32,10 @@ export default function SchemeExplorer() {
     try {
       // Backend only supports `q` — merge search + category into one query
       const combined = [searchQuery, category].filter(Boolean).join(' ');
-      const data = await fetchSchemes(combined || undefined, 50);
+      const data = await fetchSchemes(combined || undefined, 100);
       // API returns a flat array
       const list: Scheme[] = Array.isArray(data) ? data : (data.schemes ?? data.data ?? data.value ?? []);
-      setSchemes(list.slice(0, 50));
+      setSchemes(list.slice(0, 100));
     } catch {
       setError('Could not load schemes. Please try again.');
     } finally {

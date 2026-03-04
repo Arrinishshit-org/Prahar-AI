@@ -46,7 +46,8 @@ class IndiaGovService {
   private readonly API_URL =
     'https://www.india.gov.in/my-government/schemes/search/dataservices/getschemes';
   private readonly DEFAULT_PAGE_SIZE = 20;
-  private readonly REQUEST_TIMEOUT = 10000; // 10 seconds
+  private readonly REQUEST_TIMEOUT = 60000; // 60 seconds (large batch requests can be slow)
+  private readonly MAX_RETRIES = 3;
 
   /**
    * Fetch schemes from India.gov.in API
@@ -60,40 +61,50 @@ class IndiaGovService {
     const pageNumber = options.pageNumber || 1;
     const pageSize = options.pageSize || this.DEFAULT_PAGE_SIZE;
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT);
+    let lastError: any;
+    for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT);
 
-      const response = await fetch(this.API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          categories: options.categories || [],
-          mustFilter: [],
-          pageNumber,
+        const response = await fetch(this.API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            categories: options.categories || [],
+            mustFilter: [],
+            pageNumber,
+            pageSize,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json() as IndiaGovResponse;
+
+        return {
+          total: data.schemesResponse.total,
+          schemes: data.schemesResponse.results.map(this.transformScheme),
+          page: pageNumber,
           pageSize,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}: ${response.statusText}`);
+        };
+      } catch (error: any) {
+        lastError = error;
+        if (attempt < this.MAX_RETRIES) {
+          const backoff = attempt * 2000; // 2s, 4s
+          console.warn(`⚠️  Fetch attempt ${attempt}/${this.MAX_RETRIES} failed (page ${pageNumber}): ${error.message}. Retrying in ${backoff / 1000}s...`);
+          await this.delay(backoff);
+        }
       }
-
-      const data = await response.json() as IndiaGovResponse;
-
-      return {
-        total: data.schemesResponse.total,
-        schemes: data.schemesResponse.results.map(this.transformScheme),
-        page: pageNumber,
-        pageSize,
-      };
-    } catch (error: any) {
-      console.error('Error fetching schemes from India.gov.in:', error);
-      throw new Error(`Failed to fetch schemes: ${error.message}`);
     }
+
+    console.error('Error fetching schemes from India.gov.in:', lastError);
+    throw new Error(`Failed to fetch schemes after ${this.MAX_RETRIES} attempts: ${lastError.message}`);
   }
 
   /**

@@ -255,16 +255,36 @@ class Neo4jDbService {
     category: string[]; ministry: string | null; tags: string[];
     state: string | null; schemeUrl?: string | null;
   }[]): Promise<void> {
-    console.log(`📥 Storing ${schemes.length} schemes in Neo4j graph...`);
+    // Deduplicate by scheme_id — the API sometimes returns duplicates
+    const seen = new Set<string>();
+    const uniqueSchemes = schemes.filter((s) => {
+      if (seen.has(s.schemeId)) return false;
+      seen.add(s.schemeId);
+      return true;
+    });
+    if (uniqueSchemes.length !== schemes.length) {
+      console.log(`⚠️  Deduplicated ${schemes.length - uniqueSchemes.length} duplicate scheme(s) before storing`);
+    }
+
+    console.log(`📥 Storing ${uniqueSchemes.length} schemes in Neo4j graph...`);
     const startTime = Date.now();
 
-    // Step 1: Remove old scheme nodes
-    await this.connection.executeWrite('MATCH (s:Scheme) DETACH DELETE s');
+    // Step 1: Drop constraint temporarily to allow clean deletion and re-insertion
+    try {
+      await this.connection.executeWrite('DROP CONSTRAINT scheme_id IF EXISTS');
+      console.log('🔓 Dropped scheme_id constraint for clean sync');
+    } catch (e) {
+      // Constraint might not exist, that's fine
+    }
 
-    // Step 2: Batch insert — chunks of 500
+    // Step 2: Remove old scheme nodes
+    await this.connection.executeWrite('MATCH (s:Scheme) DETACH DELETE s');
+    console.log('🗑️  Cleared existing schemes');
+
+    // Step 3: Batch insert — chunks of 500 (using CREATE since we cleared all schemes)
     const CHUNK = 500;
-    for (let i = 0; i < schemes.length; i += CHUNK) {
-      const rows = schemes.slice(i, i + CHUNK).map((s) => {
+    for (let i = 0; i < uniqueSchemes.length; i += CHUNK) {
+      const rows = uniqueSchemes.slice(i, i + CHUNK).map((s) => {
         const cats = extractCategories(s.name, s.description, s.tags);
         return {
           scheme_id: s.schemeId,
@@ -300,6 +320,14 @@ class Neo4jDbService {
       );
     }
 
+    // Step 4: Recreate the constraint
+    try {
+      await this.connection.executeWrite('CREATE CONSTRAINT scheme_id IF NOT EXISTS FOR (s:Scheme) REQUIRE s.scheme_id IS UNIQUE');
+      console.log('🔒 Recreated scheme_id constraint');
+    } catch (e) {
+      console.log('⚠️  Could not recreate constraint (may already exist)');
+    }
+
     // Step 3: Create Category nodes + HAS_CATEGORY relationships
     // Parse categories_json with Cypher and create relationships
     await this.connection.executeWrite(
@@ -318,20 +346,20 @@ class Neo4jDbService {
     ).catch(() => { /* no-op, we handle below */ });
 
     // Direct approach: re-extract and create relationships from JS side
-    await this.createCategoryRelationships(schemes);
+    await this.createCategoryRelationships(uniqueSchemes);
 
-    // Step 4: Auto-link schemes to UserGroups
+    // Step 5: Auto-link schemes to UserGroups
     await this.autoLinkSchemesToUserGroups();
 
-    // Step 5: Update meta
-    await this.updateSyncMeta(schemes.length);
+    // Step 6: Update meta
+    await this.updateSyncMeta(uniqueSchemes.length);
 
     // Clear caches
     await redisService.delPattern('schemes:*');
     await redisService.delPattern('categories:*');
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`✅ Stored ${schemes.length} schemes in Neo4j graph in ${duration}s`);
+    console.log(`✅ Stored ${uniqueSchemes.length} schemes in Neo4j graph in ${duration}s`);
   }
 
   /** Create Category nodes and HAS_CATEGORY relationships from JS side */
