@@ -16,41 +16,46 @@ export class SchemesController {
   async getSchemes(req: Request, res: Response) {
     try {
       const { q, limit = '20' } = req.query;
-      const limitNum = parseInt(limit as string, 10);
+      const limitNum = Math.floor(Number(limit) || 20);
 
       try {
         const schemes = q
           ? await similarityAgent.searchSchemes(q as string, limitNum)
           : await similarityAgent.searchSchemes('', limitNum);
 
-        res.json(schemes.map((s: any) => ({
-          id: s.schemeId,
-          title: s.name,
-          description: s.description || 'No description available',
-          category: s.rawCategory || s.categories?.[0]?.type || 'General',
-          benefits: s.ministry || 'Government of India',
-          eligibility: s.tags?.join(', ') || 'Check official website',
-          applicationUrl: s.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${s.schemeId}`,
-        })));
+        res.json(
+          schemes.map((s: any) => ({
+            id: s.schemeId,
+            title: s.name,
+            description: s.description || 'No description available',
+            category: s.rawCategory || s.categories?.[0]?.type || 'General',
+            benefits: s.ministry || 'Government of India',
+            eligibility: s.tags?.join(', ') || 'Check official website',
+            applicationUrl: s.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${s.schemeId}`,
+          }))
+        );
       } catch (dbError) {
         console.log('Neo4j not ready, using sample data');
         let schemes = sampleSchemes as any[];
         if (q) {
           const lq = q.toString().toLowerCase();
-          schemes = schemes.filter((s) =>
-            s.name.toLowerCase().includes(lq) ||
-            s.description.toLowerCase().includes(lq) ||
-            s.tags?.some((t: string) => t.toLowerCase().includes(lq))
+          schemes = schemes.filter(
+            (s) =>
+              s.name.toLowerCase().includes(lq) ||
+              s.description.toLowerCase().includes(lq) ||
+              s.tags?.some((t: string) => t.toLowerCase().includes(lq))
           );
         }
-        res.json(schemes.slice(0, limitNum).map((s) => ({
-          id: s.schemeId,
-          title: s.name,
-          description: s.description || 'No description available',
-          category: Array.isArray(s.category) ? s.category[0] : (s.category || 'General'),
-          benefits: s.ministry || 'Government of India',
-          eligibility: Array.isArray(s.tags) ? s.tags.join(', ') : 'Check official website',
-        })));
+        res.json(
+          schemes.slice(0, limitNum).map((s) => ({
+            id: s.schemeId,
+            title: s.name,
+            description: s.description || 'No description available',
+            category: Array.isArray(s.category) ? s.category[0] : s.category || 'General',
+            benefits: s.ministry || 'Government of India',
+            eligibility: Array.isArray(s.tags) ? s.tags.join(', ') : 'Check official website',
+          }))
+        );
       }
     } catch (error: any) {
       console.error('Error in getSchemes:', error);
@@ -79,7 +84,8 @@ export class SchemesController {
           eligibility: scheme.tags?.join(', ') || 'Check official website',
           applicationProcess: 'Visit the official government portal to apply',
           requiredDocuments: ['Aadhaar Card', 'Income Certificate', 'Residence Proof'],
-          applicationUrl: scheme.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${scheme.schemeId}`,
+          applicationUrl:
+            scheme.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${scheme.schemeId}`,
         });
       } catch (dbError) {
         const scheme = sampleSchemes.find((s) => s.schemeId === schemeId);
@@ -91,7 +97,9 @@ export class SchemesController {
           description: scheme.description || 'No description available',
           category: Array.isArray(scheme.category) ? scheme.category[0] : 'General',
           benefits: scheme.ministry || 'Government of India',
-          eligibility: Array.isArray(scheme.tags) ? scheme.tags.join(', ') : 'Check official website',
+          eligibility: Array.isArray(scheme.tags)
+            ? scheme.tags.join(', ')
+            : 'Check official website',
           applicationProcess: 'Visit the official government portal to apply',
           requiredDocuments: ['Aadhaar Card', 'Income Certificate', 'Residence Proof'],
           applicationUrl: `https://www.myscheme.gov.in/schemes/${scheme.schemeId}`,
@@ -139,15 +147,17 @@ export class SchemesController {
 
       const matches = await similarityAgent.findMatchingSchemes(userProfile, 10);
 
-      res.json(matches.map((m) => ({
-        id: m.schemeId,
-        title: m.name,
-        description: m.description || 'No description available',
-        category: m.categories?.[0]?.type || 'General',
-        benefits: m.ministry || 'Government of India',
-        eligibilityScore: m.eligibilityScore,
-        applicationUrl: m.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${m.schemeId}`,
-      })));
+      res.json(
+        matches.map((m) => ({
+          id: m.schemeId,
+          title: m.name,
+          description: m.description || 'No description available',
+          category: m.categories?.[0]?.type || 'General',
+          benefits: m.ministry || 'Government of India',
+          eligibilityScore: m.eligibilityScore,
+          applicationUrl: m.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${m.schemeId}`,
+        }))
+      );
     } catch (error: any) {
       console.error('Error in getRecommendations:', error);
       res.status(500).json({ error: 'Failed to fetch recommendations', details: error.message });

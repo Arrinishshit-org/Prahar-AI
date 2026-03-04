@@ -1,12 +1,12 @@
-version: '3.8'
+version: "3.8"
 
 services:
   neo4j:
     image: neo4j:5.15.0
     container_name: scheme-recommender-neo4j
     ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
     environment:
       - NEO4J_AUTH=neo4j/password123
       - NEO4J_PLUGINS=["apoc"]
@@ -29,23 +29,9 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: scheme-recommender-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=scheme_user
-      - POSTGRES_PASSWORD=scheme_password
-      - POSTGRES_DB=scheme_recommender
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
 volumes:
   neo4j_data:
   neo4j_logs:
   neo4j_import:
   neo4j_plugins:
   redis_data:
-  postgres_data:

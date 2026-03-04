@@ -1,12 +1,12 @@
-version: '3.8'
+version: "3.8"
 
 services:
   neo4j:
     image: neo4j:5.14-community
     container_name: ai4bharat-neo4j
     ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt (driver connection)
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt (driver connection)
     environment:
       NEO4J_AUTH: neo4j/your_secure_password_here
       NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
@@ -18,7 +18,16 @@ services:
     networks:
       - ai4bharat-network
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "your_secure_password_here", "RETURN 1"]
+      test:
+        [
+          "CMD",
+          "cypher-shell",
+          "-u",
+          "neo4j",
+          "-p",
+          "your_secure_password_here",
+          "RETURN 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

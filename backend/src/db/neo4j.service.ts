@@ -24,9 +24,9 @@ export interface SchemeRow {
   scheme_id: string;
   name: string;
   description: string;
-  category: string;        // JSON array string
+  category: string; // JSON array string
   ministry: string | null;
-  tags: string;            // JSON array string
+  tags: string; // JSON array string
   state: string | null;
   categories_json: string; // JSON array of {type,value}
   scheme_url: string | null;
@@ -120,7 +120,7 @@ function extractCategories(name: string, description: string, tags: string[]): C
       { type: 'Locality', value: 'Any' },
       { type: 'SocialCategory', value: 'Any' },
       { type: 'Education', value: 'Any' },
-      { type: 'PovertyLine', value: 'Any' },
+      { type: 'PovertyLine', value: 'Any' }
     );
   }
 
@@ -130,15 +130,87 @@ function extractCategories(name: string, description: string, tags: string[]): C
 // ─── Default UserGroup definitions ───────────────────────────────────────────
 
 const DEFAULT_USER_GROUPS = [
-  { name: 'Farmer', occupation_type: 'Agriculture', income_range: '', age_range: '', rural_urban: 'Rural', gender_priority: '', description: 'Farmers and agricultural laborers' },
-  { name: 'Student', occupation_type: '', income_range: '', age_range: '18-25', rural_urban: '', gender_priority: '', description: 'Students pursuing education' },
-  { name: 'Senior Citizen', occupation_type: '', income_range: '', age_range: '60+', rural_urban: '', gender_priority: '', description: 'Senior citizens aged 60 and above' },
-  { name: 'Low Income Worker', occupation_type: '', income_range: '0-250000', age_range: '', rural_urban: '', gender_priority: '', description: 'Workers with low annual income' },
-  { name: 'Women', occupation_type: '', income_range: '', age_range: '', rural_urban: '', gender_priority: 'Female', description: 'Women-focused schemes and programs' },
-  { name: 'MSME / Self-employed', occupation_type: 'Self-employed', income_range: '', age_range: '', rural_urban: '', gender_priority: '', description: 'Micro, Small & Medium Enterprises and self-employed' },
-  { name: 'Disabled', occupation_type: '', income_range: '', age_range: '', rural_urban: '', gender_priority: '', description: 'Persons with disabilities' },
-  { name: 'Rural Household', occupation_type: '', income_range: '', age_range: '', rural_urban: 'Rural', gender_priority: '', description: 'Households in rural areas' },
-  { name: 'Urban BPL', occupation_type: '', income_range: '0-150000', age_range: '', rural_urban: 'Urban', gender_priority: '', description: 'Urban households below poverty line' },
+  {
+    name: 'Farmer',
+    occupation_type: 'Agriculture',
+    income_range: '',
+    age_range: '',
+    rural_urban: 'Rural',
+    gender_priority: '',
+    description: 'Farmers and agricultural laborers',
+  },
+  {
+    name: 'Student',
+    occupation_type: '',
+    income_range: '',
+    age_range: '18-25',
+    rural_urban: '',
+    gender_priority: '',
+    description: 'Students pursuing education',
+  },
+  {
+    name: 'Senior Citizen',
+    occupation_type: '',
+    income_range: '',
+    age_range: '60+',
+    rural_urban: '',
+    gender_priority: '',
+    description: 'Senior citizens aged 60 and above',
+  },
+  {
+    name: 'Low Income Worker',
+    occupation_type: '',
+    income_range: '0-250000',
+    age_range: '',
+    rural_urban: '',
+    gender_priority: '',
+    description: 'Workers with low annual income',
+  },
+  {
+    name: 'Women',
+    occupation_type: '',
+    income_range: '',
+    age_range: '',
+    rural_urban: '',
+    gender_priority: 'Female',
+    description: 'Women-focused schemes and programs',
+  },
+  {
+    name: 'MSME / Self-employed',
+    occupation_type: 'Self-employed',
+    income_range: '',
+    age_range: '',
+    rural_urban: '',
+    gender_priority: '',
+    description: 'Micro, Small & Medium Enterprises and self-employed',
+  },
+  {
+    name: 'Disabled',
+    occupation_type: '',
+    income_range: '',
+    age_range: '',
+    rural_urban: '',
+    gender_priority: '',
+    description: 'Persons with disabilities',
+  },
+  {
+    name: 'Rural Household',
+    occupation_type: '',
+    income_range: '',
+    age_range: '',
+    rural_urban: 'Rural',
+    gender_priority: '',
+    description: 'Households in rural areas',
+  },
+  {
+    name: 'Urban BPL',
+    occupation_type: '',
+    income_range: '0-150000',
+    age_range: '',
+    rural_urban: 'Urban',
+    gender_priority: '',
+    description: 'Urban households below poverty line',
+  },
 ];
 
 // ─── Neo4j Database Service ──────────────────────────────────────────────────
@@ -152,7 +224,9 @@ class Neo4jDbService {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    const uri = process.env.NEO4J_URI || `bolt://${process.env.NEO4J_HOST || 'localhost'}:${process.env.NEO4J_PORT || '7687'}`;
+    const uri =
+      process.env.NEO4J_URI ||
+      `bolt://${process.env.NEO4J_HOST || 'localhost'}:${process.env.NEO4J_PORT || '7687'}`;
     const username = process.env.NEO4J_USER || 'neo4j';
     const password = process.env.NEO4J_PASSWORD || 'password123';
     const database = process.env.NEO4J_DATABASE || 'neo4j';
@@ -179,7 +253,11 @@ class Neo4jDbService {
       'CREATE CONSTRAINT syncmeta_id IF NOT EXISTS FOR (sm:SyncMeta) REQUIRE sm.meta_id IS UNIQUE',
     ];
     for (const c of constraints) {
-      try { await this.connection.executeWrite(c); } catch { /* may already exist */ }
+      try {
+        await this.connection.executeWrite(c);
+      } catch {
+        /* may already exist */
+      }
     }
 
     const indexes = [
@@ -189,7 +267,11 @@ class Neo4jDbService {
       'CREATE INDEX category_type IF NOT EXISTS FOR (c:Category) ON (c.type)',
     ];
     for (const idx of indexes) {
-      try { await this.connection.executeWrite(idx); } catch { /* may already exist */ }
+      try {
+        await this.connection.executeWrite(idx);
+      } catch {
+        /* may already exist */
+      }
     }
     console.log('✅ Neo4j constraints and indexes ready');
   }
@@ -210,7 +292,9 @@ class Neo4jDbService {
              ug.member_count = 0`,
           g
         );
-      } catch { /* ignore duplicate */ }
+      } catch {
+        /* ignore duplicate */
+      }
     }
     console.log('✅ Default UserGroups initialized');
   }
@@ -221,12 +305,18 @@ class Neo4jDbService {
     const cached = await redisService.get<SyncMeta>('sync_meta');
     if (cached) return cached;
 
-    const rows = await this.connection.executeRead<{ last_sync: string | null; total_schemes: number }>(
+    const rows = await this.connection.executeRead<{
+      last_sync: string | null;
+      total_schemes: number;
+    }>(
       `OPTIONAL MATCH (sm:SyncMeta { meta_id: 'main' })
        RETURN sm.last_sync AS last_sync, COALESCE(sm.total_schemes, 0) AS total_schemes`
     );
     const r = rows[0] || { last_sync: null, total_schemes: 0 };
-    const meta: SyncMeta = { last_sync: r.last_sync ?? null, total_schemes: Number(r.total_schemes) || 0 };
+    const meta: SyncMeta = {
+      last_sync: r.last_sync ?? null,
+      total_schemes: Number(r.total_schemes) || 0,
+    };
     await redisService.set('sync_meta', meta, 300);
     return meta;
   }
@@ -250,11 +340,18 @@ class Neo4jDbService {
 
   // ─── Bulk Write ────��────────────────────────────────────────────────────────
 
-  async storeSchemes(schemes: {
-    schemeId: string; name: string; description: string;
-    category: string[]; ministry: string | null; tags: string[];
-    state: string | null; schemeUrl?: string | null;
-  }[]): Promise<void> {
+  async storeSchemes(
+    schemes: {
+      schemeId: string;
+      name: string;
+      description: string;
+      category: string[];
+      ministry: string | null;
+      tags: string[];
+      state: string | null;
+      schemeUrl?: string | null;
+    }[]
+  ): Promise<void> {
     // Deduplicate by scheme_id — the API sometimes returns duplicates
     const seen = new Set<string>();
     const uniqueSchemes = schemes.filter((s) => {
@@ -263,7 +360,9 @@ class Neo4jDbService {
       return true;
     });
     if (uniqueSchemes.length !== schemes.length) {
-      console.log(`⚠️  Deduplicated ${schemes.length - uniqueSchemes.length} duplicate scheme(s) before storing`);
+      console.log(
+        `⚠️  Deduplicated ${schemes.length - uniqueSchemes.length} duplicate scheme(s) before storing`
+      );
     }
 
     console.log(`📥 Storing ${uniqueSchemes.length} schemes in Neo4j graph...`);
@@ -322,7 +421,9 @@ class Neo4jDbService {
 
     // Step 4: Recreate the constraint
     try {
-      await this.connection.executeWrite('CREATE CONSTRAINT scheme_id IF NOT EXISTS FOR (s:Scheme) REQUIRE s.scheme_id IS UNIQUE');
+      await this.connection.executeWrite(
+        'CREATE CONSTRAINT scheme_id IF NOT EXISTS FOR (s:Scheme) REQUIRE s.scheme_id IS UNIQUE'
+      );
       console.log('🔒 Recreated scheme_id constraint');
     } catch (e) {
       console.log('⚠️  Could not recreate constraint (may already exist)');
@@ -330,8 +431,9 @@ class Neo4jDbService {
 
     // Step 3: Create Category nodes + HAS_CATEGORY relationships
     // Parse categories_json with Cypher and create relationships
-    await this.connection.executeWrite(
-      `MATCH (s:Scheme)
+    await this.connection
+      .executeWrite(
+        `MATCH (s:Scheme)
        WITH s, s.categories_json AS catsStr
        WHERE catsStr IS NOT NULL AND catsStr <> '[]'
        CALL {
@@ -343,7 +445,10 @@ class Neo4jDbService {
          RETURN s AS scheme
        }
        RETURN count(scheme) AS processed`
-    ).catch(() => { /* no-op, we handle below */ });
+      )
+      .catch(() => {
+        /* no-op, we handle below */
+      });
 
     // Direct approach: re-extract and create relationships from JS side
     await this.createCategoryRelationships(uniqueSchemes);
@@ -363,7 +468,9 @@ class Neo4jDbService {
   }
 
   /** Create Category nodes and HAS_CATEGORY relationships from JS side */
-  private async createCategoryRelationships(schemes: { schemeId: string; name: string; description: string; tags: string[] }[]): Promise<void> {
+  private async createCategoryRelationships(
+    schemes: { schemeId: string; name: string; description: string; tags: string[] }[]
+  ): Promise<void> {
     // Collect all unique categories across all schemes
     const catMap = new Map<string, Set<string>>(); // "type|value" -> Set<schemeId>
     for (const s of schemes) {
@@ -442,7 +549,11 @@ class Neo4jDbService {
        MATCH (ug:UserGroup { name: 'Low Income Worker' }) MERGE (s)-[:TARGETS]->(ug)`,
     ];
     for (const q of linkQueries) {
-      try { await this.connection.executeWrite(q); } catch { /* ignore */ }
+      try {
+        await this.connection.executeWrite(q);
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -461,14 +572,14 @@ class Neo4jDbService {
   }
 
   async getAllSchemes(limit = 5000): Promise<SchemeRow[]> {
-    const cacheKey = `schemes:all:${limit}`;
+    const limitInt = Math.floor(Number(limit));
+    const cacheKey = `schemes:all:${limitInt}`;
     const cached = await redisService.get<SchemeRow[]>(cacheKey);
     if (cached) return cached;
 
-    const rows = await this.connection.executeRead<any>(
-      'MATCH (s:Scheme) RETURN s LIMIT $limit',
-      { limit }
-    );
+    const rows = await this.connection.executeRead<any>('MATCH (s:Scheme) RETURN s LIMIT $limit', {
+      limit: limitInt,
+    });
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
     await redisService.set(cacheKey, result, 600);
     return result;
@@ -490,9 +601,10 @@ class Neo4jDbService {
   }
 
   async searchSchemes(query: string, limit = 20): Promise<SchemeRow[]> {
-    if (!query) return this.getAllSchemes(limit);
+    const limitInt = Math.floor(Number(limit));
+    if (!query) return this.getAllSchemes(limitInt);
 
-    const cacheKey = `schemes:search:${query}:${limit}`;
+    const cacheKey = `schemes:search:${query}:${limitInt}`;
     const cached = await redisService.get<SchemeRow[]>(cacheKey);
     if (cached) return cached;
 
@@ -501,7 +613,7 @@ class Neo4jDbService {
       `MATCH (s:Scheme)
        WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
        RETURN s LIMIT $limit`,
-      { pattern, limit }
+      { pattern, limit: limitInt }
     );
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
     await redisService.set(cacheKey, result, 300);
@@ -509,9 +621,10 @@ class Neo4jDbService {
   }
 
   async findSchemesByCategories(categories: CategoryMapping[], limit = 20): Promise<SchemeRow[]> {
-    if (categories.length === 0) return this.getAllSchemes(limit);
+    const limitInt = Math.floor(Number(limit));
+    if (categories.length === 0) return this.getAllSchemes(limitInt);
 
-    const cacheKey = `schemes:cats:${JSON.stringify(categories)}:${limit}`;
+    const cacheKey = `schemes:cats:${JSON.stringify(categories)}:${limitInt}`;
     const cached = await redisService.get<SchemeRow[]>(cacheKey);
     if (cached) return cached;
 
@@ -523,7 +636,7 @@ class Neo4jDbService {
        MATCH (s:Scheme)-[:HAS_CATEGORY]->(c)
        RETURN DISTINCT s
        LIMIT $limit`,
-      { cats, limit }
+      { cats, limit: limitInt }
     );
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
     await redisService.set(cacheKey, result, 300);
@@ -547,10 +660,11 @@ class Neo4jDbService {
 
   /** Graph traversal: find schemes for a user via UserGroup relationships */
   async findSchemesForUser(userId: string, limit = 20): Promise<SchemeRow[]> {
+    const limitInt = Math.floor(Number(limit));
     const rows = await this.connection.executeRead<any>(
       `MATCH (u:User { user_id: $userId })-[:BELONGS_TO]->(ug:UserGroup)<-[:TARGETS]-(s:Scheme)
        RETURN DISTINCT s LIMIT $limit`,
-      { userId, limit }
+      { userId, limit: limitInt }
     );
     return rows.map((r: any) => this.nodeToSchemeRow(r.s));
   }
@@ -591,8 +705,14 @@ class Neo4jDbService {
   // ─── User CRUD ───────────────────────────────────────────────────────────────
 
   async createUser(user: {
-    userId: string; email: string; password: string;
-    name?: string; age?: number; income?: string; state?: string; gender?: string;
+    userId: string;
+    email: string;
+    password: string;
+    name?: string;
+    age?: number;
+    income?: string;
+    state?: string;
+    gender?: string;
   }): Promise<void> {
     await this.connection.executeWrite(
       `CREATE (u:User {
@@ -603,9 +723,13 @@ class Neo4jDbService {
          created_at: toString(datetime())
        })`,
       {
-        userId: user.userId, email: user.email, password: user.password,
-        name: user.name ?? '', age: user.age ?? 0,
-        income: user.income ?? '', state: user.state ?? '',
+        userId: user.userId,
+        email: user.email,
+        password: user.password,
+        name: user.name ?? '',
+        age: user.age ?? 0,
+        income: user.income ?? '',
+        state: user.state ?? '',
         gender: user.gender ?? '',
       }
     );
@@ -615,7 +739,8 @@ class Neo4jDbService {
 
   async getUserByEmail(email: string): Promise<any | undefined> {
     const rows = await this.connection.executeRead<any>(
-      'MATCH (u:User { email: $email }) RETURN u', { email }
+      'MATCH (u:User { email: $email }) RETURN u',
+      { email }
     );
     if (rows.length === 0) return undefined;
     return this.nodeToUser(rows[0].u);
@@ -627,7 +752,8 @@ class Neo4jDbService {
     if (cached) return cached;
 
     const rows = await this.connection.executeRead<any>(
-      'MATCH (u:User { user_id: $userId }) RETURN u', { userId }
+      'MATCH (u:User { user_id: $userId }) RETURN u',
+      { userId }
     );
     if (rows.length === 0) return undefined;
     const user = this.nodeToUser(rows[0].u);
@@ -643,7 +769,17 @@ class Neo4jDbService {
   }
 
   async updateUserProfile(userId: string, fields: Record<string, any>): Promise<void> {
-    const allowed = ['name', 'age', 'income', 'state', 'gender', 'employment', 'education', 'interests', 'onboarding_complete'];
+    const allowed = [
+      'name',
+      'age',
+      'income',
+      'state',
+      'gender',
+      'employment',
+      'education',
+      'interests',
+      'onboarding_complete',
+    ];
     const updates = Object.entries(fields).filter(([k]) => allowed.includes(k));
     if (updates.length === 0) return;
 
@@ -658,7 +794,8 @@ class Neo4jDbService {
 
     // Re-assign UserGroups
     const userRows = await this.connection.executeRead<any>(
-      'MATCH (u:User { user_id: $userId }) RETURN u', { userId }
+      'MATCH (u:User { user_id: $userId }) RETURN u',
+      { userId }
     );
     if (userRows.length > 0) {
       await this.autoAssignUserToGroups(userId, this.nodeToUser(userRows[0].u));
@@ -686,7 +823,8 @@ class Neo4jDbService {
     if (emp.includes('retired')) groupNames.push('Senior Citizen');
     if (emp.includes('farmer') || emp.includes('agriculture')) groupNames.push('Farmer');
     const inc = (profile.income || '').toLowerCase();
-    if (inc.includes('below') || inc.includes('bpl') || inc.includes('low')) groupNames.push('Low Income Worker');
+    if (inc.includes('below') || inc.includes('bpl') || inc.includes('low'))
+      groupNames.push('Low Income Worker');
 
     const unique = [...new Set(groupNames)];
     if (unique.length > 0) {
@@ -748,7 +886,7 @@ class Neo4jDbService {
       `MATCH (u:User { user_id: $userId })-[:BELONGS_TO]->(ug:UserGroup) RETURN ug`,
       { userId }
     );
-    return rows.map((r: any) => (r.ug.properties ?? r.ug));
+    return rows.map((r: any) => r.ug.properties ?? r.ug);
   }
 
   async getAllUserGroups(): Promise<any[]> {
@@ -763,8 +901,13 @@ class Neo4jDbService {
     }));
   }
 
-  async checkGraphEligibility(userId: string, schemeId: string): Promise<{
-    eligible: boolean; matchedCategories: string[]; score: number;
+  async checkGraphEligibility(
+    userId: string,
+    schemeId: string
+  ): Promise<{
+    eligible: boolean;
+    matchedCategories: string[];
+    score: number;
   }> {
     const rows = await this.connection.executeRead<any>(
       `MATCH (u:User { user_id: $userId })-[:HAS_CATEGORY]->(c:Category)<-[:HAS_CATEGORY]-(s:Scheme { scheme_id: $schemeId })
