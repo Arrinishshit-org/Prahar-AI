@@ -8,7 +8,7 @@ characteristics using K-Means clustering algorithm.
 import numpy as np
 import pickle
 from typing import Dict, List, Any, Optional, Tuple
-from sklearn.cluster import KMeans
+from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 from datetime import datetime
 
@@ -20,29 +20,27 @@ except ImportError:
 
 class UserClassifier:
     """
-    Classify users into groups using K-Means clustering.
+    Classify users into groups using DBSCAN clustering.
     
-    Uses K-Means with 25 clusters to group users with similar demographic,
-    economic, and geographic characteristics. Includes confidence-based
-    assignment and support for multi-group membership.
+    Uses DBSCAN (Density-Based Spatial Clustering of Applications with Noise)
+    to group users with similar demographic, economic, and geographic 
+    characteristics. Unlike K-Means, DBSCAN doesn't require pre-specifying 
+    the number of clusters and can handle outliers as noise.
     """
     
-    def __init__(self, n_clusters: int = 25, random_state: int = 42):
+    def __init__(self, eps: float = 0.5, min_samples: int = 5):
         """
         Initialize UserClassifier.
         
         Args:
-            n_clusters: Number of clusters for K-Means (default: 25)
-            random_state: Random seed for reproducibility
+            eps: The maximum distance between two samples for one to be 
+                 considered as in the neighborhood of the other.
+            min_samples: The number of samples in a neighborhood for a point
+                         to be considered as a core point.
         """
-        self.n_clusters = n_clusters
-        self.random_state = random_state
-        self.kmeans = KMeans(
-            n_clusters=n_clusters,
-            random_state=random_state,
-            n_init=10,
-            max_iter=300
-        )
+        self.eps = eps
+        self.min_samples = min_samples
+        self.dbscan = DBSCAN(eps=eps, min_samples=min_samples)
         self.scaler = StandardScaler()
         self.feature_extractor = FeatureExtractor()
         self.is_fitted = False
@@ -58,9 +56,9 @@ class UserClassifier:
         Returns:
             Dictionary containing training metrics
         """
-        if len(profiles) < self.n_clusters:
+        if len(profiles) < self.min_samples:
             raise ValueError(
-                f"Need at least {self.n_clusters} profiles to train, got {len(profiles)}"
+                f"Need at least {self.min_samples} profiles to train, got {len(profiles)}"
             )
         
         # Extract features from all profiles
@@ -70,20 +68,24 @@ class UserClassifier:
         # Standardize features
         X_scaled = self.scaler.fit_transform(X)
         
-        # Fit K-Means
-        self.kmeans.fit(X_scaled)
+        # Fit DBSCAN
+        labels = self.dbscan.fit_predict(X_scaled)
         self.is_fitted = True
         
-        # Analyze and store cluster characteristics
-        self.cluster_metadata = self._analyze_clusters(profiles, X_scaled)
+        # Unique labels (excluding noise if necessary)
+        unique_labels = set(labels)
+        n_clusters = len([l for l in unique_labels if l != -1])
+        n_noise = list(labels).count(-1)
         
-        # Calculate training metrics
-        inertia = self.kmeans.inertia_
+        # Analyze and store cluster characteristics
+        self.cluster_metadata = self._analyze_clusters(profiles, X_scaled, labels)
         
         return {
-            'n_clusters': self.n_clusters,
+            'eps': self.eps,
+            'min_samples': self.min_samples,
+            'n_clusters': n_clusters,
+            'n_noise': n_noise,
             'n_samples': len(profiles),
-            'inertia': inertia,
             'is_fitted': self.is_fitted,
             'timestamp': datetime.now().isoformat()
         }
@@ -91,16 +93,16 @@ class UserClassifier:
     def classify_user(
         self,
         profile: Dict[str, Any],
-        confidence_threshold: float = 0.7,
-        multi_group_threshold: float = 1.2
+        # DBSCAN doesn't have a direct predict for new points, so we find the nearest cluster
+        # or label as noise if too far.
+        near_neighbor_threshold: float = 1.0 
     ) -> Dict[str, Any]:
         """
         Classify a user into one or more groups.
         
         Args:
             profile: User profile dictionary
-            confidence_threshold: Minimum confidence for cluster assignment (default: 0.7)
-            multi_group_threshold: Distance multiplier for multi-group assignment (default: 1.2)
+            near_neighbor_threshold: Max distance to consider user part of a cluster
             
         Returns:
             Dictionary containing:
@@ -117,31 +119,31 @@ class UserClassifier:
         features = self.feature_extractor.extract_features(profile)
         features_scaled = self.scaler.transform(features.reshape(1, -1))
         
-        # Predict primary cluster
-        cluster_id = self.kmeans.predict(features_scaled)[0]
+        # DBSCAN doesn't predict. We find the nearest core point or cluster centroid.
+        # For simplicity, we compare with cluster centroids from training data.
         
-        # Calculate distances to all centroids
-        distances = self.kmeans.transform(features_scaled)[0]
-        min_distance = distances[cluster_id]
+        best_cluster = -1
+        min_dist = float('inf')
         
-        # Calculate confidence (inverse of distance, normalized)
-        # Higher confidence when closer to centroid
-        confidence = 1.0 / (1.0 + min_distance)
+        for cluster_id, metadata in self.cluster_metadata.items():
+            if cluster_id == -1: continue # Skip noise
+            
+            centroid = np.array(metadata['centroid'])
+            dist = np.linalg.norm(features_scaled - centroid)
+            
+            if dist < min_dist:
+                min_dist = dist
+                best_cluster = cluster_id
         
         # Determine group assignments
         groups = []
+        confidence = 1.0 / (1.0 + min_dist) if min_dist != float('inf') else 0.0
         
-        if confidence < confidence_threshold:
-            # Low confidence - assign to default group
-            groups = [self._get_default_group_id()]
+        if best_cluster != -1 and min_dist < near_neighbor_threshold:
+            groups = [int(best_cluster)]
         else:
-            # High confidence - assign to primary cluster
-            groups = [int(cluster_id)]
-            
-            # Check for multi-group membership (near cluster boundaries)
-            for i, dist in enumerate(distances):
-                if i != cluster_id and dist < min_distance * multi_group_threshold:
-                    groups.append(int(i))
+            # Noise or too far - assign to default group (-1 or noise)
+            groups = [-1]
         
         return {
             'user_id': profile.get('user_id', 'unknown'),
@@ -154,7 +156,8 @@ class UserClassifier:
     def _analyze_clusters(
         self,
         profiles: List[Dict[str, Any]],
-        features_scaled: np.ndarray
+        features_scaled: np.ndarray,
+        labels: np.ndarray
     ) -> Dict[int, Dict[str, Any]]:
         """
         Analyze cluster characteristics and compute metadata.
@@ -162,43 +165,37 @@ class UserClassifier:
         Args:
             profiles: List of user profiles
             features_scaled: Scaled feature matrix
+            labels: DBSCAN output labels
             
         Returns:
             Dictionary mapping cluster IDs to metadata
         """
-        labels = self.kmeans.labels_
+        unique_labels = set(labels)
         cluster_info = {}
         
-        for cluster_id in range(self.n_clusters):
+        for cluster_id in unique_labels:
             # Get profiles in this cluster
             mask = labels == cluster_id
             cluster_profiles = [p for p, m in zip(profiles, mask) if m]
             cluster_features = features_scaled[mask]
             
-            if len(cluster_profiles) == 0:
-                # Empty cluster
-                cluster_info[cluster_id] = {
-                    'size': 0,
-                    'centroid': self.kmeans.cluster_centers_[cluster_id].tolist(),
-                    'typical_profile': {},
-                    'feature_stats': {}
-                }
-                continue
+            # Compute centroid (mean of points in cluster)
+            centroid = cluster_features.mean(axis=0).tolist()
             
             # Compute typical profile characteristics
             typical_profile = self._compute_typical_profile(cluster_profiles)
             
             # Compute feature statistics
             feature_stats = {
-                'mean': cluster_features.mean(axis=0).tolist(),
+                'mean': centroid,
                 'std': cluster_features.std(axis=0).tolist(),
                 'min': cluster_features.min(axis=0).tolist(),
                 'max': cluster_features.max(axis=0).tolist()
             }
             
-            cluster_info[cluster_id] = {
+            cluster_info[int(cluster_id)] = {
                 'size': len(cluster_profiles),
-                'centroid': self.kmeans.cluster_centers_[cluster_id].tolist(),
+                'centroid': centroid,
                 'typical_profile': typical_profile,
                 'feature_stats': feature_stats
             }
@@ -295,10 +292,10 @@ class UserClassifier:
             raise ValueError("Cannot save unfitted model")
         
         model_data = {
-            'kmeans': self.kmeans,
+            'dbscan': self.dbscan,
             'scaler': self.scaler,
-            'n_clusters': self.n_clusters,
-            'random_state': self.random_state,
+            'eps': self.eps,
+            'min_samples': self.min_samples,
             'cluster_metadata': self.cluster_metadata,
             'is_fitted': self.is_fitted
         }
@@ -316,9 +313,9 @@ class UserClassifier:
         with open(filepath, 'rb') as f:
             model_data = pickle.load(f)
         
-        self.kmeans = model_data['kmeans']
+        self.dbscan = model_data['dbscan']
         self.scaler = model_data['scaler']
-        self.n_clusters = model_data['n_clusters']
-        self.random_state = model_data['random_state']
+        self.eps = model_data['eps']
+        self.min_samples = model_data['min_samples']
         self.cluster_metadata = model_data['cluster_metadata']
         self.is_fitted = model_data['is_fitted']

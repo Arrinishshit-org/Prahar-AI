@@ -25,6 +25,7 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 import torch
+import onnxruntime as ort
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
@@ -32,6 +33,7 @@ from transformers import (
 )
 import numpy as np
 import re
+import os
 
 
 class Intent(str, Enum):
@@ -64,14 +66,15 @@ class IntentResult:
 
 class IntentClassifier:
     """
-    Intent classifier using BERT/DistilBERT for query classification
-    and entity extraction.
+    Intent classifier using ONNX-optimized BERT/DistilBERT for query 
+    classification and entity extraction.
     """
     
     def __init__(
         self,
         model_name: str = "distilbert-base-uncased",
-        model_path: Optional[str] = None
+        model_path: Optional[str] = None,
+        use_onnx: bool = True
     ):
         """
         Initialize the intent classifier.
@@ -79,33 +82,130 @@ class IntentClassifier:
         Args:
             model_name: Base model to use (default: distilbert-base-uncased)
             model_path: Path to fine-tuned model (if available)
+            use_onnx: Whether to use ONNX for inference
         """
         self.model_name = model_name
         self.model_path = model_path
+        self.use_onnx = use_onnx
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         # Intent labels
         self.intent_labels = [intent.value for intent in Intent]
         self.num_labels = len(self.intent_labels)
         
-        # Load or initialize model
-        if model_path:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_path
-            ).to(self.device)
-        else:
-            # Initialize with pre-trained model (not fine-tuned yet)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_name,
-                num_labels=self.num_labels
-            ).to(self.device)
+        # Load tokenizer
+        tokenizer_path = model_path if model_path else model_name
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
         
-        self.model.eval()
+        if self.use_onnx:
+            self._init_onnx(model_path, model_name)
+        else:
+            self._init_torch(model_path, model_name)
         
         # Entity extraction patterns
         self._init_entity_patterns()
+
+    def _init_torch(self, model_path, model_name):
+        """Initialize standard PyTorch model."""
+        if model_path:
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                model_path
+            ).to(self.device).eval()
+        else:
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                model_name,
+                num_labels=self.num_labels
+            ).to(self.device).eval()
+
+    def _init_onnx(self, model_path, model_name):
+        """Initialize ONNX runtime session."""
+        onnx_path = os.path.join(model_path, "model.onnx") if model_path else "model.onnx"
+        
+        # If ONNX file doesn't exist, we'd normally export it here.
+        # For this implementation, we assume it's pre-converted or we'd trigger a conversion.
+        if not os.path.exists(onnx_path):
+            self._export_to_onnx(onnx_path)
+            
+        providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if torch.cuda.is_available() else ['CPUExecutionProvider']
+        self.onnx_session = ort.InferenceSession(onnx_path, providers=providers)
+
+    def _export_to_onnx(self, onnx_path):
+        """Export the current model to ONNX format."""
+        print(f"Exporting model to ONNX: {onnx_path}")
+        self._init_torch(self.model_path, self.model_name)
+        
+        dummy_input = self.tokenizer("dummy text", return_tensors="pt").to(self.device)
+        
+        torch.onnx.export(
+            self.model,
+            (dummy_input["input_ids"], dummy_input["attention_mask"]),
+            onnx_path,
+            input_names=['input_ids', 'attention_mask'],
+            output_names=['logits'],
+            dynamic_axes={'input_ids': {0: 'batch_size', 1: 'sequence_length'},
+                         'attention_mask': {0: 'batch_size', 1: 'sequence_length'},
+                         'logits': {0: 'batch_size'}},
+            opset_version=12
+        )
+
+    def classify(
+        self,
+        query: str,
+        context: Optional[Dict] = None
+    ) -> IntentResult:
+        """
+        Classify user query into intent and extract entities.
+        """
+        # Tokenize input
+        inputs = self.tokenizer(
+            query,
+            return_tensors="np" if self.use_onnx else "pt",
+            truncation=True,
+            max_length=512,
+            padding=True
+        )
+        
+        if self.use_onnx:
+            # ONNX Inference
+            onnx_inputs = {
+                "input_ids": inputs["input_ids"],
+                "attention_mask": inputs["attention_mask"]
+            }
+            logits = self.onnx_session.run(None, onnx_inputs)[0]
+            probabilities = self._softmax(logits[0])
+        else:
+            # PyTorch Inference
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                logits = outputs.logits
+                probabilities = torch.softmax(logits, dim=-1)[0].cpu().numpy()
+        
+        # Get primary intent
+        primary_idx = np.argmax(probabilities)
+        primary_intent = Intent(self.intent_labels[primary_idx])
+        confidence = float(probabilities[primary_idx])
+        
+        # Get secondary intents (confidence > 0.2)
+        secondary_intents = []
+        for idx, prob in enumerate(probabilities):
+            if idx != primary_idx and prob > 0.2:
+                secondary_intents.append(Intent(self.intent_labels[idx]))
+        
+        # Extract entities
+        entities = self.extract_entities(query)
+        
+        return IntentResult(
+            primary_intent=primary_intent,
+            secondary_intents=secondary_intents,
+            confidence=confidence,
+            entities=entities
+        )
+
+    def _softmax(self, x):
+        """Compute softmax values for each sets of scores in x."""
+        e_x = np.exp(x - np.max(x))
+        return e_x / e_x.sum()
     
     def _init_entity_patterns(self):
         """Initialize regex patterns for entity extraction"""

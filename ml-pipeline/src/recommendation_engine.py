@@ -8,6 +8,14 @@ classification and eligibility scoring to generate ranked scheme recommendations
 import numpy as np
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
+import os
+
+# Optional: XGBoost for LTR
+try:
+    import xgboost as xgb
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
 
 try:
     from src.user_classifier import UserClassifier
@@ -19,21 +27,19 @@ except ImportError:
 
 class RecommendationEngine:
     """
-    Generate personalized scheme recommendations using user groups and eligibility scores.
+    Generate personalized scheme recommendations using Learning to Rank (LTR).
     
     The engine:
-    - Retrieves schemes relevant to user's assigned groups
-    - Calculates eligibility scores for candidate schemes
-    - Combines group relevance (40%) and eligibility (60%) scores
-    - Ranks schemes by combined score
-    - Returns top 5-20 recommendations with explanations
-    - Caches results for 24 hours
+    - Uses an XGBoost Gradient Boosted Tree to learn optimal ranking weights
+    - Features inclusive of user groups, eligibility scores, and historical interactions
+    - Ranks schemes by predicted likelihood of successful application
     """
     
     def __init__(
         self,
         user_classifier: UserClassifier,
-        eligibility_engine: EligibilityEngine
+        eligibility_engine: EligibilityEngine,
+        model_path: Optional[str] = None
     ):
         """
         Initialize the recommendation engine.
@@ -41,13 +47,21 @@ class RecommendationEngine:
         Args:
             user_classifier: Trained UserClassifier instance
             eligibility_engine: EligibilityEngine instance
+            model_path: Path to trained XGBoost LTR model
         """
         self.user_classifier = user_classifier
         self.eligibility_engine = eligibility_engine
         self._recommendation_cache: Dict[str, Dict[str, Any]] = {}
         self._group_scheme_cache: Dict[int, List[str]] = {}
         
-        # Scoring weights
+        # LTR Model Setup
+        self.use_ltr = XGBOOST_AVAILABLE
+        self.ranker = None
+        if self.use_ltr and model_path and os.path.exists(model_path):
+            self.ranker = xgb.Booster()
+            self.ranker.load_model(model_path)
+            
+        # Scoring weights (fallback if LTR not available)
         self.group_relevance_weight = 0.4
         self.eligibility_weight = 0.6
     
@@ -103,32 +117,35 @@ class RecommendationEngine:
             candidate_schemes
         )
         
-        # Step 4: Combine group relevance and eligibility scores
+        # Step 4: Combine group relevance and eligibility scores or Use LTR
         scored_schemes = []
-        for i, scheme in enumerate(candidate_schemes):
-            eligibility = eligibility_results[i]
-            
-            # Get group relevance score
-            group_relevance = self._calculate_group_relevance(
-                scheme.get('scheme_id', ''),
+        
+        if self.use_ltr and self.ranker:
+            scored_schemes = self._rank_with_ltr(
+                candidate_schemes,
+                eligibility_results,
+                user_profile,
                 user_groups
             )
-            
-            # Combined score: 40% group relevance + 60% eligibility
-            combined_score = (
-                self.group_relevance_weight * group_relevance +
-                self.eligibility_weight * eligibility['score']
-            )
-            
-            scored_schemes.append({
-                'scheme': scheme,
-                'eligibility': eligibility,
-                'group_relevance': group_relevance,
-                'combined_score': combined_score
-            })
-        
-        # Step 5: Rank schemes by combined score (descending)
-        scored_schemes.sort(key=lambda x: x['combined_score'], reverse=True)
+        else:
+            # Fallback to Weighted Heuristic if LTR not available
+            for i, scheme in enumerate(candidate_schemes):
+                eligibility = eligibility_results[i]
+                group_relevance = self._calculate_group_relevance(
+                    scheme.get('scheme_id', ''),
+                    user_groups
+                )
+                combined_score = (
+                    self.group_relevance_weight * group_relevance +
+                    self.eligibility_weight * eligibility['score']
+                )
+                scored_schemes.append({
+                    'scheme': scheme,
+                    'eligibility': eligibility,
+                    'group_relevance': group_relevance,
+                    'combined_score': combined_score
+                })
+            scored_schemes.sort(key=lambda x: x['combined_score'], reverse=True)
         
         # Step 6: Take top N recommendations (between min and max)
         num_recommendations = min(
@@ -164,6 +181,41 @@ class RecommendationEngine:
         
         return recommendations
     
+    def _rank_with_ltr(
+        self,
+        schemes: List[Dict[str, Any]],
+        eligibility: List[Dict[str, Any]],
+        profile: Dict[str, Any],
+        groups: List[int]
+    ) -> List[Dict[str, Any]]:
+        """Rank candidates using XGBoost Gradient Boosted Tree."""
+        # Feature Engineering for LTR
+        features = []
+        for i, scheme in enumerate(schemes):
+            # Example features: eligibility, cluster relevance, scheme popularity
+            f = [
+                eligibility[i]['score'],
+                float(len(groups)) / 25.0, # normalized group count
+                scheme.get('popularity', 0.5), # prior popularity
+                1.0 if scheme.get('state') == profile.get('state') else 0.0
+            ]
+            features.append(f)
+            
+        dtest = xgb.DMatrix(np.array(features))
+        preds = self.ranker.predict(dtest)
+        
+        results = []
+        for i, score in enumerate(preds):
+            results.append({
+                'scheme': schemes[i],
+                'eligibility': eligibility[i],
+                'group_relevance': float(len(groups)) / 25.0,
+                'combined_score': float(score)
+            })
+            
+        results.sort(key=lambda x: x['combined_score'], reverse=True)
+        return results
+
     def _get_candidate_schemes(
         self,
         user_groups: List[int],
