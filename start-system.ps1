@@ -62,9 +62,16 @@ Write-Host "Step 2: Starting Servers" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
+Write-Host "Starting ML pipeline on http://localhost:8000..." -ForegroundColor Yellow
 Write-Host "Starting backend server on http://localhost:3000..." -ForegroundColor Yellow
 Write-Host "Starting frontend server on http://localhost:5173..." -ForegroundColor Yellow
 Write-Host ""
+
+# Start ML pipeline in a new window
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd ml-pipeline; python -m uvicorn api:app --host 0.0.0.0 --port 8000 --reload"
+
+# Wait for ML pipeline to start
+Start-Sleep -Seconds 2
 
 # Start backend in a new window
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd backend; npm run dev"
@@ -80,8 +87,9 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "System Started Successfully!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Backend:  http://localhost:3000" -ForegroundColor Cyan
-Write-Host "Frontend: http://localhost:5173" -ForegroundColor Cyan
+Write-Host "ML Pipeline: http://localhost:8000" -ForegroundColor Cyan
+Write-Host "Backend:     http://localhost:3000" -ForegroundColor Cyan
+Write-Host "Frontend:    http://localhost:5173" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Test Credentials:" -ForegroundColor Yellow
 Write-Host "  Email:    admin@example.com" -ForegroundColor White

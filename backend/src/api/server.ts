@@ -2,12 +2,15 @@
  * Main API Server
  * Sets up Express server with all routes and middleware
  * Users persisted in Neo4j; schemes served from Neo4j via SchemeSyncAgent
+ * Chat is proxied to FastAPI ML service (port 8000)
  */
 
 import express from 'express';
 import cors from 'cors';
 import { ProfileExtractor } from '../utils/profile-extractor';
 import { neo4jService } from '../db/neo4j.service';
+
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
 const app = express();
 
@@ -116,7 +119,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', (_req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -194,7 +197,7 @@ app.get('/api/users/:userId/recommendations', (req, res) =>
 );
 
 // Mock nudges endpoint
-app.get('/api/users/:userId/nudges', (req, res) => {
+app.get('/api/users/:userId/nudges', (_req, res) => {
   res.json([
     {
       nudgeId: '1',
@@ -208,16 +211,13 @@ app.get('/api/users/:userId/nudges', (req, res) => {
   ]);
 });
 
-// Chat endpoint using intelligent agent system
-import { chatController } from '../chat';
-
+// Chat endpoint — proxies to FastAPI ML service
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
     console.log('Chat message received:', message);
-    console.log('Conversation history items:', conversationHistory.length);
 
-    // Get user info from token (mock)
+    // Get user info from token
     const token = req.headers.authorization?.replace('Bearer ', '');
     const userId = token?.split('_').pop() || 'admin123';
     const user = await neo4jService.getUserById(userId);
@@ -226,48 +226,33 @@ app.post('/api/chat', async (req, res) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    // Use intelligent profile extractor
-    console.log(`\n📊 Extracting profile data from message: "${message}"`);
+    // Extract profile data from message and update DB
     const extraction = ProfileExtractor.extract(message);
     const updates = extraction.updates;
     const updateMessages = extraction.messages;
 
-    // Also extract from conversation history for context
-    console.log(`📁 Extracting context from ${conversationHistory.length} previous messages...`);
-    const historyContext = ProfileExtractor.extractFromHistory(conversationHistory);
-    console.log('Context extracted from history:', historyContext);
-
-    // Collect DB updates
     const dbUpdates: Record<string, any> = {};
     const appliedUpdates: string[] = [];
 
     if (updates.age !== undefined) {
       dbUpdates['age'] = updates.age;
-      appliedUpdates.push(updateMessages[updateMessages.findIndex((m) => m.includes('age'))] || '');
+      appliedUpdates.push(updateMessages.find((m) => m.includes('age')) || '');
     }
     if (updates.income !== undefined) {
       dbUpdates['income'] = updates.income;
-      appliedUpdates.push(
-        updateMessages[updateMessages.findIndex((m) => m.includes('income'))] || ''
-      );
+      appliedUpdates.push(updateMessages.find((m) => m.includes('income')) || '');
     }
     if (updates.state !== undefined) {
       dbUpdates['state'] = updates.state;
-      appliedUpdates.push(
-        updateMessages[updateMessages.findIndex((m) => m.includes('state'))] || ''
-      );
+      appliedUpdates.push(updateMessages.find((m) => m.includes('state')) || '');
     }
     if (updates.employment !== undefined) {
       dbUpdates['employment'] = updates.employment;
-      appliedUpdates.push(
-        updateMessages[updateMessages.findIndex((m) => m.includes('employment'))] || ''
-      );
+      appliedUpdates.push(updateMessages.find((m) => m.includes('employment')) || '');
     }
     if (updates.education !== undefined) {
       dbUpdates['education'] = updates.education;
-      appliedUpdates.push(
-        updateMessages[updateMessages.findIndex((m) => m.includes('education'))] || ''
-      );
+      appliedUpdates.push(updateMessages.find((m) => m.includes('education')) || '');
     }
     if (updates.disability !== undefined) {
       dbUpdates['is_disabled'] = updates.disability;
@@ -285,14 +270,9 @@ app.post('/api/chat', async (req, res) => {
       }
     }
 
-    console.log(
-      `✅ Profile updated: ${profileUpdated}, Updates applied:`,
-      appliedUpdates.filter(Boolean)
-    );
-
-    // Build enriched user object for chat context
+    // Build enriched user profile
     const freshUser = (await neo4jService.getUserById(userId)) || user;
-    const userForChat = {
+    const userProfile = {
       userId: freshUser.user_id,
       email: freshUser.email,
       name: freshUser.name,
@@ -305,26 +285,34 @@ app.post('/api/chat', async (req, res) => {
       ...dbUpdates,
     };
 
-    // Attach user profile and conversation history to request for chat service
-    (req as any).userId = userId;
-    (req as any).userProfile = userForChat;
-    (req as any).conversationHistory = conversationHistory;
-    (req as any).extractedContext = historyContext;
+    // Proxy to FastAPI chat endpoint
+    const mlResponse = await fetch(`${ML_SERVICE_URL}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        user_profile: userProfile,
+        conversation_history: conversationHistory,
+      }),
+    });
 
-    // If profile was updated, prepend the update messages to the response
-    if (profileUpdated && appliedUpdates.length > 0) {
-      const originalSend = res.json.bind(res);
-      res.json = function (data: any) {
-        if (data.response) {
-          const updatePrefix = appliedUpdates.filter(Boolean).join(' ');
-          data.response = updatePrefix + '\n\n' + data.response;
-        }
-        return originalSend(data);
-      };
+    if (!mlResponse.ok) {
+      throw new Error(`ML service returned ${mlResponse.status}`);
     }
 
-    // Use chat controller
-    await chatController.sendMessage(req, res);
+    const chatResult = (await mlResponse.json()) as any;
+
+    // Prepend profile update messages if any
+    let responseText = chatResult.response || '';
+    if (profileUpdated && appliedUpdates.length > 0) {
+      const updatePrefix = appliedUpdates.filter(Boolean).join(' ');
+      responseText = updatePrefix + '\n\n' + responseText;
+    }
+
+    return res.json({
+      response: responseText,
+      suggestions: chatResult.suggestions || [],
+    });
   } catch (error: any) {
     console.error('Chat error:', error);
     return res.status(500).json({ error: 'Failed to process message', details: error.message });
@@ -332,12 +320,12 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Debug endpoint to see all users
-app.get('/api/debug/users', async (req, res) => {
+app.get('/api/debug/users', async (_req, res) => {
   const users = await neo4jService.getAllUsers();
   res.json({
     users: users.map((u: any) => ({ userId: u.user_id, email: u.email, name: u.name })),
@@ -346,7 +334,7 @@ app.get('/api/debug/users', async (req, res) => {
 });
 
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(500).json({ error: 'Internal server error', details: err.message });
 });
