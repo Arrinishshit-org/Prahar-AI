@@ -13,12 +13,14 @@ import {
   X,
   Bot,
 } from 'lucide-react';
-import { View } from './types';
+import { View, Scheme } from './types';
 import { AuthProvider, useAuth } from './AuthContext';
 
 // Components
 import LandingPage from './components/LandingPage';
+import Dashboard from './components/Dashboard';
 import SchemeExplorer from './components/SchemeExplorer';
+import SchemeDetail from './components/SchemeDetail';
 import ChatAssistant from './components/ChatAssistant';
 import UserProfile from './components/UserProfile';
 import AboutPage from './components/AboutPage';
@@ -252,6 +254,7 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<View>('home');
   const [intendedView, setIntendedView] = useState<View | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [selectedScheme, setSelectedScheme] = useState<Scheme | null>(null);
   const { isAuthenticated, user } = useAuth();
 
   const PROTECTED: View[] = ['schemes', 'assistant', 'profile', 'partner'];
@@ -267,6 +270,18 @@ function AppContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSchemeSelect = (scheme: Scheme) => {
+    setSelectedScheme(scheme);
+    setCurrentView('schemeDetail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToSchemes = () => {
+    setSelectedScheme(null);
+    setCurrentView('schemes');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handlePostLogin = () => {
     const dest = intendedView || 'home';
     setIntendedView(null);
@@ -277,9 +292,19 @@ function AppContent() {
   const renderView = () => {
     switch (currentView) {
       case 'home':
-        return <LandingPage onNavigate={navigate} />;
+        return isAuthenticated && user ? (
+          <Dashboard user={user} onNavigate={navigate} />
+        ) : (
+          <LandingPage onNavigate={navigate} />
+        );
       case 'schemes':
-        return <SchemeExplorer />;
+        return <SchemeExplorer onSchemeSelect={handleSchemeSelect} />;
+      case 'schemeDetail':
+        return selectedScheme ? (
+          <SchemeDetail scheme={selectedScheme} onBack={handleBackToSchemes} />
+        ) : (
+          <SchemeExplorer onSchemeSelect={handleSchemeSelect} />
+        );
       case 'assistant':
         return <ChatAssistant />;
       case 'profile':
@@ -293,7 +318,11 @@ function AppContent() {
       case 'login':
         return <LoginPage onNavigate={navigate} onLoginSuccess={handlePostLogin} />;
       default:
-        return <LandingPage onNavigate={navigate} />;
+        return isAuthenticated && user ? (
+          <Dashboard user={user} onNavigate={navigate} />
+        ) : (
+          <LandingPage onNavigate={navigate} />
+        );
     }
   };
 
