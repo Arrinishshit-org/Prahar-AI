@@ -42,7 +42,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
       {/* ── HERO ───────────────────────────────────── */}
       <section className="relative overflow-hidden bg-primary min-h-[88vh] flex items-center">
         {/* Decorative Ashoka Wheel bg */}
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/4 opacity-5 w-[600px] h-[600px] pointer-events-none">
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/4 opacity-5 w-150 h-150 pointer-events-none">
           <svg viewBox="0 0 100 100" fill="none" className="w-full h-full">
             <circle cx="50" cy="50" r="46" stroke="white" strokeWidth="1" />
             <circle cx="50" cy="50" r="8" stroke="white" strokeWidth="1" />
@@ -107,7 +107,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 onClick={() => onNavigate('schemes')}
-                className="btn-primary h-13 px-8 text-base !rounded-lg shadow-lg shadow-accent/30"
+                className="btn-primary h-13 px-8 text-base rounded-lg! shadow-lg shadow-accent/30"
               >
                 {t('landing.cta_check_eligibility')}
                 <ArrowRight className="size-5" />
@@ -212,7 +212,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
                 ))}
                 <button
                   onClick={() => onNavigate('schemes')}
-                  className="w-full mt-2 btn-primary !rounded-lg text-sm"
+                  className="w-full mt-2 btn-primary rounded-lg! text-sm"
                 >
                   {t('landing.view_all_matched')}
                   <ArrowRight className="size-4" />
