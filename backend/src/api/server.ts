@@ -12,12 +12,14 @@ import { neo4jService } from '../db/neo4j.service';
 const app = express();
 
 // Middleware
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 app.use(express.json());
 
 // ─── Seed admin user (called after neo4jService.init()) ──────────────────────
@@ -37,7 +39,7 @@ export async function seedAdminUser() {
 // ─── Helper: profile completeness ─────────────────────────────────────────────
 function calculateProfileCompleteness(user: any): number {
   const fields = ['name', 'email', 'age', 'income', 'state', 'employment', 'education', 'gender'];
-  const filledFields = fields.filter(field => user[field] != null && user[field] !== '');
+  const filledFields = fields.filter((field) => user[field] != null && user[field] !== '');
   return Math.round((filledFields.length / fields.length) * 100);
 }
 
@@ -149,9 +151,15 @@ app.put('/api/users/:userId/profile', async (req, res) => {
   // Map camelCase keys to snake_case columns
   const mappedFields: Record<string, any> = {};
   const fieldMap: Record<string, string> = {
-    name: 'name', age: 'age', income: 'income', state: 'state',
-    employment: 'employment', education: 'education', gender: 'gender',
-    interests: 'interests', onboardingComplete: 'onboarding_complete',
+    name: 'name',
+    age: 'age',
+    income: 'income',
+    state: 'state',
+    employment: 'employment',
+    education: 'education',
+    gender: 'gender',
+    interests: 'interests',
+    onboardingComplete: 'onboarding_complete',
   };
   for (const [k, col] of Object.entries(fieldMap)) {
     if (req.body[k] !== undefined) mappedFields[col] = req.body[k];
@@ -177,22 +185,13 @@ app.put('/api/users/:userId/profile', async (req, res) => {
 // Real schemes endpoints using India.gov.in API
 import { schemesController } from '../schemes/schemes.controller';
 
-app.get('/api/schemes/stats', async (_req, res) => {
-  try {
-    const meta = await neo4jService.getSyncMeta();
-    res.json({
-      totalSchemes: meta.total_schemes,
-      lastSync: meta.last_sync,
-    });
-  } catch {
-    res.json({ totalSchemes: 0, lastSync: null });
-  }
-});
-
+app.get('/api/schemes/stats', (req, res) => schemesController.getStats(req, res));
 app.get('/api/schemes', (req, res) => schemesController.getSchemes(req, res));
 app.get('/api/schemes/categories', (req, res) => schemesController.getCategories(req, res));
 app.get('/api/schemes/:schemeId', (req, res) => schemesController.getSchemeById(req, res));
-app.get('/api/users/:userId/recommendations', (req, res) => schemesController.getRecommendations(req, res));
+app.get('/api/users/:userId/recommendations', (req, res) =>
+  schemesController.getRecommendations(req, res)
+);
 
 // Mock nudges endpoint
 app.get('/api/users/:userId/nudges', (req, res) => {
@@ -242,20 +241,54 @@ app.post('/api/chat', async (req, res) => {
     const dbUpdates: Record<string, any> = {};
     const appliedUpdates: string[] = [];
 
-    if (updates.age !== undefined) { dbUpdates['age'] = updates.age; appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('age'))] || ''); }
-    if (updates.income !== undefined) { dbUpdates['income'] = updates.income; appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('income'))] || ''); }
-    if (updates.state !== undefined) { dbUpdates['state'] = updates.state; appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('state'))] || ''); }
-    if (updates.employment !== undefined) { dbUpdates['employment'] = updates.employment; appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('employment'))] || ''); }
-    if (updates.education !== undefined) { dbUpdates['education'] = updates.education; appliedUpdates.push(updateMessages[updateMessages.findIndex(m => m.includes('education'))] || ''); }
-    if (updates.disability !== undefined) { dbUpdates['is_disabled'] = updates.disability; }
-    if (updates.minority !== undefined) { dbUpdates['is_minority'] = updates.minority; }
+    if (updates.age !== undefined) {
+      dbUpdates['age'] = updates.age;
+      appliedUpdates.push(updateMessages[updateMessages.findIndex((m) => m.includes('age'))] || '');
+    }
+    if (updates.income !== undefined) {
+      dbUpdates['income'] = updates.income;
+      appliedUpdates.push(
+        updateMessages[updateMessages.findIndex((m) => m.includes('income'))] || ''
+      );
+    }
+    if (updates.state !== undefined) {
+      dbUpdates['state'] = updates.state;
+      appliedUpdates.push(
+        updateMessages[updateMessages.findIndex((m) => m.includes('state'))] || ''
+      );
+    }
+    if (updates.employment !== undefined) {
+      dbUpdates['employment'] = updates.employment;
+      appliedUpdates.push(
+        updateMessages[updateMessages.findIndex((m) => m.includes('employment'))] || ''
+      );
+    }
+    if (updates.education !== undefined) {
+      dbUpdates['education'] = updates.education;
+      appliedUpdates.push(
+        updateMessages[updateMessages.findIndex((m) => m.includes('education'))] || ''
+      );
+    }
+    if (updates.disability !== undefined) {
+      dbUpdates['is_disabled'] = updates.disability;
+    }
+    if (updates.minority !== undefined) {
+      dbUpdates['is_minority'] = updates.minority;
+    }
 
     const profileUpdated = Object.keys(dbUpdates).length > 0;
     if (profileUpdated) {
-      try { await neo4jService.updateUserProfile(userId, dbUpdates); } catch (e) { console.error('Profile update error', e); }
+      try {
+        await neo4jService.updateUserProfile(userId, dbUpdates);
+      } catch (e) {
+        console.error('Profile update error', e);
+      }
     }
 
-    console.log(`✅ Profile updated: ${profileUpdated}, Updates applied:`, appliedUpdates.filter(Boolean));
+    console.log(
+      `✅ Profile updated: ${profileUpdated}, Updates applied:`,
+      appliedUpdates.filter(Boolean)
+    );
 
     // Build enriched user object for chat context
     const freshUser = (await neo4jService.getUserById(userId)) || user;
@@ -281,7 +314,7 @@ app.post('/api/chat', async (req, res) => {
     // If profile was updated, prepend the update messages to the response
     if (profileUpdated && appliedUpdates.length > 0) {
       const originalSend = res.json.bind(res);
-      res.json = function(data: any) {
+      res.json = function (data: any) {
         if (data.response) {
           const updatePrefix = appliedUpdates.filter(Boolean).join(' ');
           data.response = updatePrefix + '\n\n' + data.response;
@@ -308,7 +341,7 @@ app.get('/api/debug/users', async (req, res) => {
   const users = await neo4jService.getAllUsers();
   res.json({
     users: users.map((u: any) => ({ userId: u.user_id, email: u.email, name: u.name })),
-    count: users.length
+    count: users.length,
   });
 });
 

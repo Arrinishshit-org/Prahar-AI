@@ -32,6 +32,23 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: ai4bharat-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ai4bharat-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   # Optional: If you want to add a Node.js API service
   api:
     build: .
@@ -41,11 +58,15 @@ services:
     depends_on:
       neo4j:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       NEO4J_HOST: neo4j
       NEO4J_PORT: 7687
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: your_secure_password_here
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       NODE_ENV: production
     networks:
       - ai4bharat-network
@@ -55,6 +76,8 @@ volumes:
   neo4j_data:
     driver: local
   neo4j_logs:
+    driver: local
+  redis_data:
     driver: local
 
 networks:
