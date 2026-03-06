@@ -594,9 +594,12 @@ class Neo4jDbService {
     const cached = await redisService.get<SchemeRow[]>(cacheKey);
     if (cached) return cached;
 
-    const rows = await this.connection.executeRead<any>('MATCH (s:Scheme) RETURN s LIMIT $limit', {
-      limit: limitInt,
-    });
+    const rows = await this.connection.executeRead<any>(
+      'MATCH (s:Scheme) RETURN s LIMIT toInteger($limit)',
+      {
+        limit: limitInt,
+      }
+    );
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
     await redisService.set(cacheKey, result, CacheTTL.SCHEME_SEARCH);
     return result;
@@ -632,7 +635,7 @@ class Neo4jDbService {
       rows = await this.connection.executeRead<any>(
         `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
          YIELD node AS s, score
-         RETURN s ORDER BY score DESC LIMIT $limit`,
+         RETURN s ORDER BY score DESC LIMIT toInteger($limit)`,
         { query: `${ftQuery}~`, limit: limitInt }
       );
     } catch {
@@ -641,7 +644,7 @@ class Neo4jDbService {
       rows = await this.connection.executeRead<any>(
         `MATCH (s:Scheme)
          WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
-         RETURN s LIMIT $limit`,
+         RETURN s LIMIT toInteger($limit)`,
         { pattern, limit: limitInt }
       );
     }
@@ -669,14 +672,14 @@ class Neo4jDbService {
           `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
            YIELD node AS s, score
            WHERE s.state = $state OR s.state IS NULL OR s.state = ''
-           RETURN s ORDER BY score DESC LIMIT $limit`,
+           RETURN s ORDER BY score DESC LIMIT toInteger($limit)`,
           { query: `${ftQuery}~`, state, limit: limitInt }
         );
       } else {
         rows = await this.connection.executeRead<any>(
           `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
            YIELD node AS s, score
-           RETURN s ORDER BY score DESC LIMIT $limit`,
+           RETURN s ORDER BY score DESC LIMIT toInteger($limit)`,
           { query: `${ftQuery}~`, limit: limitInt }
         );
       }
@@ -688,14 +691,14 @@ class Neo4jDbService {
           `MATCH (s:Scheme)
            WHERE (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
              AND (s.state = $state OR s.state IS NULL OR s.state = '')
-           RETURN s LIMIT $limit`,
+           RETURN s LIMIT toInteger($limit)`,
           { pattern, state, limit: limitInt }
         );
       } else {
         rows = await this.connection.executeRead<any>(
           `MATCH (s:Scheme)
            WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
-           RETURN s LIMIT $limit`,
+           RETURN s LIMIT toInteger($limit)`,
           { pattern, limit: limitInt }
         );
       }
@@ -723,7 +726,7 @@ class Neo4jDbService {
        MATCH (s:Scheme)-[:HAS_CATEGORY]->(c)
        WITH s, count(DISTINCT c) AS matchCount
        RETURN s ORDER BY matchCount DESC
-       LIMIT $limit`,
+       LIMIT toInteger($limit)`,
       { cats, limit: limitInt }
     );
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
@@ -761,7 +764,7 @@ class Neo4jDbService {
        WITH collect(DISTINCT s1) + collect(DISTINCT s2) AS allSchemes
        UNWIND allSchemes AS s
        WITH s WHERE s IS NOT NULL
-       RETURN DISTINCT s LIMIT $limit`,
+       RETURN DISTINCT s LIMIT toInteger($limit)`,
       { userId, limit: limitInt }
     );
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));

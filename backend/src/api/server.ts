@@ -58,8 +58,17 @@ app.post('/api/auth/register', async (req, res) => {
     console.log('=== REGISTRATION REQUEST ===');
     console.log('Body:', JSON.stringify(req.body, null, 2));
 
-    const { email, password, name, age, income, state, gender } = req.body;
+    const { email, password, name, age, income, state, gender } = req.body || {};
     console.log('Registration attempt:', { email, name });
+
+    // Validate required fields before making any DB calls.
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing required fields: email and password' });
+    }
+
+    if (typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
 
     // Check if user already exists
     const existingUser = await neo4jService.getUserByEmail(email);
@@ -225,7 +234,8 @@ app.post('/api/chat', async (req, res) => {
 
     // Get user info from token
     const token = req.headers.authorization?.replace('Bearer ', '');
-    const userId = token?.split('_').pop() || 'admin123';
+    const userId =
+      token?.replace('mock_access_token_', '').replace('mock_refresh_token_', '') || 'admin123';
     const user = await neo4jService.getUserById(userId);
 
     if (!user) {
@@ -347,12 +357,16 @@ app.get('/api/debug/users', async (_req, res) => {
 // ─── ReAct Agent Chat Endpoint (New, experimental) ────────────────────────────
 app.post('/api/react-chat', async (req, res) => {
   try {
-    const { message, conversationHistory = [] } = req.body;
+    const { message, conversationHistory = [] } = req.body || {};
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Missing required field: message' });
+    }
     console.log(`\n🤖 ReAct Chat: "${message}"`);
 
     // Get user from token
     const token = req.headers.authorization?.replace('Bearer ', '');
-    const userId = token?.split('_').pop() || 'admin123';
+    const userId =
+      token?.replace('mock_access_token_', '').replace('mock_refresh_token_', '') || 'admin123';
     const user = await neo4jService.getUserById(userId);
 
     if (!user) {

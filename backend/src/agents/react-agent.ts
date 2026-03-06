@@ -163,8 +163,15 @@ class ReActAgent {
     message: string,
     userId: string
   ): Promise<{ primary: string; confidence: number; secondary: string[] }> {
+    // Check high-confidence rule patterns first (these are unambiguous)
+    const msg = (message || '').toLowerCase();
+    if (msg.includes('who am i') || msg === 'my profile' || msg === 'show my profile') {
+      return { primary: 'profile_query', confidence: 0.9, secondary: [] };
+    }
+
+    // Try ML classification
     const classification = await mlService.classify(message, userId);
-    if (classification) {
+    if (classification && classification.confidence >= 0.7) {
       return {
         primary: classification.primary_intent,
         confidence: classification.confidence,
@@ -172,8 +179,7 @@ class ReActAgent {
       };
     }
 
-    // Rule-based fallback
-    const msg = message.toLowerCase();
+    // Rule-based fallback for lower-confidence ML or when ML is unavailable
     if (msg.includes('eligible') || msg.includes('qualify')) {
       return { primary: 'eligibility_check', confidence: 0.7, secondary: ['scheme_search'] };
     }
@@ -186,12 +192,22 @@ class ReActAgent {
     if (msg.includes('apply') || msg.includes('how to') || msg.includes('process')) {
       return { primary: 'application_info', confidence: 0.6, secondary: ['scheme_search'] };
     }
-    if (msg.includes('update') || msg.includes('my ') || msg.includes('change')) {
+    if (msg.includes('update') || msg.includes('change my')) {
       return { primary: 'profile_update', confidence: 0.6, secondary: [] };
     }
-    if (msg.includes('profile') || msg.includes('details') || msg.includes('who am i')) {
+    if (msg.includes('profile') || msg.includes('details') || msg.includes('about me')) {
       return { primary: 'profile_query', confidence: 0.6, secondary: [] };
     }
+
+    // If ML gave a low-confidence result, still use it over the default
+    if (classification) {
+      return {
+        primary: classification.primary_intent,
+        confidence: classification.confidence,
+        secondary: classification.secondary_intents || [],
+      };
+    }
+
     return { primary: 'general', confidence: 0.5, secondary: [] };
   }
 
