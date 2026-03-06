@@ -11,6 +11,7 @@ import { ParameterDefinition } from './types';
 import { neo4jService } from '../../db/neo4j.service';
 import { mlService } from '../../services/ml.service';
 import { redisService, CacheTTL } from '../../db/redis.service';
+import { userSegmentationService } from '../../classification/user-segmentation';
 
 /**
  * Find the best schemes for a user — combines graph search + ML ranking
@@ -118,10 +119,28 @@ export class FindBestSchemesTool extends BaseTool {
       }));
     }
 
+    // Step 5: Apply segment-based re-ranking
+    const segmentAssignment = await userSegmentationService.assignSegment(userId);
+    const reRanked = userSegmentationService.reRankBySegment(
+      ranked.map((r) => ({
+        ...r,
+        tags: allCandidates.find((c) => c.scheme_id === r.schemeId)?.tags ?? [],
+      })),
+      segmentAssignment.segment
+    );
+    ranked = reRanked.map((r, idx) => ({
+      rank: idx + 1,
+      schemeId: r.schemeId,
+      name: r.name,
+      relevanceScore: r.relevanceScore,
+      state: r.state,
+    }));
+
     const result = {
       userId,
       count: ranked.length,
       schemes: ranked,
+      segment: segmentAssignment.segment.name,
       source: mlResult ? 'ml_ranked' : 'graph_scored',
       cached: false,
     };

@@ -10,6 +10,7 @@ import { ParameterDefinition } from './types';
 import { neo4jService } from '../../db/neo4j.service';
 import { mlService } from '../../services/ml.service';
 import { redisService, CacheTTL } from '../../db/redis.service';
+import { userSegmentationService } from '../../classification/user-segmentation';
 
 /**
  * Get personalized scheme recommendations for a user
@@ -109,10 +110,32 @@ export class GetRecommendationsTool extends BaseTool {
       }));
     }
 
+    // Apply segment-based re-ranking
+    const segmentAssignment = await userSegmentationService.assignSegment(userId);
+    const tagsForRanking = recommendations.map((r) => {
+      const raw = candidates.find((c) => c.scheme_id === r.schemeId)?.tags;
+      const tags: string[] =
+        typeof raw === 'string' ? raw.split(',').map((t: string) => t.trim()) : (raw ?? []);
+      return { ...r, tags };
+    });
+    const reRanked = userSegmentationService.reRankBySegment(
+      tagsForRanking,
+      segmentAssignment.segment
+    );
+    // Re-assign ranks after re-ranking
+    recommendations = reRanked.map((r, idx) => ({
+      rank: idx + 1,
+      schemeId: r.schemeId,
+      name: r.name,
+      relevanceScore: r.relevanceScore,
+      state: r.state,
+    }));
+
     const result = {
       userId,
       count: recommendations.length,
       recommendations,
+      segment: segmentAssignment.segment.name,
       source: mlResult ? 'ml' : 'graph',
       cached: false,
     };
