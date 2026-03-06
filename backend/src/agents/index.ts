@@ -18,6 +18,8 @@ export {
   UpdateUserProfileTool,
   GetUserProfileTool,
   GetRecommendationsTool,
+  FindBestSchemesTool,
+  AnalyzeEligibilityTool,
 } from './tools';
 
 /**
@@ -34,6 +36,8 @@ export function initializeTools() {
     UpdateUserProfileTool,
     GetUserProfileTool,
     GetRecommendationsTool,
+    FindBestSchemesTool,
+    AnalyzeEligibilityTool,
   } = require('./tools');
 
   // Prevent double-registration
@@ -47,6 +51,8 @@ export function initializeTools() {
     new UpdateUserProfileTool(),
     new GetUserProfileTool(),
     new GetRecommendationsTool(),
+    new FindBestSchemesTool(),
+    new AnalyzeEligibilityTool(),
   ]);
 
   console.log('✅ All tools initialized');
