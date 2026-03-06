@@ -32,24 +32,16 @@ import OnboardingWizard from './components/OnboardingWizard';
 import LanguageSelector from './components/LanguageSelector';
 
 /* ─────────────────────────────────────────────
-   Ashoka Chakra SVG decorative
+   Prahar Logo Mark
 ───────────────────────────────────────────── */
-function AshokaChakra({ className = '' }: { className?: string }) {
+function LogoMark({ className = '' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="3" />
-      <circle cx="50" cy="50" r="8" stroke="currentColor" strokeWidth="3" />
-      {Array.from({ length: 24 }).map((_, i) => {
-        const angle = (i * 360) / 24;
-        const rad = (angle * Math.PI) / 180;
-        const x1 = 50 + 10 * Math.cos(rad);
-        const y1 = 50 + 10 * Math.sin(rad);
-        const x2 = 50 + 44 * Math.cos(rad);
-        const y2 = 50 + 44 * Math.sin(rad);
-        return (
-          <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth="1.5" />
-        );
-      })}
+    <svg viewBox="0 0 36 36" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Stylised 'P' letterform with chakra dots */}
+      <rect width="36" height="36" rx="8" fill="currentColor" />
+      <path d="M10 26V10h9a5.5 5.5 0 0 1 0 11H10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="26" cy="26" r="2" fill="#C8700D" />
+      <circle cx="26" cy="20" r="1.2" fill="rgba(255,255,255,0.5)" />
     </svg>
   );
 }
@@ -82,39 +74,38 @@ function NavBar({ current, onNavigate }: NavBarProps) {
 
   return (
     <>
-      {/* Tricolor strip */}
-      <div className="tricolor-bar w-full" />
-
-      <header className="sticky top-0 z-50 glass border-b border-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-50 glass">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[3.75rem] flex items-center justify-between gap-4">
           {/* Logo */}
           <button onClick={() => go('home')} className="flex items-center gap-2.5 shrink-0">
-            <div className="size-9 bg-primary rounded-lg flex items-center justify-center">
-              <AshokaChakra className="size-6 text-white/90" />
-            </div>
+            <LogoMark className="size-9 text-primary" />
             <div className="leading-none">
-              <span className="font-display font-bold text-lg text-primary tracking-tight block">
+              <span className="block text-[1.1rem] font-bold text-primary tracking-[-0.02em]" style={{ fontFamily: 'Syne, sans-serif' }}>
                 Prahar AI
               </span>
-              <span className="text-[10px] font-medium text-muted tracking-widest uppercase block -mt-0.5">
+              <span className="text-[9px] font-semibold text-muted tracking-[0.15em] uppercase block" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                 {t('nav.citizen_welfare')}
               </span>
             </div>
           </button>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-0.5">
             {links.map((l) => (
               <button
                 key={l.id}
                 onClick={() => go(l.id)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`relative px-3.5 py-2 text-[0.82rem] font-semibold transition-colors ${
                   current === l.id
-                    ? 'bg-primary text-white'
-                    : 'text-ink hover:bg-primary-50 hover:text-primary'
+                    ? 'text-accent'
+                    : 'text-ink/70 hover:text-ink'
                 }`}
+                style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
               >
                 {t(l.labelKey)}
+                {current === l.id && (
+                  <span className="absolute bottom-0 left-3.5 right-3.5 h-[2px] rounded-full bg-accent" />
+                )}
               </button>
             ))}
           </nav>
@@ -123,15 +114,18 @@ function NavBar({ current, onNavigate }: NavBarProps) {
           <div className="hidden md:flex items-center gap-3 shrink-0">
             <LanguageSelector />
             {isAuthenticated ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => go('profile')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    current === 'profile' ? 'bg-primary text-white' : 'hover:bg-primary-50 text-ink'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[0.8rem] font-semibold transition-colors ${
+                    current === 'profile'
+                      ? 'bg-primary text-white'
+                      : 'bg-surface-2 text-ink hover:bg-border'
                   }`}
+                  style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
                 >
-                  <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-xs font-bold text-primary">
+                  <div className="size-6 rounded-full bg-accent/15 flex items-center justify-center">
+                    <span className="text-[0.65rem] font-bold text-accent">
                       {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -139,15 +133,15 @@ function NavBar({ current, onNavigate }: NavBarProps) {
                 </button>
                 <button
                   onClick={logout}
-                  className="flex items-center gap-1.5 text-sm text-muted hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                  className="flex items-center gap-1 text-[0.78rem] text-muted hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50/70 transition-colors"
                 >
-                  <LogOut className="size-4" />
+                  <LogOut className="size-3.5" />
                   {t('nav.logout')}
                 </button>
               </div>
             ) : (
-              <button onClick={() => go('login')} className="btn-primary text-sm py-2! px-5!">
-                <LogIn className="size-4" />
+              <button onClick={() => go('login')} className="btn btn-primary">
+                <LogIn className="size-3.5" />
                 {t('nav.login')}
               </button>
             )}
@@ -156,7 +150,7 @@ function NavBar({ current, onNavigate }: NavBarProps) {
           {/* Mobile menu toggle */}
           <button
             onClick={() => setMobileOpen((o) => !o)}
-            className="md:hidden size-9 flex items-center justify-center rounded-lg hover:bg-primary-50 text-ink"
+            className="md:hidden size-9 flex items-center justify-center rounded-lg hover:bg-surface-2 text-ink transition-colors"
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
@@ -169,29 +163,29 @@ function NavBar({ current, onNavigate }: NavBarProps) {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden border-t border-border bg-white overflow-hidden"
+              className="md:hidden border-t border-border bg-parchment overflow-hidden"
             >
-              <div className="px-4 py-3 space-y-1">
+              <div className="px-4 py-4 space-y-1">
                 {links.map((l) => (
                   <button
                     key={l.id}
                     onClick={() => go(l.id)}
-                    className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      current === l.id ? 'bg-primary text-white' : 'text-ink hover:bg-primary-50'
+                    className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                      current === l.id ? 'bg-primary text-white' : 'text-ink/70 hover:bg-surface-2 hover:text-ink'
                     }`}
                   >
                     {t(l.labelKey)}
                   </button>
                 ))}
-                <div className="pt-2 border-t border-border mt-2 flex items-center gap-2">
+                <div className="pt-3 border-t border-border mt-2 flex items-center gap-2">
                   <LanguageSelector />
                   {isAuthenticated ? (
                     <div className="flex gap-2">
                       <button
                         onClick={() => go('profile')}
-                        className="flex-1 btn-navy text-xs py-2!"
+                        className="flex-1 btn btn-navy text-xs"
                       >
-                        <User className="size-4" /> {t('nav.profile')}
+                        <User className="size-3.5" /> {t('nav.profile')}
                       </button>
                       <button
                         onClick={logout}
@@ -201,7 +195,7 @@ function NavBar({ current, onNavigate }: NavBarProps) {
                       </button>
                     </div>
                   ) : (
-                    <button onClick={() => go('login')} className="w-full btn-primary py-2.5!">
+                    <button onClick={() => go('login')} className="w-full btn btn-primary">
                       <LogIn className="size-4" /> {t('nav.login')}
                     </button>
                   )}
@@ -233,18 +227,18 @@ function MobileBottomNav({
     { id: 'profile' as View, label: 'Profile', icon: User },
   ];
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-border safe-area-pb">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-parchment border-t border-border safe-area-pb shadow-[0_-1px_8px_rgba(26,18,8,0.06)]">
       <div className="flex">
         {items.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => onNavigate(id)}
             className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-colors ${
-              current === id ? 'text-accent' : 'text-muted hover:text-primary'
+              current === id ? 'text-accent' : 'text-muted hover:text-ink'
             }`}
           >
-            <Icon className="size-5" />
-            <span className="text-[10px] font-semibold">{label}</span>
+            <Icon className={`size-5 ${current === id ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
+            <span className="text-[9px] font-bold tracking-wide" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</span>
           </button>
         ))}
       </div>
