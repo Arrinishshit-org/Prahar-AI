@@ -17,6 +17,7 @@ export {
   CheckEligibilityTool,
   UpdateUserProfileTool,
   GetUserProfileTool,
+  GetRecommendationsTool,
 } from './tools';
 
 /**
@@ -32,7 +33,11 @@ export function initializeTools() {
     CheckEligibilityTool,
     UpdateUserProfileTool,
     GetUserProfileTool,
+    GetRecommendationsTool,
   } = require('./tools');
+
+  // Prevent double-registration
+  if (toolRegistry.has('search_schemes')) return;
 
   toolRegistry.registerMultiple([
     new SearchSchemesTool(),
@@ -41,6 +46,7 @@ export function initializeTools() {
     new CheckEligibilityTool(),
     new UpdateUserProfileTool(),
     new GetUserProfileTool(),
+    new GetRecommendationsTool(),
   ]);
 
   console.log('✅ All tools initialized');

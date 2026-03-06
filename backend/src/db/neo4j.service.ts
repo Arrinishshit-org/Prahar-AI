@@ -16,7 +16,7 @@
  */
 
 import { initializeNeo4j, Neo4jConnection } from './neo4j.config';
-import { redisService } from './redis.service';
+import { redisService, CacheTTL } from './redis.service';
 
 // ─── Types (same as old sqlite.service.ts for drop-in compat) ────────────────
 
@@ -334,7 +334,7 @@ class Neo4jDbService {
       last_sync: r.last_sync ?? null,
       total_schemes: Number(r.total_schemes) || 0,
     };
-    await redisService.set('sync_meta', meta, 300);
+    await redisService.set('sync_meta', meta, CacheTTL.SYNC_META);
     return meta;
   }
 
@@ -584,7 +584,7 @@ class Neo4jDbService {
       'MATCH (s:Scheme) RETURN count(s) AS cnt'
     );
     const cnt = Number(rows[0]?.cnt) || 0;
-    await redisService.set('schemes:count', cnt, 600);
+    await redisService.set('schemes:count', cnt, CacheTTL.CATEGORIES);
     return cnt;
   }
 
@@ -598,7 +598,7 @@ class Neo4jDbService {
       limit: limitInt,
     });
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
-    await redisService.set(cacheKey, result, 600);
+    await redisService.set(cacheKey, result, CacheTTL.SCHEME_SEARCH);
     return result;
   }
 
@@ -613,7 +613,7 @@ class Neo4jDbService {
     );
     if (rows.length === 0) return undefined;
     const row = this.nodeToSchemeRow(rows[0].s);
-    await redisService.set(cacheKey, row, 600);
+    await redisService.set(cacheKey, row, CacheTTL.SCHEME_DETAIL);
     return row;
   }
 
@@ -646,7 +646,7 @@ class Neo4jDbService {
       );
     }
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
-    await redisService.set(cacheKey, result, 300);
+    await redisService.set(cacheKey, result, CacheTTL.SCHEME_SEARCH);
     return result;
   }
 
@@ -702,7 +702,7 @@ class Neo4jDbService {
     }
 
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
-    await redisService.set(cacheKey, result, 300);
+    await redisService.set(cacheKey, result, CacheTTL.SCHEME_SEARCH);
     return result;
   }
 
@@ -727,7 +727,7 @@ class Neo4jDbService {
       { cats, limit: limitInt }
     );
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
-    await redisService.set(cacheKey, result, 300);
+    await redisService.set(cacheKey, result, CacheTTL.SCHEME_SEARCH);
     return result;
   }
 
@@ -742,7 +742,7 @@ class Neo4jDbService {
     );
     const categories: Record<string, string[]> = {};
     for (const r of rows) categories[r.type] = r.values;
-    await redisService.set('categories:all', categories, 600);
+    await redisService.set('categories:all', categories, CacheTTL.CATEGORIES);
     return categories;
   }
 
@@ -765,7 +765,7 @@ class Neo4jDbService {
       { userId, limit: limitInt }
     );
     const result = rows.map((r: any) => this.nodeToSchemeRow(r.s));
-    await redisService.set(cacheKey, result, 300);
+    await redisService.set(cacheKey, result, CacheTTL.RECOMMENDATIONS);
     return result;
   }
 
@@ -857,7 +857,7 @@ class Neo4jDbService {
     );
     if (rows.length === 0) return undefined;
     const user = this.nodeToUser(rows[0].u);
-    await redisService.set(cacheKey, user, 300);
+    await redisService.set(cacheKey, user, CacheTTL.USER_PROFILE);
     return user;
   }
 
@@ -903,6 +903,7 @@ class Neo4jDbService {
 
     await redisService.del(`user:${userId}`);
     await redisService.delPattern(`schemes:user:${userId}:*`);
+    await redisService.delPattern(`recommendations:${userId}:*`);
   }
   /** Auto-assign a user to UserGroups based on profile */
   private async autoAssignUserToGroups(userId: string, profile: any): Promise<void> {

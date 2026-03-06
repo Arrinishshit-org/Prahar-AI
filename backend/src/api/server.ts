@@ -325,9 +325,14 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// Health check
+// Health check with cache stats
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  const cacheStats = redisService.getStats();
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    cache: cacheStats,
+  });
 });
 
 // Debug endpoint to see all users

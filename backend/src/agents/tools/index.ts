@@ -8,6 +8,7 @@ export { toolRegistry, Tool } from './registry';
 export { BaseTool } from './base';
 export { SearchSchemesTool, GetSchemeDetailsTool, GetSchemesByCategoryTool } from './scheme-tools';
 export { CheckEligibilityTool, UpdateUserProfileTool, GetUserProfileTool } from './profile-tools';
+export { GetRecommendationsTool } from './recommendation-tools';
 export type {
   ParameterDefinition,
   ToolResult,
