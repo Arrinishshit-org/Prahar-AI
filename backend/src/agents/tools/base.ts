@@ -1,6 +1,6 @@
 /**
  * Base Tool Class
- * 
+ *
  * Abstract base class that all tools should extend.
  * Provides common functionality like validation, error handling, timing.
  */

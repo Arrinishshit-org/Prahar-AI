@@ -1,6 +1,6 @@
 /**
  * Tool Types and Interfaces
- * 
+ *
  * Central type definitions for all ReAct tools.
  * Tools are modular functions that the agent can call to:
  * - Search for schemes

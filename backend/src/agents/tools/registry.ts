@@ -1,6 +1,6 @@
 /**
  * Tool Registry
- * 
+ *
  * Central registry for all available tools that the ReAct agent can use.
  * Tools can be registered at startup and retrieved by name.
  */
