@@ -100,19 +100,19 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
     <div className="min-h-screen" style={{ background: 'var(--color-surface)' }}>
       {/* ── Page Header ── */}
       <div style={{ background: 'var(--color-parchment)', borderBottom: '1px solid var(--color-border)' }}>
-        <div className="max-w-7xl mx-auto px-6 pt-8 pb-5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-5">
           <div className="flex flex-col lg:flex-row lg:items-end gap-6">
             <div className="flex-1">
               <span className="overline">{t('schemes.subtitle')}</span>
               <h1
-                className="font-display text-3xl font-bold mt-1"
+                className="font-display text-2xl sm:text-3xl font-bold mt-1"
                 style={{ color: 'var(--color-ink)' }}
               >
                 {t('schemes.title')}
               </h1>
             </div>
             {/* Search */}
-            <form onSubmit={handleSearch} className="flex-1 max-w-lg">
+            <form onSubmit={handleSearch} className="flex-1 max-w-lg w-full">
               <div className="relative flex items-center">
                 <Search
                   className="absolute left-4 size-4.5 pointer-events-none"
@@ -168,7 +168,7 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
       </div>
 
       {/* ── Main Content ── */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm font-medium text-muted">
             {loading
@@ -204,7 +204,7 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
         )}
 
         {!loading && error && (
-          <div className="card p-5 flex items-center gap-3 text-red-700 border-red-200 bg-red-50">
+          <div className="card p-5 flex items-center gap-3 text-red-700 border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-400/40 dark:text-red-300">
             <AlertCircle className="size-5 shrink-0" />
             <p className="text-sm flex-1">{error}</p>
             <button
@@ -381,14 +381,14 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
 
         {/* Pagination */}
         {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8 mb-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-8 mb-4">
             <button
               className="btn btn-ghost py-2! px-4! text-xs! flex items-center gap-1.5"
               onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage === 1}
             >
               <ChevronLeft className="size-3.5" />
-              {t('schemes.previous')}
+              <span className="hidden sm:inline">{t('schemes.previous')}</span>
             </button>
 
             <div className="flex gap-1">
@@ -426,7 +426,7 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
               onClick={() => goToPage(currentPage + 1)}
               disabled={currentPage === totalPages}
             >
-              {t('schemes.next')}
+              <span className="hidden sm:inline">{t('schemes.next')}</span>
               <ChevronRight className="size-3.5" />
             </button>
           </div>

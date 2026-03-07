@@ -63,46 +63,46 @@ html.dark {
   color-scheme: dark;
 
   /* ── Backgrounds ── */
-  --color-surface:     #0F1419;
-  --color-surface-2:   #171E28;
-  --color-parchment:   #131A22;
-  --color-border:      #253040;
-  --color-border-dark: #354558;
+  --color-surface:     #0B0B0D;
+  --color-surface-2:   #1C1C1E;
+  --color-parchment:   #2C2C2E;
+  --color-border:      #3A3A3C;
+  --color-border-dark: #48484A;
 
   /* ── Text ── */
-  --color-ink:         #E8E2D9;
-  --color-ink-2:       #D4CCB8;
-  --color-muted:       #8B8070;
-  --color-muted-2:     #A89880;
+  --color-ink:         #F5F5F7;
+  --color-ink-2:       #D1D1D6;
+  --color-muted:       #AEAEB2;
+  --color-muted-2:     #8E8E93;
 
-  /* ── Primary: same palette as light mode ── */
-  --color-primary:     #0B1E34;
-  --color-primary-900: #070F1A;
-  --color-primary-800: #0F2640;
-  --color-primary-700: #163450;
-  --color-primary-600: #1E4468;
-  --color-primary-400: #3A6FA0;
-  --color-primary-200: #A8C8E8;
-  --color-primary-100: #D4E6F4;
-  --color-primary-50:  #EBF3FB;
+  /* ── Primary: Apple-style system blue ── */
+  --color-primary:     #0A84FF;
+  --color-primary-900: #003A7A;
+  --color-primary-800: #0050A8;
+  --color-primary-700: #0067D6;
+  --color-primary-600: #0A84FF;
+  --color-primary-400: #64D2FF;
+  --color-primary-200: #2B4F73;
+  --color-primary-100: #1D3A58;
+  --color-primary-50:  #14283E;
 
-  /* ── Accent: same palette as light mode ── */
-  --color-accent:      #C8700D;
-  --color-accent-800:  #9A5209;
-  --color-accent-700:  #AD5F0B;
-  --color-accent-300:  #E8A855;
-  --color-accent-100:  #FAEBD4;
-  --color-accent-50:   #FEF6EB;
+  /* ── Accent: Apple-style orange ── */
+  --color-accent:      #FF9F0A;
+  --color-accent-800:  #B56A00;
+  --color-accent-700:  #D78100;
+  --color-accent-300:  #FFC266;
+  --color-accent-100:  #3D2D12;
+  --color-accent-50:   #2B210F;
 
-  /* ── Terracotta: same palette as light mode ── */
-  --color-terra:       #B85C38;
-  --color-terra-100:   #F7E4DC;
-  --color-terra-50:    #FDF2ED;
+  /* ── Terracotta: subdued coral ── */
+  --color-terra:       #FF7A59;
+  --color-terra-100:   #40261E;
+  --color-terra-50:    #2E1F1A;
 
-  /* ── Success: same palette as light mode ── */
-  --color-success:     #187A42;
-  --color-success-100: #D1FAE5;
-  --color-success-50:  #ECFDF5;
+  /* ── Success: Apple-style green ── */
+  --color-success:     #30D158;
+  --color-success-100: #1B3A26;
+  --color-success-50:  #142A1D;
 
   /* ── Legacy ── */
   --color-background-light: #0F1419;
@@ -156,7 +156,7 @@ html.dark {
   border-bottom: 1px solid var(--color-border);
 }
 html.dark .glass {
-  background: rgba(15, 20, 25, 0.88);
+  background: rgba(28, 28, 30, 0.86);
 }
 
 /* ── Grain texture overlay ── */
@@ -181,6 +181,17 @@ html.dark .grain::after {
     radial-gradient(ellipse 60% 80% at 80% 20%, rgba(26,52,80,0.4) 0%, transparent 50%),
     linear-gradient(145deg, #0B1E34 0%, #0F2640 40%, #163450 100%);
 }
+html.dark .hero-mesh {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(255,159,10,0.14) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 80% 20%, rgba(10,132,255,0.32) 0%, transparent 50%),
+    linear-gradient(145deg, #0D1016 0%, #141A22 40%, #1C2430 100%);
+}
+
+/* Tailwind red utility adjustments for dark surfaces */
+html.dark .bg-red-50 { background-color: rgba(153, 27, 27, 0.2) !important; }
+html.dark .border-red-200 { border-color: rgba(248, 113, 113, 0.38) !important; }
+html.dark .text-red-700 { color: #FCA5A5 !important; }
 
 /* ── Shimmer skeleton ── */
 @keyframes shimmer {
@@ -230,7 +241,7 @@ html.dark .grain::after {
   box-shadow: 0 1px 3px rgba(26,18,8,0.06), 0 1px 2px rgba(26,18,8,0.04);
 }
 html.dark .card {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(0,0,0,0.32);
 }
 .card-elevated {
   background: var(--color-parchment);
@@ -239,7 +250,7 @@ html.dark .card {
   box-shadow: 0 4px 16px rgba(26,18,8,0.08), 0 1px 4px rgba(26,18,8,0.05);
 }
 html.dark .card-elevated {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 18px 34px rgba(0,0,0,0.38);
 }
 
 /* ── Section heading ── */

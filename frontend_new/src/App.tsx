@@ -147,7 +147,7 @@ function NavBar() {
                 </button>
                 <button
                   onClick={logout}
-                  className="flex items-center gap-1 text-[0.78rem] text-muted hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50/70 transition-colors"
+                  className="flex items-center gap-1 text-[0.78rem] text-muted hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50/70 dark:hover:bg-red-900/25 transition-colors"
                 >
                   <LogOut className="size-3.5" />
                   {t('nav.logout')}
@@ -210,7 +210,7 @@ function NavBar() {
                       </button>
                       <button
                         onClick={logout}
-                        className="flex items-center gap-1 text-sm text-red-600 px-3 py-2 rounded-lg hover:bg-red-50"
+                        className="flex items-center gap-1 text-sm text-red-600 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/25"
                       >
                         <LogOut className="size-4" />
                       </button>
