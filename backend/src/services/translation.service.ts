@@ -28,7 +28,8 @@ class GoogleTranslationProvider implements TranslationProvider {
   constructor(apiKey?: string) {
     this.apiKey = apiKey || process.env.GOOGLE_TRANSLATE_API_KEY || '';
     if (!this.apiKey) {
-      console.warn('⚠️  Google Translate API key not configured. Translations will fail.');
+      // Translation is optional — app runs fully without it (falls back to English)
+      console.log('ℹ️  GOOGLE_TRANSLATE_API_KEY not set. Multilingual translation disabled (optional).');
     }
   }
 
