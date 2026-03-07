@@ -89,6 +89,13 @@ export interface SchemeRow {
   page_description?: string | null;
   page_eligibility_json?: string;
   page_benefits_json?: string;
+  page_references_json?: string;
+  page_application_process_json?: string;
+  page_eligibility_md?: string | null;
+  page_benefits_md?: string | null;
+  page_description_md?: string | null;
+  page_exclusions_md?: string | null;
+  page_scheme_raw_json?: string;
   page_enriched_at?: string | null;
   last_updated: string;
 }
@@ -514,6 +521,13 @@ class Neo4jDbService {
       page_description?: string | null;
       page_eligibility_json?: string;
       page_benefits_json?: string;
+      page_references_json?: string;
+      page_application_process_json?: string;
+      page_eligibility_md?: string | null;
+      page_benefits_md?: string | null;
+      page_description_md?: string | null;
+      page_exclusions_md?: string | null;
+      page_scheme_raw_json?: string;
       page_enriched_at?: string | null;
     }[]
   ): Promise<void> {
@@ -566,6 +580,13 @@ class Neo4jDbService {
           page_description: s.page_description ?? '',
           page_eligibility_json: s.page_eligibility_json ?? '[]',
           page_benefits_json: s.page_benefits_json ?? '[]',
+          page_references_json: s.page_references_json ?? '[]',
+          page_application_process_json: s.page_application_process_json ?? '[]',
+          page_eligibility_md: s.page_eligibility_md ?? '',
+          page_benefits_md: s.page_benefits_md ?? '',
+          page_description_md: s.page_description_md ?? '',
+          page_exclusions_md: s.page_exclusions_md ?? '',
+          page_scheme_raw_json: s.page_scheme_raw_json ?? '{}',
           page_enriched_at: s.page_enriched_at ?? '',
           is_active: true,
           last_updated: new Date().toISOString(),
@@ -590,6 +611,13 @@ class Neo4jDbService {
            page_description: row.page_description,
            page_eligibility_json: row.page_eligibility_json,
            page_benefits_json: row.page_benefits_json,
+           page_references_json: row.page_references_json,
+           page_application_process_json: row.page_application_process_json,
+           page_eligibility_md: row.page_eligibility_md,
+           page_benefits_md: row.page_benefits_md,
+           page_description_md: row.page_description_md,
+           page_exclusions_md: row.page_exclusions_md,
+           page_scheme_raw_json: row.page_scheme_raw_json,
            page_enriched_at: row.page_enriched_at,
            is_active: row.is_active,
            last_updated: row.last_updated
@@ -673,6 +701,13 @@ class Neo4jDbService {
       page_description?: string | null;
       page_eligibility_json?: string;
       page_benefits_json?: string;
+      page_references_json?: string;
+      page_application_process_json?: string;
+      page_eligibility_md?: string | null;
+      page_benefits_md?: string | null;
+      page_description_md?: string | null;
+      page_exclusions_md?: string | null;
+      page_scheme_raw_json?: string;
       page_enriched_at?: string | null;
     }[]
   ): Promise<void> {
@@ -703,6 +738,13 @@ class Neo4jDbService {
         page_description: s.page_description ?? '',
         page_eligibility_json: s.page_eligibility_json ?? '[]',
         page_benefits_json: s.page_benefits_json ?? '[]',
+        page_references_json: s.page_references_json ?? '[]',
+        page_application_process_json: s.page_application_process_json ?? '[]',
+        page_eligibility_md: s.page_eligibility_md ?? '',
+        page_benefits_md: s.page_benefits_md ?? '',
+        page_description_md: s.page_description_md ?? '',
+        page_exclusions_md: s.page_exclusions_md ?? '',
+        page_scheme_raw_json: s.page_scheme_raw_json ?? '{}',
         page_enriched_at: s.page_enriched_at ?? '',
         is_active: true,
         last_updated: new Date().toISOString(),
@@ -726,6 +768,13 @@ class Neo4jDbService {
            s.page_description = row.page_description,
            s.page_eligibility_json = row.page_eligibility_json,
            s.page_benefits_json = row.page_benefits_json,
+           s.page_references_json = row.page_references_json,
+           s.page_application_process_json = row.page_application_process_json,
+           s.page_eligibility_md = row.page_eligibility_md,
+           s.page_benefits_md = row.page_benefits_md,
+           s.page_description_md = row.page_description_md,
+           s.page_exclusions_md = row.page_exclusions_md,
+           s.page_scheme_raw_json = row.page_scheme_raw_json,
            s.page_enriched_at = row.page_enriched_at,
            s.is_active = row.is_active,
            s.last_updated = row.last_updated`,
@@ -1100,6 +1149,13 @@ class Neo4jDbService {
       page_description: p.page_description || null,
       page_eligibility_json: p.page_eligibility_json ?? '[]',
       page_benefits_json: p.page_benefits_json ?? '[]',
+      page_references_json: p.page_references_json ?? '[]',
+      page_application_process_json: p.page_application_process_json ?? '[]',
+      page_eligibility_md: p.page_eligibility_md || null,
+      page_benefits_md: p.page_benefits_md || null,
+      page_description_md: p.page_description_md || null,
+      page_exclusions_md: p.page_exclusions_md || null,
+      page_scheme_raw_json: p.page_scheme_raw_json ?? '{}',
       page_enriched_at: p.page_enriched_at || null,
       last_updated: p.last_updated?.toString?.() || new Date().toISOString(),
     };
@@ -1123,6 +1179,20 @@ class Neo4jDbService {
         description: row.page_description ?? null,
         eligibility: JSON.parse(row.page_eligibility_json ?? '[]') as string[],
         benefits: JSON.parse(row.page_benefits_json ?? '[]') as string[],
+        references: JSON.parse(row.page_references_json ?? '[]') as Array<{
+          title: string;
+          url: string;
+        }>,
+        applicationProcess: JSON.parse(row.page_application_process_json ?? '[]') as Array<{
+          mode: string;
+          steps: string[];
+          markdown: string;
+        }>,
+        eligibilityMarkdown: row.page_eligibility_md ?? null,
+        benefitsMarkdown: row.page_benefits_md ?? null,
+        descriptionMarkdown: row.page_description_md ?? null,
+        exclusionsMarkdown: row.page_exclusions_md ?? null,
+        raw: JSON.parse(row.page_scheme_raw_json ?? '{}') as Record<string, any>,
         enrichedAt: row.page_enriched_at ?? null,
       },
     };
