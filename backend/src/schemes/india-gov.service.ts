@@ -126,8 +126,11 @@ class IndiaGovService {
     let pageNumber = 1;
     let totalFetched = 0;
     let total = 0;
+    const startedAt = Date.now();
 
     try {
+      console.log(`🌐 Fetching schemes from India.gov.in with batchSize=${batchSize}...`);
+
       // First request to get total count
       const firstBatch = await this.fetchSchemes({
         pageNumber: 1,
@@ -138,7 +141,12 @@ class IndiaGovService {
       allSchemes.push(...firstBatch.schemes);
       totalFetched = firstBatch.schemes.length;
 
-      console.log(`Fetched ${totalFetched}/${total} schemes`);
+      const totalPages = Math.ceil(total / batchSize);
+      const firstPercent = ((totalFetched / total) * 100).toFixed(1);
+
+      console.log(
+        `📥 Fetch progress: page ${pageNumber}/${totalPages} | ${totalFetched}/${total} (${firstPercent}%)`
+      );
 
       // Fetch remaining pages
       while (totalFetched < total) {
@@ -151,11 +159,19 @@ class IndiaGovService {
         allSchemes.push(...batch.schemes);
         totalFetched += batch.schemes.length;
 
-        console.log(`Fetched ${totalFetched}/${total} schemes`);
+        const percent = ((totalFetched / total) * 100).toFixed(1);
+        const totalPages = Math.ceil(total / batchSize);
+
+        console.log(
+          `📥 Fetch progress: page ${pageNumber}/${totalPages} | ${totalFetched}/${total} (${percent}%)`
+        );
 
         // Add delay to avoid rate limiting
         await this.delay(500);
       }
+
+      const durationSec = ((Date.now() - startedAt) / 1000).toFixed(2);
+      console.log(`✅ India.gov fetch complete: ${allSchemes.length} schemes in ${durationSec}s`);
 
       return allSchemes;
     } catch (error: any) {

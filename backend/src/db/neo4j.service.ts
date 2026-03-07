@@ -646,6 +646,106 @@ class Neo4jDbService {
     console.log(`✅ Stored ${uniqueSchemes.length} schemes in Neo4j graph in ${duration}s`);
   }
 
+  /**
+   * Prepare for resumable/incremental sync by clearing existing schemes once.
+   */
+  async resetSchemesForIncrementalSync(): Promise<void> {
+    await this.connection.executeWrite('MATCH (s:Scheme) DETACH DELETE s');
+    console.log('🧹 Cleared existing Scheme nodes for incremental sync');
+  }
+
+  /**
+   * Upsert a batch of schemes without clearing existing data.
+   */
+  async upsertSchemesBatch(
+    schemes: {
+      schemeId: string;
+      name: string;
+      description: string;
+      category: string[];
+      ministry: string | null;
+      tags: string[];
+      state: string | null;
+      schemeUrl?: string | null;
+      page_scheme_id?: string | null;
+      page_title?: string | null;
+      page_ministry?: string | null;
+      page_description?: string | null;
+      page_eligibility_json?: string;
+      page_benefits_json?: string;
+      page_enriched_at?: string | null;
+    }[]
+  ): Promise<void> {
+    if (!schemes.length) return;
+
+    const seen = new Set<string>();
+    const uniqueSchemes = schemes.filter((s) => {
+      if (seen.has(s.schemeId)) return false;
+      seen.add(s.schemeId);
+      return true;
+    });
+
+    const rows = uniqueSchemes.map((s) => {
+      const cats = extractCategories(s.name, s.description, s.tags);
+      return {
+        scheme_id: s.schemeId,
+        name: s.name,
+        description: s.description,
+        category: JSON.stringify(s.category),
+        ministry: s.ministry ?? '',
+        tags: JSON.stringify(s.tags),
+        state: s.state ?? '',
+        categories_json: JSON.stringify(cats),
+        scheme_url: s.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${s.schemeId}`,
+        page_scheme_id: s.page_scheme_id ?? '',
+        page_title: s.page_title ?? '',
+        page_ministry: s.page_ministry ?? '',
+        page_description: s.page_description ?? '',
+        page_eligibility_json: s.page_eligibility_json ?? '[]',
+        page_benefits_json: s.page_benefits_json ?? '[]',
+        page_enriched_at: s.page_enriched_at ?? '',
+        is_active: true,
+        last_updated: new Date().toISOString(),
+      };
+    });
+
+    await this.connection.executeWrite(
+      `UNWIND $rows AS row
+       MERGE (s:Scheme { scheme_id: row.scheme_id })
+       SET s.name = row.name,
+           s.description = row.description,
+           s.category = row.category,
+           s.ministry = row.ministry,
+           s.tags = row.tags,
+           s.state = row.state,
+           s.categories_json = row.categories_json,
+           s.scheme_url = row.scheme_url,
+           s.page_scheme_id = row.page_scheme_id,
+           s.page_title = row.page_title,
+           s.page_ministry = row.page_ministry,
+           s.page_description = row.page_description,
+           s.page_eligibility_json = row.page_eligibility_json,
+           s.page_benefits_json = row.page_benefits_json,
+           s.page_enriched_at = row.page_enriched_at,
+           s.is_active = row.is_active,
+           s.last_updated = row.last_updated`,
+      { rows }
+    );
+
+    await this.createCategoryRelationships(uniqueSchemes);
+  }
+
+  /**
+   * Finalize incremental sync by linking groups, updating sync meta and clearing caches.
+   */
+  async finalizeIncrementalSchemeSync(totalSchemes: number): Promise<void> {
+    await this.autoLinkSchemesToUserGroups();
+    await this.updateSyncMeta(totalSchemes);
+    await redisService.delPattern('schemes:*');
+    await redisService.delPattern('categories:*');
+    console.log(`✅ Finalized incremental sync metadata for ${totalSchemes} schemes`);
+  }
+
   /** Create Category nodes and HAS_CATEGORY relationships from JS side */
   private async createCategoryRelationships(
     schemes: { schemeId: string; name: string; description: string; tags: string[] }[]

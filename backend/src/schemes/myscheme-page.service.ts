@@ -46,15 +46,49 @@ class MySchemePageService {
     1,
     Number(process.env.SCHEME_ENRICH_CONCURRENCY || 3)
   );
+  private readonly MIN_REQUEST_GAP_MS = Math.max(
+    0,
+    Number(process.env.SCHEME_ENRICH_MIN_REQUEST_GAP_MS || 220)
+  );
+  private readonly RATE_LIMIT_COOLDOWN_MS = Math.max(
+    250,
+    Number(process.env.SCHEME_ENRICH_RATE_LIMIT_COOLDOWN_MS || 3000)
+  );
+  private readonly MAX_RATE_LIMIT_COOLDOWN_MS = Math.max(
+    this.RATE_LIMIT_COOLDOWN_MS,
+    Number(process.env.SCHEME_ENRICH_MAX_RATE_LIMIT_COOLDOWN_MS || 30000)
+  );
   private cachedConfig: PageApiConfig | null = null;
+  private nextRequestAllowedAt = 0;
+  private consecutiveRateLimited = 0;
+  private totalRateLimitedResponses = 0;
 
   private async delay(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  private async waitForRequestSlot(): Promise<void> {
+    // Reserve a unique time slot per request across workers to smooth outbound traffic.
+    const now = Date.now();
+    const slotAt = Math.max(now, this.nextRequestAllowedAt);
+    this.nextRequestAllowedAt = slotAt + this.MIN_REQUEST_GAP_MS;
+
+    const waitMs = slotAt - now;
+    if (waitMs > 0) {
+      await this.delay(waitMs);
+    }
+  }
+
+  private applyGlobalCooldown(ms: number): void {
+    const until = Date.now() + ms;
+    this.nextRequestAllowedAt = Math.max(this.nextRequestAllowedAt, until);
+  }
+
   private async fetchWithRetry(url: string, config: PageApiConfig): Promise<Response> {
     let attempt = 0;
     while (true) {
+      await this.waitForRequestSlot();
+
       const response = await fetch(url, {
         headers: {
           'x-api-key': config.apiKey,
@@ -62,18 +96,42 @@ class MySchemePageService {
         },
       });
 
-      if (response.status !== 429 || attempt >= this.MAX_RETRIES) {
+      if (response.status !== 429) {
+        if (this.consecutiveRateLimited > 0) {
+          this.consecutiveRateLimited = 0;
+        }
         return response;
       }
 
+      this.totalRateLimitedResponses += 1;
+      this.consecutiveRateLimited += 1;
+
       const retryAfterHeader = response.headers.get('retry-after');
       const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : 0;
-      const backoffMs =
+      const baseBackoffMs =
         retryAfterSeconds > 0
           ? retryAfterSeconds * 1000
           : this.RETRY_BASE_DELAY_MS * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
 
-      await this.delay(backoffMs);
+      const adaptiveCooldownMs = Math.min(
+        this.MAX_RATE_LIMIT_COOLDOWN_MS,
+        this.RATE_LIMIT_COOLDOWN_MS * Math.max(1, this.consecutiveRateLimited)
+      );
+      const cooldownMs = Math.max(baseBackoffMs, adaptiveCooldownMs);
+
+      this.applyGlobalCooldown(cooldownMs);
+
+      if (this.totalRateLimitedResponses <= 5 || this.totalRateLimitedResponses % 50 === 0) {
+        console.warn(
+          `⏳ Rate limited (429): count=${this.totalRateLimitedResponses}, consecutive=${this.consecutiveRateLimited}, cooldown=${cooldownMs}ms`
+        );
+      }
+
+      if (attempt >= this.MAX_RETRIES) {
+        return response;
+      }
+
+      await this.delay(cooldownMs);
       attempt += 1;
     }
   }
@@ -250,6 +308,11 @@ class MySchemePageService {
   async enrichSchemes(schemes: BasicScheme[]): Promise<EnrichedScheme[]> {
     if (!schemes.length) return [];
 
+    // Reset per-run adaptive limiter counters.
+    this.nextRequestAllowedAt = 0;
+    this.consecutiveRateLimited = 0;
+    this.totalRateLimitedResponses = 0;
+
     // Try discovery with first 10 schemes (some may not have MyScheme pages)
     const maxDiscoveryAttempts = Math.min(10, schemes.length);
     let config: PageApiConfig | null = null;
@@ -273,6 +336,35 @@ class MySchemePageService {
 
     const results: EnrichedScheme[] = new Array(schemes.length);
     const errorStats: Record<string, number> = {};
+    const startedAt = Date.now();
+    let processed = 0;
+    let successCount = 0;
+    let failureCount = 0;
+    let lastLoggedProcessed = 0;
+    const progressStep = Math.max(25, Math.floor(schemes.length / 100));
+
+    const logProgress = (force = false) => {
+      if (!force && processed - lastLoggedProcessed < progressStep) return;
+
+      lastLoggedProcessed = processed;
+      const elapsedMs = Date.now() - startedAt;
+      const percent = ((processed / schemes.length) * 100).toFixed(1);
+      const ratePerSec = elapsedMs > 0 ? processed / (elapsedMs / 1000) : 0;
+      const remaining = schemes.length - processed;
+      const etaSec = ratePerSec > 0 ? remaining / ratePerSec : 0;
+
+      const elapsedSec = (elapsedMs / 1000).toFixed(1);
+      const etaText = Number.isFinite(etaSec) ? `${etaSec.toFixed(1)}s` : 'n/a';
+
+      console.log(
+        `📈 Enrich progress: ${processed}/${schemes.length} (${percent}%) | success=${successCount} failed=${failureCount} | elapsed=${elapsedSec}s eta=${etaText}`
+      );
+    };
+
+    console.log(
+      `⚙️  Enrichment settings: concurrency=${Math.min(this.MAX_CONCURRENCY, schemes.length)}, maxRetries=${this.MAX_RETRIES}, retryBaseDelayMs=${this.RETRY_BASE_DELAY_MS}, minRequestGapMs=${this.MIN_REQUEST_GAP_MS}, rateLimitCooldownMs=${this.RATE_LIMIT_COOLDOWN_MS}`
+    );
+
     let index = 0;
 
     const worker = async () => {
@@ -283,6 +375,14 @@ class MySchemePageService {
 
         const result = await this.enrichOneWithStats(schemes[i], config!, errorStats);
         results[i] = result;
+
+        processed += 1;
+        if (result.page_scheme_id) {
+          successCount += 1;
+        } else {
+          failureCount += 1;
+        }
+        logProgress(false);
       }
     };
 
@@ -291,8 +391,13 @@ class MySchemePageService {
     );
     await Promise.all(workers);
 
+    logProgress(true);
+
     const enrichedCount = results.filter((s) => s.page_scheme_id).length;
-    console.log(`✅ Page enrichment done: ${enrichedCount}/${schemes.length} schemes enriched`);
+    const totalDurationSec = ((Date.now() - startedAt) / 1000).toFixed(2);
+    console.log(
+      `✅ Page enrichment done: ${enrichedCount}/${schemes.length} schemes enriched in ${totalDurationSec}s`
+    );
 
     if (Object.keys(errorStats).length > 0) {
       console.log('📊 Enrichment failure breakdown:');
@@ -301,6 +406,12 @@ class MySchemePageService {
         .forEach(([reason, count]) => {
           console.log(`   ${reason}: ${count}`);
         });
+    }
+
+    if (this.totalRateLimitedResponses > 0) {
+      console.log(
+        `📉 Rate limit summary: observed ${this.totalRateLimitedResponses} HTTP 429 responses during enrichment`
+      );
     }
 
     return results;
