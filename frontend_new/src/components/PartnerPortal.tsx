@@ -23,7 +23,7 @@ export default function PartnerPortal() {
   return (
     <div className="flex flex-col min-h-screen bg-background-light">
       {/* Header */}
-      <header className="bg-white border-b border-primary/10 px-4 py-4 sticky top-0 z-50">
+      <header className="bg-parchment border-b border-primary/10 px-4 py-4 sticky top-0 z-50">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center text-white">
@@ -87,7 +87,7 @@ export default function PartnerPortal() {
               <Download className="size-3" /> Get Template
             </button>
           </div>
-          <div className="bg-white border-2 border-dashed border-primary/20 rounded-2xl p-8 flex flex-col items-center text-center">
+          <div className="bg-parchment border-2 border-dashed border-primary/20 rounded-2xl p-8 flex flex-col items-center text-center">
             <div className="h-14 w-14 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4">
               <UploadCloud className="size-8" />
             </div>
@@ -102,7 +102,7 @@ export default function PartnerPortal() {
         {/* Analytics */}
         <section>
           <h3 className="font-bold text-slate-800 mb-3 px-1">Impact Analytics</h3>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-primary/5">
+          <div className="bg-parchment rounded-2xl p-5 shadow-sm border border-primary/5">
             <div className="flex items-end justify-between mb-4">
               <div>
                 <p className="text-sm text-slate-500">Monthly Onboarding Trend</p>
@@ -145,7 +145,7 @@ export default function PartnerPortal() {
               { icon: FileText, title: 'Handout Packs', desc: 'Offline printable PDF', color: 'bg-amber-50 text-amber-600' },
               { icon: Video, title: 'Video Modules', desc: 'Training workshops', color: 'bg-purple-50 text-purple-600' }
             ].map((tool, i) => (
-              <div key={i} className="bg-white p-4 rounded-2xl border border-primary/5 shadow-sm flex flex-col items-center text-center group cursor-pointer hover:border-primary/30 transition-all">
+              <div key={i} className="bg-parchment p-4 rounded-2xl border border-primary/5 shadow-sm flex flex-col items-center text-center group cursor-pointer hover:border-primary/30 transition-all">
                 <div className={`h-10 w-10 rounded-full flex items-center justify-center mb-3 ${tool.color}`}>
                   <tool.icon className="size-5" />
                 </div>

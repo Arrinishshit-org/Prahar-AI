@@ -110,7 +110,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         initial={{ opacity: 0, y: 60 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 60 }}
-        className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden border border-border"
+        className="bg-parchment w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden border border-border"
       >
         {/* Header */}
         <div className="bg-primary p-6 text-white relative">

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider } from './ThemeContext';
 import App from './App.tsx';
 import './index.css';
 import './i18n'; // Initialize i18next
@@ -8,7 +9,9 @@ import './i18n'; // Initialize i18next
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>
 );

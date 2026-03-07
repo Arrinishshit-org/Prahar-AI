@@ -60,7 +60,7 @@ export default function LanguageSelector() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 mt-2 w-64 bg-white border border-border rounded-lg shadow-xl z-50 overflow-hidden"
+              className="absolute right-0 mt-2 w-64 bg-parchment border border-border rounded-lg shadow-xl z-50 overflow-hidden"
             >
               {/* Popular Languages */}
               <div className="p-2 max-h-96 overflow-y-auto">
