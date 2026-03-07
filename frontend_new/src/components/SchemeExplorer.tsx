@@ -19,7 +19,7 @@ import {
 import { useState, useEffect, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Scheme } from '../types';
-import { fetchSchemes } from '../api';
+import { fetchSchemesPage } from '../api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Skeleton } from './ui';
 
 const CATEGORIES = [
@@ -47,25 +47,29 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalSchemes, setTotalSchemes] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    loadSchemes();
+    loadSchemes('', '', 1);
   }, []);
 
-  const loadSchemes = async (searchQuery = '', category = '') => {
+  const loadSchemes = async (searchQuery = '', category = '', page = 1) => {
     setLoading(true);
     setError('');
     try {
-      // Backend only supports `q` — merge search + category into one query
       const combined = [searchQuery, category].filter(Boolean).join(' ');
-      const data = await fetchSchemes(combined || undefined, 100);
-      // API returns a flat array
-      const list: Scheme[] = Array.isArray(data)
-        ? data
-        : (data.schemes ?? data.data ?? data.value ?? []);
-      setSchemes(list.slice(0, 100));
+      const data = await fetchSchemesPage(combined || undefined, page, ITEMS_PER_PAGE);
+      const list: Scheme[] = Array.isArray(data?.items) ? (data.items as Scheme[]) : [];
+      setSchemes(list);
+      setTotalSchemes(Number(data?.total) || 0);
+      setTotalPages(Math.max(1, Number(data?.totalPages) || 1));
+      setCurrentPage(Math.max(1, Number(data?.page) || page));
     } catch {
       setError(t('chat.error'));
+      setSchemes([]);
+      setTotalSchemes(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -75,25 +79,20 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
-    setCurrentPage(1);
-    loadSchemes(query, activeCategory);
+    loadSchemes(query, activeCategory, 1);
   };
 
   const handleCategory = (label: string) => {
     const next = activeCategory === label ? '' : label;
     setActiveCategory(next);
-    setCurrentPage(1);
-    loadSchemes(query, next);
+    loadSchemes(query, next, 1);
   };
 
-  // Pagination logic
-  const totalPages = Math.ceil(schemes.length / ITEMS_PER_PAGE);
-  const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIdx = startIdx + ITEMS_PER_PAGE;
-  const displayedSchemes = schemes.slice(startIdx, endIdx);
+  const shownCount = Math.min(currentPage * ITEMS_PER_PAGE, totalSchemes);
 
   const goToPage = (page: number) => {
-    setCurrentPage(page);
+    if (page < 1 || page > totalPages || page === currentPage) return;
+    loadSchemes(query, activeCategory, page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -138,7 +137,7 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
             <button
               onClick={() => {
                 setActiveCategory('');
-                loadSchemes(query, '');
+                loadSchemes(query, '', 1);
               }}
               className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold border transition-all"
               style={
@@ -175,8 +174,8 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
             {loading
               ? t('schemes.loading')
               : `${t('schemes.showing', {
-                  count: Math.min(endIdx, schemes.length),
-                  total: schemes.length,
+                  count: shownCount,
+                  total: totalSchemes,
                 })}${activeCategoryLabel ? ` (${t(activeCategoryLabel)})` : ''}`}
           </p>
         </div>
@@ -209,7 +208,7 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
             <AlertCircle className="size-5 shrink-0" />
             <p className="text-sm flex-1">{error}</p>
             <button
-              onClick={() => loadSchemes(query, activeCategory)}
+              onClick={() => loadSchemes(query, activeCategory, currentPage)}
               className="text-xs font-bold underline"
             >
               {t('schemes.retry')}
@@ -217,7 +216,7 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
           </div>
         )}
 
-        {!loading && !error && schemes.length === 0 && (
+        {!loading && !error && totalSchemes === 0 && (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted">
             <BookOpen className="size-12 opacity-30" />
             <p className="text-sm font-medium">
@@ -228,7 +227,7 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
 
         <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-5 pb-8">
           {!loading &&
-            displayedSchemes.map((scheme, idx) => (
+            schemes.map((scheme, idx) => (
               <motion.div
                 key={scheme.id}
                 initial={{ opacity: 0, y: 12 }}
@@ -381,7 +380,7 @@ export default function SchemeExplorer({ onSchemeSelect }: SchemeExplorerProps =
         </div>
 
         {/* Pagination */}
-        {!loading && schemes.length > ITEMS_PER_PAGE && (
+        {!loading && totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-8 mb-4">
             <button
               className="btn btn-ghost py-2! px-4! text-xs! flex items-center gap-1.5"
