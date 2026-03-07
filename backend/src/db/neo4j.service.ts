@@ -17,6 +17,59 @@
 
 import { initializeNeo4j, Neo4jConnection } from './neo4j.config';
 import { redisService, CacheTTL } from './redis.service';
+import * as crypto from 'crypto';
+
+// ─── PII encryption helpers ─────────────────────────────────────────────────
+
+let _encService: import('../encryption/encryption.service').EncryptionService | null = null;
+
+function getEnc(): import('../encryption/encryption.service').EncryptionService | null {
+  if (_encService) return _encService;
+  try {
+    if (!process.env.ENCRYPTION_KEY) return null;
+    // Lazy-load to avoid circular deps and to allow running without key
+    const { getEncryptionService } = require('../encryption');
+    _encService = getEncryptionService();
+    return _encService;
+  } catch {
+    return null;
+  }
+}
+
+function emailHash(email: string): string {
+  return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+}
+
+async function encryptPII(fields: { email: string; name: string }): Promise<{
+  email: string;
+  name: string;
+  email_hash: string;
+}> {
+  const enc = getEnc();
+  if (!enc) return { ...fields, email_hash: emailHash(fields.email) };
+  return {
+    email: await enc.encrypt(fields.email),
+    name: await enc.encrypt(fields.name),
+    email_hash: emailHash(fields.email),
+  };
+}
+
+async function decryptPII<T extends Record<string, any>>(user: T): Promise<T> {
+  const enc = getEnc();
+  if (!enc) return user;
+  const out = { ...user };
+  for (const field of ['email', 'name'] as const) {
+    const val = out[field];
+    if (typeof val === 'string' && val.includes(':')) {
+      try {
+        (out as any)[field] = await enc.decrypt(val);
+      } catch {
+        // Not encrypted (backward compat) — keep original
+      }
+    }
+  }
+  return out;
+}
 
 // ─── Types (same as old sqlite.service.ts for drop-in compat) ────────────────
 
@@ -817,9 +870,14 @@ class Neo4jDbService {
     state?: string;
     gender?: string;
   }): Promise<void> {
+    const pii = await encryptPII({
+      email: user.email,
+      name: user.name ?? '',
+    });
+
     await this.connection.executeWrite(
       `CREATE (u:User {
-         user_id: $userId, email: $email, password: $password,
+         user_id: $userId, email: $email, email_hash: $emailHash, password: $password,
          name: $name, age: $age, income: $income, state: $state, gender: $gender,
          employment: '', education: '', interests: '',
          onboarding_complete: false,
@@ -827,9 +885,10 @@ class Neo4jDbService {
        })`,
       {
         userId: user.userId,
-        email: user.email,
+        email: pii.email,
+        emailHash: pii.email_hash,
         password: user.password,
-        name: user.name ?? '',
+        name: pii.name,
         age: user.age ?? 0,
         income: user.income ?? '',
         state: user.state ?? '',
@@ -841,12 +900,21 @@ class Neo4jDbService {
   }
 
   async getUserByEmail(email: string): Promise<any | undefined> {
-    const rows = await this.connection.executeRead<any>(
-      'MATCH (u:User { email: $email }) RETURN u',
-      { email }
+    const hash = emailHash(email);
+    // Try hash-based lookup first (encrypted users)
+    let rows = await this.connection.executeRead<any>(
+      'MATCH (u:User { email_hash: $hash }) RETURN u',
+      { hash }
     );
+    // Fall back to plain email lookup (backward compat for pre-encryption users)
+    if (rows.length === 0) {
+      rows = await this.connection.executeRead<any>(
+        'MATCH (u:User { email: $email }) RETURN u',
+        { email }
+      );
+    }
     if (rows.length === 0) return undefined;
-    return this.nodeToUser(rows[0].u);
+    return await this.nodeToUser(rows[0].u);
   }
 
   async getUserById(userId: string): Promise<any | undefined> {
@@ -859,7 +927,7 @@ class Neo4jDbService {
       { userId }
     );
     if (rows.length === 0) return undefined;
-    const user = this.nodeToUser(rows[0].u);
+    const user = await this.nodeToUser(rows[0].u);
     await redisService.set(cacheKey, user, CacheTTL.USER_PROFILE);
     return user;
   }
@@ -868,7 +936,7 @@ class Neo4jDbService {
     const rows = await this.connection.executeRead<any>(
       'MATCH (u:User) RETURN u ORDER BY u.created_at DESC'
     );
-    return rows.map((r: any) => this.nodeToUser(r.u));
+    return Promise.all(rows.map((r: any) => this.nodeToUser(r.u)));
   }
 
   async updateUserProfile(userId: string, fields: Record<string, any>): Promise<void> {
@@ -886,9 +954,20 @@ class Neo4jDbService {
     const updates = Object.entries(fields).filter(([k]) => allowed.includes(k));
     if (updates.length === 0) return;
 
-    const setClauses = updates.map(([k]) => `u.${k} = $${k}`).join(', ');
+    // Encrypt name if it's being updated
+    const enc = getEnc();
+    const processedUpdates = await Promise.all(
+      updates.map(async ([k, v]) => {
+        if (k === 'name' && enc && typeof v === 'string') {
+          return [k, await enc.encrypt(v)] as [string, any];
+        }
+        return [k, v] as [string, any];
+      })
+    );
+
+    const setClauses = processedUpdates.map(([k]) => `u.${k} = $${k}`).join(', ');
     const params: Record<string, any> = { userId };
-    for (const [k, v] of updates) params[k] = v;
+    for (const [k, v] of processedUpdates) params[k] = v;
 
     await this.connection.executeWrite(
       `MATCH (u:User { user_id: $userId }) SET ${setClauses}, u.updated_at = toString(datetime())`,
@@ -901,7 +980,7 @@ class Neo4jDbService {
       { userId }
     );
     if (userRows.length > 0) {
-      await this.autoAssignUserToGroups(userId, this.nodeToUser(userRows[0].u));
+      await this.autoAssignUserToGroups(userId, await this.nodeToUser(userRows[0].u));
     }
 
     await redisService.del(`user:${userId}`);
@@ -964,9 +1043,9 @@ class Neo4jDbService {
     }
   }
 
-  private nodeToUser(node: any): any {
+  private async nodeToUser(node: any): Promise<any> {
     const p = node.properties ?? node;
-    return {
+    const raw = {
       user_id: p.user_id,
       email: p.email,
       password: p.password,
@@ -981,6 +1060,7 @@ class Neo4jDbService {
       onboarding_complete: p.onboarding_complete ? 1 : 0,
       created_at: p.created_at?.toString?.() || null,
     };
+    return decryptPII(raw);
   }
 
   // ─── Graph-specific queries ────────────────────────────────────────────────

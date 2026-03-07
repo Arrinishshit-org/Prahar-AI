@@ -188,9 +188,9 @@
 
 ### T-23 · Sync Admin Endpoints
 
-- [ ] `GET /api/admin/sync/status` — returns lastSync, totalSchemes, nextSync, isSyncing
-- [ ] `POST /api/admin/sync` — force immediate re-sync
-- [ ] Protect with `X-Admin-Key` header check
+- [x] `GET /api/admin/sync/status` — returns lastSync, totalSchemes, nextSync, isSyncing
+- [x] `POST /api/admin/sync` — force immediate re-sync
+- [x] Protect with `X-Admin-Key` header check
 
 ### T-24 · Fix Existing TypeScript Errors
 
@@ -200,21 +200,20 @@
 
 ### T-25 · Update Backend Tests
 
-- [ ] Update similarity-agent tests to mock SQLite instead of Neo4j
+- [ ] Update similarity-agent tests to mock Neo4j service
 - [ ] Update schemes.controller tests
-- [ ] Add integration test: HTTP → Controller → SimilarityAgent → SQLite
+- [ ] Add integration test: HTTP → Controller → SimilarityAgent → Neo4j
 - [ ] Add test for 24h sync freshness check
 
 ### T-26 · Encryption for User PII
 
-- [ ] `sqlite.service.ts` — encrypt name + email at rest using `backend/src/encryption/` module
-- [ ] Decrypt on read in auth routes
+- [x] `neo4j.service.ts` — encrypt name + email at rest using `backend/src/encryption/` module
+- [x] Decrypt on read via async `nodeToUser()` with backward compatibility
+- [x] SHA-256 email hash for deterministic lookups on encrypted data
 
 ### T-27 · Docker Compose Update
 
-- [ ] `docker-compose.yml` — add ML microservice container (Python + FastAPI)
-- [ ] Add SQLite volume mount so DB persists across container restarts
-- [ ] Remove Neo4j service (no longer needed)
+- [x] `docker-compose.yml` — add ML microservice container (Python + FastAPI)
 - [ ] Update README startup instructions
 
 ---
@@ -227,5 +226,5 @@
 | Sprint 2 — AI/Chatbot     | 21          | 20     | 0           | 1         |
 | Sprint 3 — Frontend       | 20          | 0      | 0           | 20        |
 | Sprint 4 — Multilingual   | 16          | 0      | 0           | 16        |
-| Sprint 5 — Infrastructure | 15          | 3      | 0           | 12        |
-| **Total**                 | **95**      | **46** | **0**       | **49**    |
+| Sprint 5 — Infrastructure | 15          | 9      | 0           | 6         |
+| **Total**                 | **95**      | **52** | **0**       | **43**    |

@@ -15,6 +15,7 @@ interface SyncStatus {
   totalSchemes: number;
   lastSync: string | null;
   nextSync: string | null;
+  isSyncing: boolean;
 }
 
 class SchemeSyncAgent {
@@ -68,6 +69,7 @@ class SchemeSyncAgent {
       totalSchemes: meta.total_schemes,
       lastSync: meta.last_sync,
       nextSync,
+      isSyncing: this.isSyncing,
     };
   }
 

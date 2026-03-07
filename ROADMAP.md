@@ -11,16 +11,16 @@
 |-----------|--------|
 | Backend (Express/TypeScript, port 3000) | ✅ Running |
 | Frontend (React 19 + Vite 6 + Tailwind v4, port 5173) | ✅ Running |
-| SQLite persistent database | ✅ 4,609 real schemes stored |
+| Neo4j graph database + Redis cache | ✅ 4,609 real schemes stored |
 | India.gov.in API sync (24h interval) | ✅ Working |
 | Similarity Agent (category + text scoring) | ✅ Working (bug fixed) |
-| Chatbot (ReAct agent + tools) | ⚠️ Partially working — uses DB but NLP/ML not integrated |
-| ML Pipeline (Python) | ⚠️ Built but not connected to backend |
+| Chatbot (ReAct agent + tools) | ✅ Working — ReAct agent + ML service integrated |
+| ML Pipeline (Python) | ✅ FastAPI microservice running on port 8000 |
 | Multilingual support | ❌ Not implemented |
-| Auth guard on all protected pages | ⚠️ Partial — only AI Chat and Profile are guarded |
-| "Apply Now" links | ⚠️ All schemes show placeholder, no real URLs |
-| Gender field in registration | ❌ Missing |
-| Onboarding flow | ⚠️ Basic — needs profile-builder wizard |
+| Auth guard on all protected pages | ✅ All protected pages guarded |
+| "Apply Now" links | ✅ Real URLs from India.gov.in API |
+| Gender field in registration | ✅ Implemented |
+| Onboarding flow | ✅ 4-step wizard implemented |
 
 ---
 
@@ -281,13 +281,13 @@
 
 ### 5.1 User Profile in Persistent Storage
 
-**Current state:** Users are stored in an **in-memory array** (`users[]`) in `server.ts`. All users are lost on server restart.
+**Current state:** Users are persisted in **Neo4j graph database** with full CRUD support. ✅ Done.
 
-**Tasks:**
-- [ ] Add a `users` table to SQLite: `user_id`, `email`, `password_hash`, `name`, `gender`, `created_at`
-- [ ] Add a `user_profiles` table: `user_id`, `age`, `state`, `employment`, `income`, `education`, `social_category`, `locality`, `poverty_line`, `interests_json`, `onboarding_complete`
-- [ ] Migrate auth routes to use SQLite instead of `users[]`
-- [ ] Existing JWT auth logic can remain unchanged
+**Completed:**
+- [x] Users stored as `:User` nodes in Neo4j with all profile fields
+- [x] Auth routes use `neo4jService` for user CRUD
+- [x] Profile updates auto-assign UserGroup relationships for graph-based matching
+- [x] Redis caching layer for user profile reads
 
 ### 5.2 Sync API Endpoint
 
@@ -301,12 +301,12 @@
 - [ ] Common fields: `schemeShortTitle`, `schemeUrl`, `beneficiaryUrl`, `openingDate`, `closingDate`
 - [ ] Map all available URL/date fields into SQLite storage
 
-### 5.4 Redis Cache (Optional Enhancement)
+### 5.4 Redis Cache
 
-**Current state:** Redis was in the original architecture but not running.
+**Current state:** Redis is running and integrated with Neo4j service for caching user profiles, scheme queries, and recommendations.
 
-- [ ] Re-evaluate need: since SQLite is now the source of truth, Redis is only useful for session caching or API rate limiting
-- [ ] If needed: add Redis for storing JWT refresh tokens and rate-limiting per user
+- [x] Redis integrated as caching layer for Neo4j reads
+- [ ] Add Redis for storing JWT refresh tokens and rate-limiting per user
 
 ### 5.5 Connect ML Pipeline
 
