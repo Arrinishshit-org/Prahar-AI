@@ -638,7 +638,7 @@ export default function LandingPage({ onNavigate }: LandingPageProps) {
                 ))}
               </div>
               <div className="space-y-2">
-                {(['contact', 'partner'] as View[]).map((v) => (
+                {(['partner'] as View[]).map((v) => (
                   <button
                     key={v}
                     onClick={() => onNavigate(v)}

@@ -5,7 +5,6 @@ export type View =
   | 'profile'
   | 'about'
   | 'partner'
-  | 'contact'
   | 'login'
   | 'schemeDetail';
 

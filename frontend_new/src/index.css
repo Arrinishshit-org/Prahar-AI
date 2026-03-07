@@ -75,34 +75,34 @@ html.dark {
   --color-muted:       #8B8070;
   --color-muted-2:     #A89880;
 
-  /* ── Primary: shifted lighter for readability ── */
-  --color-primary:     #4A80B0;
-  --color-primary-900: #0A1420;
-  --color-primary-800: #102030;
-  --color-primary-700: #1A3450;
-  --color-primary-600: #2A5080;
-  --color-primary-400: #6D9ECE;
-  --color-primary-200: #1E3048;
-  --color-primary-100: #162538;
-  --color-primary-50:  #111C2A;
+  /* ── Primary: same palette as light mode ── */
+  --color-primary:     #0B1E34;
+  --color-primary-900: #070F1A;
+  --color-primary-800: #0F2640;
+  --color-primary-700: #163450;
+  --color-primary-600: #1E4468;
+  --color-primary-400: #3A6FA0;
+  --color-primary-200: #A8C8E8;
+  --color-primary-100: #D4E6F4;
+  --color-primary-50:  #EBF3FB;
 
-  /* ── Accent: slightly brighter for dark bg ── */
-  --color-accent:      #D48A2E;
-  --color-accent-800:  #B8700D;
-  --color-accent-700:  #C87D15;
+  /* ── Accent: same palette as light mode ── */
+  --color-accent:      #C8700D;
+  --color-accent-800:  #9A5209;
+  --color-accent-700:  #AD5F0B;
   --color-accent-300:  #E8A855;
-  --color-accent-100:  #2A2015;
-  --color-accent-50:   #1E1A12;
+  --color-accent-100:  #FAEBD4;
+  --color-accent-50:   #FEF6EB;
 
-  /* ── Terracotta ── */
-  --color-terra:       #D07050;
-  --color-terra-100:   #2A1E18;
-  --color-terra-50:    #1E1815;
+  /* ── Terracotta: same palette as light mode ── */
+  --color-terra:       #B85C38;
+  --color-terra-100:   #F7E4DC;
+  --color-terra-50:    #FDF2ED;
 
-  /* ── Success ── */
-  --color-success:     #22C55E;
-  --color-success-100: #0D2918;
-  --color-success-50:  #0A1F14;
+  /* ── Success: same palette as light mode ── */
+  --color-success:     #187A42;
+  --color-success-100: #D1FAE5;
+  --color-success-50:  #ECFDF5;
 
   /* ── Legacy ── */
   --color-background-light: #0F1419;

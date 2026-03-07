@@ -13,7 +13,6 @@ import {
   LayoutGrid,
   MessageSquare,
   User,
-  PhoneCall,
   LogIn,
   LogOut,
   Menu,
@@ -34,7 +33,6 @@ import ChatAssistant from './components/ChatAssistant';
 import UserProfile from './components/UserProfile';
 import AboutPage from './components/AboutPage';
 import PartnerPortal from './components/PartnerPortal';
-import ContactPage from './components/ContactPage';
 import LoginPage from './components/LoginPage';
 import OnboardingWizard from './components/OnboardingWizard';
 import LanguageSelector from './components/LanguageSelector';
@@ -70,7 +68,6 @@ function NavBar() {
     { path: '/schemes',   id: 'schemes',   labelKey: 'nav.schemes' },
     { path: '/assistant', id: 'assistant', labelKey: 'nav.assistant' },
     { path: '/about',     id: 'about',     labelKey: 'nav.about' },
-    { path: '/contact',   id: 'contact',   labelKey: 'nav.contact' },
   ];
 
   const isActive = (path: string) => {
@@ -237,8 +234,17 @@ function NavBar() {
    Protected Route Wrapper
 ───────────────────────────────────────────── */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <div className="shimmer h-8 w-36 rounded-md" />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
@@ -256,7 +262,6 @@ function MobileBottomNav() {
     { path: '/',          label: 'Home',    icon: Home },
     { path: '/schemes',   label: 'Schemes', icon: LayoutGrid },
     { path: '/assistant', label: 'Chat',    icon: MessageSquare },
-    { path: '/contact',   label: 'Support', icon: PhoneCall },
     { path: '/profile',   label: 'Profile', icon: User },
   ];
 
@@ -323,7 +328,6 @@ function AppContent() {
     profile:     '/profile',
     about:       '/about',
     partner:     '/partner',
-    contact:     '/contact',
     login:       '/login',
   };
 
@@ -381,7 +385,6 @@ function AppContent() {
                 }
               />
               <Route path="/about" element={<AboutPage onNavigate={navigate} />} />
-              <Route path="/contact" element={<ContactPage onNavigate={navigate} />} />
               <Route path="/login" element={<LoginPage onNavigate={navigate} onLoginSuccess={handlePostLogin} />} />
 
               {/* Protected routes */}
