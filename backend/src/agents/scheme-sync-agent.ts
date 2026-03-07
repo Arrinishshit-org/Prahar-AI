@@ -9,7 +9,7 @@
  */
 
 import { indiaGovService, type Scheme } from '../schemes/india-gov.service';
-import { mySchemePageService } from '../schemes/myscheme-page.service';
+import { mySchemeStructuredService } from '../schemes/myscheme-structured.service';
 import { neo4jService } from '../db/neo4j.service';
 import { redisService } from '../db/redis.service';
 
@@ -251,7 +251,7 @@ class SchemeSyncAgent {
         const batchEnd = Math.min(totalSchemes, i + batch.length);
 
         console.log(`📦 Processing batch ${i + 1}-${batchEnd} of ${totalSchemes}...`);
-        const enrichedBatch = await mySchemePageService.enrichSchemes(batch);
+        const enrichedBatch = await mySchemeStructuredService.enrichSchemes(batch);
         await neo4jService.upsertSchemesBatch(enrichedBatch);
 
         processed = batchEnd;
