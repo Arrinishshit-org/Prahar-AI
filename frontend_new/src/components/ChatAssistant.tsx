@@ -54,13 +54,17 @@ export default function ChatAssistant() {
       }));
 
       const data = await sendChatMessage(content, history);
+      const baseResponse = data.response || 'I could not process that. Please try again.';
+      const degradedNotice = data.degraded
+        ? '\n\n(Advanced ML service is temporarily unavailable. Showing fallback guidance.)'
+        : '';
 
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || 'I could not process that. Please try again.',
+        content: `${baseResponse}${degradedNotice}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestions: data.suggestions,
+        suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
       };
       setMessages((prev) => [...prev, botMsg]);
     } catch {
