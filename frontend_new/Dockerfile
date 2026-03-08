@@ -1,12 +1,12 @@
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+COPY package.json ./
 COPY backend/package.json backend/
 COPY frontend_new/package.json frontend_new/
 
-RUN npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts
+RUN npm install
 
 COPY frontend_new/ frontend_new/
 
