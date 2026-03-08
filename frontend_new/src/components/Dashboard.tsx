@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { Scheme } from '../types';
-import { fetchRecommendations } from '../api';
+import { fetchRecommendations, fetchSchemes } from '../api';
 
 interface DashboardProps {
   user: any;
@@ -27,7 +27,15 @@ export default function Dashboard({ user, onNavigate }: DashboardProps) {
 
   useEffect(() => {
     loadRecommendations();
-  }, []);
+  }, [
+    user?.userId,
+    user?.employment,
+    user?.income,
+    user?.education,
+    user?.state,
+    user?.socialCategory,
+    user?.interests,
+  ]);
 
   const loadRecommendations = async () => {
     try {

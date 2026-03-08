@@ -28,11 +28,12 @@ import Dashboard from './components/Dashboard';
 import SchemeExplorer from './components/SchemeExplorer';
 import SchemeDetail from './components/SchemeDetail';
 import ChatAssistant from './components/ChatAssistant';
-import UserProfile from './components/UserProfile';
-import AboutPage from './components/AboutPage';
+import UserProfile from './components/UserProfile.tsx';
+import AboutPage from './components/AboutPage.tsx';
 import PartnerPortal from './components/PartnerPortal';
+import AdminPage from './components/AdminPage';
 import LoginPage from './components/LoginPage';
-import OnboardingWizard from './components/OnboardingWizard';
+import OnboardingWizard from './components/OnboardingWizard.tsx';
 import LanguageSelector from './components/LanguageSelector';
 import { fetchSchemeById } from './api';
 
@@ -67,6 +68,8 @@ function NavBar() {
     { path: '/assistant', id: 'assistant', labelKey: 'nav.assistant' },
     { path: '/about',     id: 'about',     labelKey: 'nav.about' },
   ];
+
+  const isAdminUser = Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -104,7 +107,10 @@ function NavBar() {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-0.5">
-            {links.map((l) => (
+            {(isAdminUser
+              ? [{ path: '/adminstrator', id: 'admin' as View, labelKey: 'Admin Dashboard' }]
+              : links
+            ).map((l) => (
               <button
                 key={l.path}
                 onClick={() => go(l.path)}
@@ -113,7 +119,7 @@ function NavBar() {
                 }`}
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
-                {t(l.labelKey)}
+                {l.labelKey.startsWith('nav.') ? t(l.labelKey) : l.labelKey}
                 {isActive(l.path) && (
                   <span className="absolute bottom-0 left-3.5 right-3.5 h-[2px] rounded-full bg-accent" />
                 )}
@@ -126,22 +132,37 @@ function NavBar() {
             <LanguageSelector />
             {isAuthenticated ? (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => go('/profile')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[0.8rem] font-semibold transition-colors ${
-                    location.pathname === '/profile'
-                      ? 'bg-primary text-white'
-                      : 'bg-surface-2 text-ink hover:bg-border'
-                  }`}
-                  style={{ fontFamily: 'Inter, sans-serif' }}
-                >
-                  <div className="size-6 rounded-full bg-accent/15 flex items-center justify-center">
-                    <span className="text-[0.65rem] font-bold text-accent">
-                      {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <span>{user?.name?.split(' ')[0] || 'Profile'}</span>
-                </button>
+                {!isAdminUser && (
+                  <button
+                    onClick={() => go('/profile')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[0.8rem] font-semibold transition-colors ${
+                      location.pathname === '/profile'
+                        ? 'bg-primary text-white'
+                        : 'bg-surface-2 text-ink hover:bg-border'
+                    }`}
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
+                    <div className="size-6 rounded-full bg-accent/15 flex items-center justify-center">
+                      <span className="text-[0.65rem] font-bold text-accent">
+                        {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span>{user?.name?.split(' ')[0] || 'Profile'}</span>
+                  </button>
+                )}
+                {isAdminUser ? (
+                  <button
+                    onClick={() => go('/adminstrator')}
+                    className={`px-3 py-1.5 rounded-lg text-[0.8rem] font-semibold transition-colors ${
+                      location.pathname === '/adminstrator'
+                        ? 'bg-primary text-white'
+                        : 'bg-surface-2 text-ink hover:bg-border'
+                    }`}
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
+                    Admin
+                  </button>
+                ) : null}
                 <button
                   onClick={logout}
                   className="flex items-center gap-1 text-[0.78rem] text-muted hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50/70 transition-colors"
@@ -182,7 +203,10 @@ function NavBar() {
               className="md:hidden border-t border-border bg-parchment overflow-hidden"
             >
               <div className="px-4 py-4 space-y-1">
-                {links.map((l) => (
+                {(isAdminUser
+                  ? [{ path: '/adminstrator', id: 'admin' as View, labelKey: 'Admin Dashboard' }]
+                  : links
+                ).map((l) => (
                   <button
                     key={l.path}
                     onClick={() => go(l.path)}
@@ -190,19 +214,26 @@ function NavBar() {
                       isActive(l.path) ? 'bg-primary text-white' : 'text-ink/70 hover:bg-surface-2 hover:text-ink'
                     }`}
                   >
-                    {t(l.labelKey)}
+                    {l.labelKey.startsWith('nav.') ? t(l.labelKey) : l.labelKey}
                   </button>
                 ))}
                 <div className="pt-3 border-t border-border mt-2 flex items-center gap-2">
                   <LanguageSelector />
                   {isAuthenticated ? (
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => go('/profile')}
-                        className="flex-1 btn btn-navy text-xs"
-                      >
-                        <User className="size-3.5" /> {t('nav.profile')}
-                      </button>
+                      {isAdminUser && (
+                        <button onClick={() => go('/adminstrator')} className="btn btn-navy text-xs">
+                          Admin
+                        </button>
+                      )}
+                      {!isAdminUser && (
+                        <button
+                          onClick={() => go('/profile')}
+                          className="flex-1 btn btn-navy text-xs"
+                        >
+                          <User className="size-3.5" /> {t('nav.profile')}
+                        </button>
+                      )}
                       <button
                         onClick={logout}
                         className="flex items-center gap-1 text-sm text-red-600 px-3 py-2 rounded-lg hover:bg-red-50"
@@ -255,8 +286,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
    Mobile Bottom Nav
 ───────────────────────────────────────────── */
 function MobileBottomNav() {
+  const { user } = useAuth();
   const routerNavigate = useNavigate();
   const location = useLocation();
+  const isAdminUser = Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
+
+  if (isAdminUser) {
+    return null;
+  }
 
   const items = [
     { path: '/',          label: 'Home',    icon: Home },
@@ -365,6 +402,7 @@ function AppContent() {
   const location = useLocation();
   const onboardingIdentity = user?.userId || user?.email || null;
   const onboardingSessionKey = `onboardingHidden:${onboardingIdentity || 'anonymous'}`;
+  const isAdminUser = Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
 
   // Universal navigate helper — child components still call onNavigate(view)
   const viewToPath: Record<View, string> = {
@@ -375,6 +413,7 @@ function AppContent() {
     profile:     '/profile',
     about:       '/about',
     partner:     '/partner',
+    admin:       '/adminstrator',
     login:       '/login',
   };
 
@@ -390,7 +429,11 @@ function AppContent() {
 
   const handlePostLogin = () => {
     const from = (location.state as { from?: string })?.from || '/';
-    routerNavigate(from, { replace: true });
+    if ((user?.email || '').toLowerCase() === 'admin@example.com') {
+      routerNavigate('/adminstrator', { replace: true });
+    } else {
+      routerNavigate(from, { replace: true });
+    }
     setShowOnboarding(false);
   };
 
@@ -398,6 +441,17 @@ function AppContent() {
     if (!isAuthenticated || !user) {
       setShowOnboarding(false);
       setOnboardingDismissed(false);
+      return;
+    }
+
+    if (isAdminUser) {
+      setShowOnboarding(false);
+      setOnboardingDismissed(false);
+      return;
+    }
+
+    if (isAdminUser) {
+      setShowOnboarding(false);
       return;
     }
 
@@ -412,6 +466,7 @@ function AppContent() {
 
     setShowOnboarding(false);
   }, [
+    isAdminUser,
     isAuthenticated,
     location.pathname,
     onboardingDismissed,
@@ -461,21 +516,48 @@ function AppContent() {
                 path="/"
                 element={
                   isAuthenticated && user ? (
-                    <Dashboard user={user} onNavigate={navigate} />
+                    isAdminUser ? <Navigate to="/adminstrator" replace /> : <Dashboard user={user} onNavigate={navigate} />
                   ) : (
                     <LandingPage onNavigate={navigate} />
                   )
                 }
               />
-              <Route path="/about" element={<AboutPage onNavigate={navigate} />} />
+              <Route
+                path="/about"
+                element={isAdminUser ? <Navigate to="/adminstrator" replace /> : <AboutPage onNavigate={navigate} />}
+              />
               <Route path="/login" element={<LoginPage onNavigate={navigate} onLoginSuccess={handlePostLogin} />} />
 
               {/* Protected routes */}
-              <Route path="/schemes" element={<ProtectedRoute><SchemeExplorer onSchemeSelect={handleSchemeSelect} /></ProtectedRoute>} />
-              <Route path="/schemes/:id" element={<ProtectedRoute><SchemeDetailPage /></ProtectedRoute>} />
-              <Route path="/assistant" element={<ProtectedRoute><ChatAssistant /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><UserProfile onNavigate={navigate} /></ProtectedRoute>} />
-              <Route path="/partner" element={<ProtectedRoute><PartnerPortal /></ProtectedRoute>} />
+              <Route
+                path="/schemes"
+                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <SchemeExplorer onSchemeSelect={handleSchemeSelect} />}</ProtectedRoute>}
+              />
+              <Route
+                path="/schemes/:id"
+                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <SchemeDetailPage />}</ProtectedRoute>}
+              />
+              <Route
+                path="/assistant"
+                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <ChatAssistant />}</ProtectedRoute>}
+              />
+              <Route
+                path="/profile"
+                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <UserProfile onNavigate={navigate} />}</ProtectedRoute>}
+              />
+              <Route
+                path="/partner"
+                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <PartnerPortal />}</ProtectedRoute>}
+              />
+              <Route
+                path="/adminstrator"
+                element={
+                  <ProtectedRoute>
+                    {isAdminUser ? <AdminPage /> : <Navigate to="/" replace />}
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/admin" element={<Navigate to="/adminstrator" replace />} />
 
               {/* Fallback */}
               <Route path="*" element={<Navigate to="/" replace />} />
