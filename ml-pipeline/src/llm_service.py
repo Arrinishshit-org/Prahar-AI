@@ -258,9 +258,7 @@ class LLMService:
                 f"{k} ({v.get('type', 'any')}): {v.get('description', '')}"
                 for k, v in props.items()
             )
-            tool_descs.append(
-                f"- {fn['name']}: {fn.get('description', '')}. Params: {param_desc}"
-            )
+            tool_descs.append(f"- {fn['name']}: {fn.get('description', '')}. Params: {param_desc}")
 
         tool_list = "\n".join(tool_descs)
         tool_names = [t.get("function", t).get("name", "") for t in tools]

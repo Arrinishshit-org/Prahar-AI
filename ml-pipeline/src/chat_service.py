@@ -472,9 +472,7 @@ async def _get_agent_step(query: str, user_profile: Dict, conversation_snippet: 
     messages.append(
         {
             "role": "user",
-            "content": (
-                f"{query}\n\nMy profile: {json.dumps(user_profile, default=str)}"
-            ),
+            "content": (f"{query}\n\nMy profile: {json.dumps(user_profile, default=str)}"),
         }
     )
 
@@ -642,9 +640,7 @@ def _wrapper_mentions_unknown_scheme(text: str, known_names: set) -> bool:
     if not text or not known_names:
         return False
     # Match patterns like "PM-KISAN" or "Pradhan Mantri Awas Yojana"
-    candidates = re.findall(
-        r"\b([A-Z][A-Za-z-]{1,}(?:\s+[A-Z][A-Za-z-]{1,}){1,})\b", text
-    )
+    candidates = re.findall(r"\b([A-Z][A-Za-z-]{1,}(?:\s+[A-Z][A-Za-z-]{1,}){1,})\b", text)
     for phrase in candidates:
         phrase_lower = phrase.lower()
         # If none of the known names contains this phrase, it may be hallucinated
@@ -696,8 +692,9 @@ async def _get_conversational_wrapper(
         if _contains_factual_claims(intro) or _contains_factual_claims(outro):
             logger.debug("[wrapper] factual claims detected — using fallback")
             return fallback
-        if _wrapper_mentions_unknown_scheme(intro, known_scheme_names) or \
-                _wrapper_mentions_unknown_scheme(outro, known_scheme_names):
+        if _wrapper_mentions_unknown_scheme(
+            intro, known_scheme_names
+        ) or _wrapper_mentions_unknown_scheme(outro, known_scheme_names):
             logger.debug("[wrapper] unknown scheme name in wrapper — using fallback")
             return fallback
         return {"intro": intro, "outro": outro}
