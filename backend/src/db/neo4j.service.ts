@@ -1280,30 +1280,30 @@ class Neo4jDbService {
 
   async updateUserProfile(userId: string, fields: Record<string, any>): Promise<void> {
     const allowed = [
-    'name',
-    'date_of_birth',
-    'age',
-    'income',
-    'state',
-    'gender',
-    'employment',
-    'education',
-    'interests',
-    'onboarding_complete',
-    'social_category',
-    'is_disabled',
-    'is_minority',
-    'marital_status',
-    'family_size',
-    'rural_urban',
-    'occupation',
-    'poverty_status',
-    'ration_card',
-    'land_ownership',
-    'district',
-    'disability_type',
-    'minority_community',
-  ];
+      'name',
+      'date_of_birth',
+      'age',
+      'income',
+      'state',
+      'gender',
+      'employment',
+      'education',
+      'interests',
+      'onboarding_complete',
+      'social_category',
+      'is_disabled',
+      'is_minority',
+      'marital_status',
+      'family_size',
+      'rural_urban',
+      'occupation',
+      'poverty_status',
+      'ration_card',
+      'land_ownership',
+      'district',
+      'disability_type',
+      'minority_community',
+    ];
     const updates = Object.entries(fields).filter(([k]) => allowed.includes(k));
     if (updates.length === 0) return;
 
@@ -1489,6 +1489,108 @@ class Neo4jDbService {
     const ugMatches = Number(rows[0]?.ugMatches) || 0;
     const score = Math.min(100, matched.length * 15 + ugMatches * 20);
     return { eligible: score > 30, matchedCategories: matched, score };
+  }
+
+  // ─── Nudge helpers (stubs — to be fully implemented with Nudge node model) ──
+
+  async getNudgePreferences(_userId: string): Promise<{
+    enabled: boolean;
+    categories: string[];
+    minEligibilityScore: number;
+    maxPerWeek: number;
+    channels: string[];
+  }> {
+    return {
+      enabled: true,
+      categories: [],
+      minEligibilityScore: 70,
+      maxPerWeek: 3,
+      channels: ['in_app'],
+    };
+  }
+
+  async countNudgesSince(userId: string, sinceIso: string): Promise<number> {
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (u:User { user_id: $userId })-[:HAS_NUDGE]->(n:Nudge)
+       WHERE n.createdAt >= $sinceIso
+       RETURN count(n) AS cnt`,
+      { userId, sinceIso }
+    );
+    return Number(rows[0]?.cnt) || 0;
+  }
+
+  async hasRecentNudgeForScheme(
+    userId: string,
+    schemeId: string,
+    type: string,
+    withinDays: number
+  ): Promise<boolean> {
+    const since = new Date(Date.now() - withinDays * 86400000).toISOString();
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (u:User { user_id: $userId })-[:HAS_NUDGE]->(n:Nudge { schemeId: $schemeId, type: $type })
+       WHERE n.createdAt >= $since
+       RETURN count(n) AS cnt`,
+      { userId, schemeId, type, since }
+    );
+    return (Number(rows[0]?.cnt) || 0) > 0;
+  }
+
+  async createNudge(nudge: {
+    userId: string;
+    type: string;
+    schemeId?: string;
+    title: string;
+    message: string;
+    actionUrl?: string;
+    priority: string;
+    eligibilityScore?: number;
+    channels: string[];
+    expiresAt?: string;
+  }): Promise<void> {
+    await this.connection.executeWrite(
+      `MATCH (u:User { user_id: $userId })
+       CREATE (u)-[:HAS_NUDGE]->(n:Nudge {
+         id: randomUUID(),
+         type: $type,
+         schemeId: $schemeId,
+         title: $title,
+         message: $message,
+         actionUrl: $actionUrl,
+         priority: $priority,
+         eligibilityScore: $eligibilityScore,
+         channels: $channels,
+         read: false,
+         createdAt: datetime().epochMillis,
+         expiresAt: $expiresAt
+       })`,
+      {
+        userId: nudge.userId,
+        type: nudge.type,
+        schemeId: nudge.schemeId ?? '',
+        title: nudge.title,
+        message: nudge.message,
+        actionUrl: nudge.actionUrl ?? '',
+        priority: nudge.priority,
+        eligibilityScore: nudge.eligibilityScore ?? 0,
+        channels: nudge.channels,
+        expiresAt: nudge.expiresAt ?? '',
+      }
+    );
+  }
+
+  async getSchemesWithUpcomingDeadlines(daysAhead: number): Promise<SchemeRow[]> {
+    const futureDate = new Date(Date.now() + daysAhead * 86400000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (s:Scheme)
+       WHERE s.applicationDeadline IS NOT NULL
+         AND s.applicationDeadline >= $today
+         AND s.applicationDeadline <= $futureDate
+       RETURN properties(s) AS props
+       ORDER BY s.applicationDeadline ASC`,
+      { today, futureDate }
+    );
+    return rows.map((r: any) => r.props);
   }
 
   // ─── Graceful close ─────────────────────────────────────────────────────────
