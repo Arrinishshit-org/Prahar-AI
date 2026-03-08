@@ -206,14 +206,15 @@ async def tool_get_scheme_details(params: Dict, _user_profile: Dict) -> Dict:
     return {
         "success": True,
         "data": {
-            "id": scheme.get("schemeId"),
+            "id": scheme.get("id") or scheme.get("schemeId"),
             "name": scheme.get("name") or scheme.get("title"),
             "description": scheme.get("description", ""),
             "ministry": scheme.get("ministry", ""),
             "tags": scheme.get("tags", []),
-            "applicationUrl": scheme.get("schemeUrl")
-            or f"https://www.myscheme.gov.in/schemes/{scheme.get('schemeId', '')}",
-            "otherMatches": [s.get("name", "") for s in schemes[1:]],
+            "applicationUrl": scheme.get("applicationUrl")
+            or scheme.get("schemeUrl")
+            or f"https://www.myscheme.gov.in/schemes/{scheme.get('id') or scheme.get('schemeId', '')}",
+            "otherMatches": [s.get("name") or s.get("title", "") for s in schemes[1:]],
         },
     }
 
@@ -236,12 +237,13 @@ async def tool_check_eligibility(params: Dict, user_profile: Dict) -> Dict:
             if pct >= 50:
                 results.append(
                     {
-                        "schemeId": s.get("schemeId"),
+                        "schemeId": s.get("id") or s.get("schemeId"),
                         "name": s.get("name") or s.get("title"),
                         "eligibilityScore": pct,
                         "description": s.get("description", "")[:150],
-                        "applicationUrl": s.get("schemeUrl")
-                        or f"https://www.myscheme.gov.in/schemes/{s.get('schemeId', '')}",
+                        "applicationUrl": s.get("applicationUrl")
+                        or s.get("schemeUrl")
+                        or f"https://www.myscheme.gov.in/schemes/{s.get('id') or s.get('schemeId', '')}",
                     }
                 )
         results.sort(key=lambda x: x["eligibilityScore"], reverse=True)
@@ -254,10 +256,12 @@ async def tool_check_eligibility(params: Dict, user_profile: Dict) -> Dict:
             "data": {
                 "eligibleSchemes": [
                     {
-                        "schemeId": s.get("schemeId"),
-                        "name": s.get("name"),
+                        "schemeId": s.get("id") or s.get("schemeId"),
+                        "name": s.get("name") or s.get("title"),
                         "eligibilityScore": 60,
                         "description": s.get("description", "")[:150],
+                        "applicationUrl": s.get("applicationUrl")
+                        or f"https://www.myscheme.gov.in/schemes/{s.get('id') or s.get('schemeId', '')}",
                     }
                     for s in schemes[:5]
                 ],
@@ -541,7 +545,7 @@ def _build_template_response(tool_name: str, tool_data: Any, user_profile: Dict)
 
         resp = f"📚 **Matching Schemes**{' for ' + user_name if user_name else ''} ({len(schemes)} found)\n\n"
         for s in (schemes if isinstance(schemes, list) else [])[:5]:
-            name = s.get("name") or s.get("title", "Unknown")
+            name = s.get("name") or s.get("title") or "Unknown"
             desc = (s.get("description") or "")[:110].strip()
             score = f" — {s['eligibilityScore']}% match" if s.get("eligibilityScore") else ""
             resp += f"• **{name}**{score}\n  {desc}{'...' if len(desc) >= 110 else ''}\n\n"
@@ -555,7 +559,7 @@ def _build_template_response(tool_name: str, tool_data: Any, user_profile: Dict)
             return "Based on your current profile I couldn't find highly matching schemes. Complete your profile for better results."
         resp = f"✅ **Eligible Schemes** for you{name_suffix}:\n\n"
         for s in eligible[:5]:
-            name = s.get("name", "Unknown")
+            name = s.get("name") or "Unknown"
             score = s.get("eligibilityScore", 0)
             url = s.get("applicationUrl", "")
             resp += f"• **{name}** — {score}% eligible\n"
