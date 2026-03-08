@@ -74,6 +74,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  language?: string;
   suggestions?: string[];
   schemes?: Scheme[];
 }

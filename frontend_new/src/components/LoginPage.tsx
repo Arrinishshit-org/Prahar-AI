@@ -1,6 +1,7 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import {
   Eye,
   EyeOff,
@@ -61,8 +62,10 @@ interface LoginPageProps {
 
 export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps) {
   const { t } = useTranslation();
+  const location = useLocation();
+  const initialMode = new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login';
   const { login, register } = useAuth();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -99,6 +102,13 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
   };
 
   const passwordStrength = mode === 'register' ? getPasswordStrength(form.password) : null;
+
+  useEffect(() => {
+    const urlMode = new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login';
+    setMode(urlMode);
+    setError('');
+    setSuccessMessage('');
+  }, [location.search]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

@@ -6,28 +6,28 @@
   --font-accent: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 
   /* ── Primary: Deep India Navy ── */
-  --color-primary:     #0B1E34;
-  --color-primary-900: #070F1A;
-  --color-primary-800: #0F2640;
-  --color-primary-700: #163450;
-  --color-primary-600: #1E4468;
-  --color-primary-400: #3A6FA0;
-  --color-primary-200: #A8C8E8;
-  --color-primary-100: #D4E6F4;
-  --color-primary-50:  #EBF3FB;
+  --color-primary:     #102845;
+  --color-primary-900: #081423;
+  --color-primary-800: #123150;
+  --color-primary-700: #1A4064;
+  --color-primary-600: #24537D;
+  --color-primary-400: #4A83B4;
+  --color-primary-200: #B2D2EF;
+  --color-primary-100: #DCEBF8;
+  --color-primary-50:  #F1F7FD;
 
   /* ── Accent: Warm Amber / Turmeric ── */
-  --color-accent:      #C8700D;
-  --color-accent-800:  #9A5209;
-  --color-accent-700:  #AD5F0B;
-  --color-accent-300:  #E8A855;
-  --color-accent-100:  #FAEBD4;
-  --color-accent-50:   #FEF6EB;
+  --color-accent:      #D97A10;
+  --color-accent-800:  #A95A0A;
+  --color-accent-700:  #BC670D;
+  --color-accent-300:  #F0B96F;
+  --color-accent-100:  #FCEEDB;
+  --color-accent-50:   #FFF8EE;
 
   /* ── Terracotta: warm secondary accent ── */
-  --color-terra:       #B85C38;
-  --color-terra-100:   #F7E4DC;
-  --color-terra-50:    #FDF2ED;
+  --color-terra:       #C55F36;
+  --color-terra-100:   #F9E7DF;
+  --color-terra-50:    #FEF3EE;
 
   /* ── Success: India Green ── */
   --color-success:     #187A42;
@@ -35,11 +35,11 @@
   --color-success-50:  #ECFDF5;
 
   /* ── Warm Neutrals ── */
-  --color-surface:     #F7F4EF;
-  --color-surface-2:   #F0EDE6;
-  --color-parchment:   #FAF8F3;
-  --color-border:      #E2D9CC;
-  --color-border-dark: #C8BAA8;
+  --color-surface:     #F8F4EC;
+  --color-surface-2:   #F3EDE2;
+  --color-parchment:   #FDF9F2;
+  --color-border:      #E6DCCB;
+  --color-border-dark: #CDBD9E;
   --color-ink:         #1A1208;
   --color-ink-2:       #2D2418;
   --color-muted:       #8B7355;
@@ -63,7 +63,10 @@
     scroll-behavior: smooth;
   }
   body {
-    background-color: var(--color-surface);
+    background:
+      radial-gradient(1200px 600px at 86% -8%, rgba(240,185,111,0.18), transparent 58%),
+      radial-gradient(860px 420px at -8% 20%, rgba(74,131,180,0.1), transparent 62%),
+      var(--color-surface);
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 16px;
@@ -99,8 +102,10 @@
 /* ── Navbar glass ── */
 .glass {
   backdrop-filter: blur(16px) saturate(180%);
-  background: rgba(250, 248, 243, 0.88);
+  background:
+    linear-gradient(120deg, rgba(255,255,255,0.72), rgba(253,249,242,0.82));
   border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 4px 20px rgba(16,40,69,0.08);
 }
 
 /* ── Grain texture overlay ── */
@@ -117,9 +122,9 @@
 /* ── Hero gradient mesh ── */
 .hero-mesh {
   background:
-    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(200,112,13,0.12) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 80% at 80% 20%, rgba(26,52,80,0.4) 0%, transparent 50%),
-    linear-gradient(145deg, #0B1E34 0%, #0F2640 40%, #163450 100%);
+    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(217,122,16,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 82% 18%, rgba(21,56,88,0.52) 0%, transparent 52%),
+    linear-gradient(145deg, #0C1C31 0%, #123150 42%, #1A4064 100%);
 }
 
 /* ── Shimmer skeleton ── */
@@ -164,16 +169,24 @@
 
 /* ── Card base ── */
 .card {
-  background: var(--color-parchment);
-  border: 1px solid var(--color-border);
+  background: linear-gradient(165deg, rgba(255,255,255,0.65), rgba(253,249,242,0.9));
+  border: 1px solid rgba(205,189,158,0.62);
   border-radius: var(--radius-lg);
-  box-shadow: 0 1px 3px rgba(26,18,8,0.06), 0 1px 2px rgba(26,18,8,0.04);
+  box-shadow: 0 4px 16px rgba(16,40,69,0.07), 0 1px 2px rgba(26,18,8,0.05);
+  transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
 }
 .card-elevated {
-  background: var(--color-parchment);
-  border: 1px solid var(--color-border);
+  background: linear-gradient(165deg, rgba(255,255,255,0.72), rgba(253,249,242,0.94));
+  border: 1px solid rgba(205,189,158,0.72);
   border-radius: var(--radius-xl);
-  box-shadow: 0 4px 16px rgba(26,18,8,0.08), 0 1px 4px rgba(26,18,8,0.05);
+  box-shadow: 0 10px 28px rgba(16,40,69,0.11), 0 3px 10px rgba(26,18,8,0.05);
+}
+
+.card:hover,
+.card-elevated:hover {
+  border-color: rgba(217,122,16,0.38);
+  box-shadow: 0 14px 30px rgba(16,40,69,0.13), 0 4px 14px rgba(217,122,16,0.08);
+  transform: translateY(-1px);
 }
 
 .card * {
@@ -226,32 +239,34 @@
   text-transform: uppercase;
   border-radius: var(--radius-md);
   padding: 0.65rem 1.5rem;
-  transition: all 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.22s ease, filter 0.22s ease, background-color 0.22s ease;
   cursor: pointer;
   white-space: nowrap;
 }
-.btn:active { transform: scale(0.97); }
+.btn:active { transform: translateY(1px) scale(0.98); }
 .btn:disabled { opacity: 0.45; pointer-events: none; }
 
 .btn-primary {
-  background: var(--color-accent);
+  background: linear-gradient(135deg, var(--color-accent), var(--color-terra));
   color: #fff;
   border: none;
-  box-shadow: 0 2px 8px rgba(200,112,13,0.35);
+  box-shadow: 0 8px 18px rgba(217,122,16,0.34), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 .btn-primary:hover {
-  background: var(--color-accent-700);
-  box-shadow: 0 4px 14px rgba(200,112,13,0.4);
+  background: linear-gradient(135deg, var(--color-accent-700), var(--color-terra));
+  box-shadow: 0 10px 24px rgba(217,122,16,0.4), inset 0 1px 0 rgba(255,255,255,0.24);
+  filter: saturate(1.04);
 }
 
 .btn-navy {
-  background: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary-700), var(--color-primary));
   color: #fff;
   border: none;
-  box-shadow: 0 2px 8px rgba(11,30,52,0.3);
+  box-shadow: 0 8px 20px rgba(16,40,69,0.32), inset 0 1px 0 rgba(255,255,255,0.18);
 }
 .btn-navy:hover {
-  background: var(--color-primary-800);
+  background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-800));
+  box-shadow: 0 12px 26px rgba(16,40,69,0.36), inset 0 1px 0 rgba(255,255,255,0.23);
 }
 
 .btn-ghost {
@@ -265,32 +280,32 @@
 }
 
 .btn-outline-white {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.9);
-  border: 1.5px solid rgba(255,255,255,0.25);
+  border: 1.5px solid rgba(255,255,255,0.32);
 }
 .btn-outline-white:hover {
-  background: rgba(255,255,255,0.2);
-  border-color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.5);
 }
 
 /* ── Input base ── */
 .input-base {
   width: 100%;
-  background: var(--color-parchment);
-  border: 1.5px solid var(--color-border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(253,249,242,0.95));
+  border: 1.5px solid rgba(205,189,158,0.72);
   border-radius: var(--radius-md);
   padding: 0.6rem 0.875rem;
   font-family: var(--font-sans);
   font-size: 0.875rem;
   color: var(--color-ink);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
 .input-base::placeholder { color: var(--color-muted-2); }
 .input-base:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(200,112,13,0.12);
+  box-shadow: 0 0 0 3px rgba(217,122,16,0.14), 0 8px 20px rgba(16,40,69,0.08);
 }
 
 /* ── Pill / Tag ── */
@@ -306,17 +321,17 @@
   letter-spacing: 0.03em;
 }
 .pill-accent {
-  background: var(--color-accent-50);
+  background: linear-gradient(135deg, var(--color-accent-50), #fff2de);
   color: var(--color-accent-700);
   border: 1px solid var(--color-accent-100);
 }
 .pill-primary {
-  background: var(--color-primary-50);
+  background: linear-gradient(135deg, var(--color-primary-50), #edf6ff);
   color: var(--color-primary);
   border: 1px solid var(--color-primary-100);
 }
 .pill-success {
-  background: var(--color-success-50);
+  background: linear-gradient(135deg, var(--color-success-50), #f4fff8);
   color: var(--color-success);
   border: 1px solid var(--color-success-100);
 }
@@ -369,6 +384,97 @@
 
 .chat-markdown p {
   margin: 0.5rem 0;
+}
+
+.chat-canvas {
+  background-blend-mode: normal;
+}
+
+.assistant-bubble {
+  background: linear-gradient(165deg, rgba(255,255,255,0.7), rgba(253,249,242,0.93));
+  border: 1px solid rgba(205,189,158,0.75);
+  color: var(--color-ink);
+  box-shadow: 0 6px 20px rgba(16,40,69,0.08), 0 2px 8px rgba(26,18,8,0.05);
+}
+
+.user-bubble {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-800) 100%);
+  color: rgba(255,255,255,0.95);
+  box-shadow: 0 8px 18px rgba(16,40,69,0.27);
+}
+
+.chat-suggestion-chip {
+  background: var(--color-parchment);
+  border: 1.5px solid var(--color-border);
+  color: var(--color-primary);
+  box-shadow: 0 1px 3px rgba(26,18,8,0.06);
+}
+
+.chat-suggestion-chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-700);
+  background: var(--color-accent-50);
+}
+
+.chat-md-h1,
+.chat-md-h2,
+.chat-md-h3 {
+  margin: 0.35rem 0 0.45rem;
+  font-family: var(--font-accent);
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
+}
+
+.chat-md-h1 { font-size: 1.02rem; }
+.chat-md-h2 { font-size: 0.98rem; }
+.chat-md-h3 { font-size: 0.92rem; }
+
+.chat-md-p {
+  margin: 0.4rem 0;
+}
+
+.chat-md-strong {
+  color: var(--color-ink);
+  font-weight: 800;
+}
+
+.chat-md-list {
+  margin: 0.55rem 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.chat-md-list-ordered {
+  counter-reset: chat-ol;
+}
+
+.chat-md-list-ordered .chat-md-li::before {
+  counter-increment: chat-ol;
+  content: counter(chat-ol) ".";
+  color: var(--color-accent-700);
+  font-weight: 700;
+  margin-right: 0.45rem;
+}
+
+.chat-md-li {
+  background: rgba(216,122,16,0.06);
+  border: 1px solid rgba(216,122,16,0.15);
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.65rem;
+  line-height: 1.5;
+}
+
+.chat-md-list:not(.chat-md-list-ordered) .chat-md-li::before {
+  content: "";
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-terra));
+  margin-right: 0.55rem;
+  vertical-align: middle;
 }
 
 .chat-markdown h1,

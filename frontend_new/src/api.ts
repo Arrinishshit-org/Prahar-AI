@@ -21,6 +21,36 @@ export interface ChatApiResponse {
   response: string;
   suggestions?: string[];
   degraded?: boolean;
+  structured?: {
+    summary: string;
+    schemes: Array<{
+      id: string;
+      title: string;
+      description: string;
+      category: string;
+      ministry?: string | null;
+      state?: string | null;
+      score?: number;
+    }>;
+    next_actions: string[];
+  };
+  schemes?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    category: string;
+    ministry?: string | null;
+    state?: string | null;
+    score?: number;
+  }>;
+  trace?: {
+    traceId: string;
+    intent: string;
+    latencyMs: number;
+    retrievalCount: number;
+    degradedReason?: string | null;
+    replyLanguage?: string;
+  };
 }
 
 function cleanText(value: string): string {
@@ -510,15 +540,38 @@ export async function fetchRecommendations(userId: string) {
 
 export async function sendChatMessage(
   message: string,
-  conversationHistory: { role: string; content: string }[] = []
+  conversationHistory: { role: string; content: string }[] = [],
+  preferredLanguage = 'en'
 ) {
-  const res = await fetch(`${API_BASE}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ message, conversationHistory }),
-  });
-  if (!res.ok) throw new Error('Chat request failed');
-  return res.json() as Promise<ChatApiResponse>; // { response, suggestions?, degraded? }
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+
+  try {
+    const res = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Language': preferredLanguage,
+        ...authHeaders(),
+      },
+      body: JSON.stringify({ message, conversationHistory, preferredLanguage }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Chat request failed' }));
+      throw new Error(err.error || 'Chat request failed');
+    }
+
+    return res.json() as Promise<ChatApiResponse>; // { response, suggestions?, degraded? }
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Chat request timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 // ─── Nudges ──────────────────────────────────────────────────────────────────
