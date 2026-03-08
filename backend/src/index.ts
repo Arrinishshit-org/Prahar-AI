@@ -1,11 +1,6 @@
 import dotenv from 'dotenv';
-<<<<<<< Updated upstream
-import app, { seedAdminUser } from './api/server';
-import { schemeSyncAgent } from './agents/scheme-sync-agent';
-=======
 import fs from 'fs';
 import path from 'path';
->>>>>>> Stashed changes
 
 function loadEnv(): void {
   const candidates = [
@@ -38,31 +33,6 @@ async function bootstrap(): Promise<void> {
     import('./services/nudge.service'),
   ]);
 
-<<<<<<< Updated upstream
-  // Start scheme sync agent (initialises Neo4j + Redis + syncs from API if stale)
-  console.log('\n🤖 Starting Scheme Sync Agent...');
-  try {
-    await schemeSyncAgent.start();
-    await seedAdminUser(); // ensure admin exists after DB init
-    console.log('✅ Scheme Sync Agent started successfully\n');
-  } catch (error) {
-    console.error('❌ Failed to start Scheme Sync Agent:', error);
-    console.log('⚠️  Server will continue without scheme sync\n');
-  }
-});
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  await schemeSyncAgent.stop();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  await schemeSyncAgent.stop();
-  process.exit(0);
-=======
   app.listen(PORT, async () => {
     console.log(`🚀 Backend server running on http://localhost:${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/health`);
@@ -97,5 +67,4 @@ process.on('SIGTERM', async () => {
 bootstrap().catch((error) => {
   console.error('❌ Backend bootstrap failed:', error);
   process.exit(1);
->>>>>>> Stashed changes
 });
