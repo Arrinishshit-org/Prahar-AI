@@ -70,6 +70,15 @@ export class SchemesController {
         description: s?.pageDetails?.description ?? null,
         eligibility: pageEligibility,
         benefits: pageBenefits,
+        references: Array.isArray(s?.pageDetails?.references) ? s.pageDetails.references : [],
+        applicationProcess: Array.isArray(s?.pageDetails?.applicationProcess)
+          ? s.pageDetails.applicationProcess
+          : [],
+        eligibilityMarkdown: s?.pageDetails?.eligibilityMarkdown ?? null,
+        benefitsMarkdown: s?.pageDetails?.benefitsMarkdown ?? null,
+        descriptionMarkdown: s?.pageDetails?.descriptionMarkdown ?? null,
+        exclusionsMarkdown: s?.pageDetails?.exclusionsMarkdown ?? null,
+        raw: s?.pageDetails?.raw ?? null,
         enrichedAt: s?.pageDetails?.enrichedAt ?? null,
       },
     };
@@ -81,8 +90,6 @@ export class SchemesController {
       ...mapped,
       eligibilityCriteria: mapped.pageDetails.eligibility,
       benefitsList: mapped.pageDetails.benefits,
-      applicationProcess: 'Visit the official government portal to apply',
-      requiredDocuments: ['Aadhaar Card', 'Income Certificate', 'Residence Proof'],
     };
   }
 
@@ -206,8 +213,6 @@ export class SchemesController {
           ...mapped,
           eligibilityCriteria: [],
           benefitsList: [],
-          applicationProcess: 'Visit the official government portal to apply',
-          requiredDocuments: ['Aadhaar Card', 'Income Certificate', 'Residence Proof'],
         });
       }
     } catch (error: any) {
