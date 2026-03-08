@@ -116,9 +116,9 @@ function normalizeRecommendationResult(result: RecommendResult | null): Recommen
 
 export interface EligibilityResult {
   scheme_id: string;
-  score: number;         // 0.0 – 1.0
-  percentage: number;    // 0 – 100
-  category: string;      // highly_eligible | potentially_eligible | low_eligibility
+  score: number; // 0.0 – 1.0
+  percentage: number; // 0 – 100
+  category: string; // highly_eligible | potentially_eligible | low_eligibility
   met_criteria: string[];
   unmet_criteria: string[];
   explanation: string;
