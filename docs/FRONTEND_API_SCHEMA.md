@@ -201,9 +201,7 @@ The backend has been updated to provide richer scheme data from MyScheme.gov.in'
     "Initially, 50% will be extended within 3 months from the date of receipt of the application from the family (legal heir).",
     "The family (legal heir) should approach this department for the release of the balance 50% of the relief which will be deposited in the bank in a joint account in the name of kin (legal heir) and the competent authority concerned.",
     "If no further information is received about the missing person, the balance amount will be released in favour of the next of kin (legal heir), after the prescribed period of 9 months from the date of release of 1st part of lump sum."
-  ],
-  "applicationProcess": "Visit the official government portal to apply",
-  "requiredDocuments": ["Aadhaar Card", "Income Certificate", "Residence Proof"]
+  ]
 }
 ```
 
@@ -240,8 +238,6 @@ export interface SchemeListItem {
 export interface SchemeDetail extends SchemeListItem {
   eligibilityCriteria: string[];
   benefitsList: string[];
-  applicationProcess: string;
-  requiredDocuments: string[];
 }
 
 // NEW: Enhanced Page Details Structure
