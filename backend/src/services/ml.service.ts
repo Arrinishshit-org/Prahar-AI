@@ -49,6 +49,11 @@ export interface MLServiceStatus {
   timeoutMs: number;
   available: boolean | null;
   lastCheckAt: string | null;
+  circuitBreaker: {
+    state: 'closed' | 'open' | 'half-open';
+    consecutiveFailures: number;
+    openUntil: string | null;
+  };
 }
 
 function toNumber(value: unknown, fallback = 0): number {
@@ -194,6 +199,37 @@ class MLService {
   private _available: boolean | null = null; // null = not checked yet
   private _lastCheck = 0;
   private readonly HEALTH_CACHE_MS = 30_000; // re-check every 30 s
+  private breakerState: 'closed' | 'open' | 'half-open' = 'closed';
+  private consecutiveFailures = 0;
+  private openUntilMs = 0;
+  private readonly BREAKER_FAILURE_THRESHOLD = Number(process.env.ML_CB_FAILURES || 3);
+  private readonly BREAKER_OPEN_MS = Number(process.env.ML_CB_OPEN_MS || 30000);
+
+  private canCallML(): boolean {
+    const now = Date.now();
+    if (this.breakerState === 'open') {
+      if (now >= this.openUntilMs) {
+        this.breakerState = 'half-open';
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  private noteSuccess(): void {
+    this.consecutiveFailures = 0;
+    this.breakerState = 'closed';
+    this.openUntilMs = 0;
+  }
+
+  private noteFailure(): void {
+    this.consecutiveFailures += 1;
+    if (this.consecutiveFailures >= this.BREAKER_FAILURE_THRESHOLD) {
+      this.breakerState = 'open';
+      this.openUntilMs = Date.now() + this.BREAKER_OPEN_MS;
+    }
+  }
 
   /** Quick availability probe — cached */
   async isAvailable(): Promise<boolean> {
@@ -214,6 +250,11 @@ class MLService {
       timeoutMs: TIMEOUT_MS,
       available: this._available,
       lastCheckAt: this._lastCheck > 0 ? new Date(this._lastCheck).toISOString() : null,
+      circuitBreaker: {
+        state: this.breakerState,
+        consecutiveFailures: this.consecutiveFailures,
+        openUntil: this.openUntilMs > 0 ? new Date(this.openUntilMs).toISOString() : null,
+      },
     };
   }
 
@@ -222,7 +263,11 @@ class MLService {
    * Returns null if ML service is unavailable.
    */
   async classify(message: string, userId?: string): Promise<ClassifyResult | null> {
-    return postWithTimeout<ClassifyResult>('/classify', { message, user_id: userId });
+    if (!this.canCallML()) return null;
+    const result = await postWithTimeout<ClassifyResult>('/classify', { message, user_id: userId });
+    if (result) this.noteSuccess();
+    else this.noteFailure();
+    return result;
   }
 
   /**
@@ -234,12 +279,15 @@ class MLService {
     schemes: any[],
     maxResults = 10
   ): Promise<RecommendResult | null> {
+    if (!this.canCallML()) return null;
     const result = await postWithTimeout<RecommendResult>('/recommend', {
       user_profile: normalizeUserProfile(userProfile),
       schemes,
       max_results: maxResults,
       min_score: 0.2,
     });
+    if (result) this.noteSuccess();
+    else this.noteFailure();
     return normalizeRecommendationResult(result);
   }
 
@@ -251,10 +299,14 @@ class MLService {
     userProfile: Record<string, any>,
     scheme: Record<string, any>
   ): Promise<EligibilityResult | null> {
-    return postWithTimeout<EligibilityResult>('/eligibility', {
+    if (!this.canCallML()) return null;
+    const result = await postWithTimeout<EligibilityResult>('/eligibility', {
       user_profile: normalizeUserProfile(userProfile),
       scheme,
     });
+    if (result) this.noteSuccess();
+    else this.noteFailure();
+    return result;
   }
 
   /**
@@ -266,11 +318,15 @@ class MLService {
     userProfile: Record<string, any>,
     conversationHistory: Array<{ role: string; content: string }> = []
   ): Promise<ChatResult | null> {
-    return postWithTimeout<ChatResult>('/chat', {
+    if (!this.canCallML()) return null;
+    const result = await postWithTimeout<ChatResult>('/chat', {
       message,
       user_profile: normalizeUserProfile(userProfile),
       conversation_history: conversationHistory,
     });
+    if (result) this.noteSuccess();
+    else this.noteFailure();
+    return result;
   }
 }
 

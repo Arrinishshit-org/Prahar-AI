@@ -79,6 +79,12 @@ function NavBar() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const goToRegister = () => {
+    routerNavigate('/login?mode=register');
+    setMobileOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <>
       <header className="sticky top-0 z-50 glass">
@@ -145,10 +151,15 @@ function NavBar() {
                 </button>
               </div>
             ) : (
-              <button onClick={() => go('/login')} className="btn btn-primary">
-                <LogIn className="size-3.5" />
-                {t('nav.login')}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => go('/login')} className="btn btn-navy">
+                  <LogIn className="size-3.5" />
+                  {t('nav.login')}
+                </button>
+                <button onClick={goToRegister} className="btn btn-primary">
+                  {t('auth.register')}
+                </button>
+              </div>
             )}
           </div>
 
@@ -200,9 +211,14 @@ function NavBar() {
                       </button>
                     </div>
                   ) : (
-                    <button onClick={() => go('/login')} className="w-full btn btn-primary">
-                      <LogIn className="size-4" /> {t('nav.login')}
-                    </button>
+                    <div className="w-full grid grid-cols-2 gap-2">
+                      <button onClick={() => go('/login')} className="btn btn-navy">
+                        <LogIn className="size-4" /> {t('nav.login')}
+                      </button>
+                      <button onClick={goToRegister} className="btn btn-primary">
+                        {t('auth.register')}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -343,10 +359,12 @@ function SchemeDetailPage() {
 ───────────────────────────────────────────── */
 function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const { isAuthenticated, user } = useAuth();
   const routerNavigate = useNavigate();
   const location = useLocation();
-  const onboardingSessionKey = user?.userId ? `onboardingHidden:${user.userId}` : null;
+  const onboardingIdentity = user?.userId || user?.email || null;
+  const onboardingSessionKey = `onboardingHidden:${onboardingIdentity || 'anonymous'}`;
 
   // Universal navigate helper — child components still call onNavigate(view)
   const viewToPath: Record<View, string> = {
@@ -379,13 +397,15 @@ function AppContent() {
   useEffect(() => {
     if (!isAuthenticated || !user) {
       setShowOnboarding(false);
+      setOnboardingDismissed(false);
       return;
     }
 
     const sessionDismissed =
-      onboardingSessionKey !== null && sessionStorage.getItem(onboardingSessionKey) === '1';
+      sessionStorage.getItem(onboardingSessionKey) === '1' ||
+      sessionStorage.getItem('onboardingHidden:global') === '1';
 
-    if (!user.onboardingComplete && !sessionDismissed && location.pathname !== '/login') {
+    if (!user.onboardingComplete && !sessionDismissed && !onboardingDismissed && location.pathname !== '/login') {
       setShowOnboarding(true);
       return;
     }
@@ -394,6 +414,7 @@ function AppContent() {
   }, [
     isAuthenticated,
     location.pathname,
+    onboardingDismissed,
     onboardingSessionKey,
     user,
     user?.onboardingComplete,
@@ -408,11 +429,15 @@ function AppContent() {
         {showOnboarding && isAuthenticated && (
           <OnboardingWizard
             onComplete={() => {
-              if (onboardingSessionKey) sessionStorage.setItem(onboardingSessionKey, '1');
+              sessionStorage.setItem(onboardingSessionKey, '1');
+              sessionStorage.setItem('onboardingHidden:global', '1');
+              setOnboardingDismissed(true);
               setShowOnboarding(false);
             }}
             onSkip={() => {
-              if (onboardingSessionKey) sessionStorage.setItem(onboardingSessionKey, '1');
+              sessionStorage.setItem(onboardingSessionKey, '1');
+              sessionStorage.setItem('onboardingHidden:global', '1');
+              setOnboardingDismissed(true);
               setShowOnboarding(false);
             }}
           />

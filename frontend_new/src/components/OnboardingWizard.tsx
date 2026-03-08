@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User,
@@ -223,22 +223,35 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
 
   const currentStep = steps[step - 1];
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onSkip();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onSkip]);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+    <div
+      className="fixed inset-0 z-[60] bg-black/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onSkip();
+      }}
+    >
       <motion.div
         initial={{ opacity: 0, y: 28, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 24, scale: 0.98 }}
-        className="w-full max-w-3xl rounded-2xl border overflow-hidden"
+        className="w-full max-w-3xl rounded-2xl border overflow-hidden flex flex-col"
         style={{
-          maxHeight: '92vh',
+          maxHeight: 'min(92vh, 860px)',
           background: 'var(--color-parchment)',
           borderColor: 'var(--color-border)',
           boxShadow: '0 24px 60px rgba(7,15,26,0.35)',
         }}
       >
         <header
-          className="relative px-5 sm:px-7 py-5 sm:py-6"
+          className="relative px-5 sm:px-7 py-5 sm:py-6 shrink-0"
           style={{
             background:
               'linear-gradient(145deg, var(--color-primary-900) 0%, var(--color-primary) 55%, var(--color-primary-700) 100%)',
@@ -253,8 +266,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
           />
 
           <button
+            type="button"
             onClick={onSkip}
-            className="absolute top-4 right-4 size-8 rounded-full grid place-items-center transition-colors"
+            className="absolute top-4 right-4 z-20 size-8 rounded-full grid place-items-center transition-colors pointer-events-auto"
             style={{ color: 'rgba(255,255,255,0.9)', background: 'rgba(255,255,255,0.08)' }}
             aria-label="Close onboarding"
           >
@@ -316,7 +330,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
           </div>
         </header>
 
-        <div className="overflow-y-auto px-5 sm:px-7 py-5" style={{ maxHeight: 'calc(92vh - 255px)' }}>
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-7 py-5">
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -613,17 +627,18 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         </div>
 
         <footer
-          className="px-5 sm:px-7 py-4 border-t flex items-center justify-between gap-3"
+          className="px-5 sm:px-7 py-4 border-t flex items-center justify-between gap-3 shrink-0"
           style={{ borderColor: 'var(--color-border)', background: 'var(--color-parchment)' }}
         >
           <button
+            type="button"
             onClick={step === 1 ? onSkip : () => setStep((s) => s - 1)}
             className="btn btn-ghost"
           >
             {step === 1 ? 'Skip For Now' : (<><ChevronLeft className="size-4" /> Back</>)}
           </button>
 
-          <button onClick={saveAndNext} disabled={!canProceed() || saving} className="btn btn-primary">
+          <button type="button" onClick={saveAndNext} disabled={!canProceed() || saving} className="btn btn-primary">
             {saving ? (
               <span className="animate-spin size-4 border-2 border-white/30 border-t-white rounded-full" />
             ) : step === 4 ? (
