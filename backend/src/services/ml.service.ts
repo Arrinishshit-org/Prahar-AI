@@ -12,7 +12,7 @@
  */
 
 const ML_BASE = process.env.ML_SERVICE_URL || 'http://localhost:8000';
-const TIMEOUT_MS = 3000; // 3 s — if ML is slow we fall back instantly
+const TIMEOUT_MS = 15000; // 15 s — /chat does a roundtrip through backend schemes API + Neo4j
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

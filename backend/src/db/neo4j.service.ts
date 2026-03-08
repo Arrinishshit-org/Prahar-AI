@@ -1289,6 +1289,9 @@ class Neo4jDbService {
       'education',
       'interests',
       'onboarding_complete',
+      'social_category',
+      'is_disabled',
+      'is_minority',
     ];
     const updates = Object.entries(fields).filter(([k]) => allowed.includes(k));
     if (updates.length === 0) return;

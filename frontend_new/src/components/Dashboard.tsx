@@ -50,10 +50,12 @@ export default function Dashboard({ user, onNavigate }: DashboardProps) {
     user.email,
     user.age,
     user.state,
-    user.occupation,
+    user.employment,
     user.income,
     user.education,
     user.gender,
+    (user as any)?.socialCategory,
+    (user as any)?.interests,
   ];
   const filledFields = profileFields.filter(Boolean).length;
   const completeness = Math.round((filledFields / profileFields.length) * 100);

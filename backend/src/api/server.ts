@@ -157,6 +157,10 @@ app.get('/api/users/:userId/profile', async (req, res) => {
     employment: user.employment ?? null,
     education: user.education ?? null,
     gender: user.gender ?? null,
+    socialCategory: user.social_category ?? null,
+    interests: user.interests ?? null,
+    disability: !!user.is_disabled,
+    minority: !!user.is_minority,
     onboardingComplete: !!user.onboarding_complete,
     completeness: calculateProfileCompleteness(user),
   });
@@ -180,6 +184,9 @@ app.put('/api/users/:userId/profile', async (req, res) => {
     gender: 'gender',
     interests: 'interests',
     onboardingComplete: 'onboarding_complete',
+    socialCategory: 'social_category',
+    disability: 'is_disabled',
+    minority: 'is_minority',
   };
   for (const [k, col] of Object.entries(fieldMap)) {
     if (req.body[k] !== undefined) mappedFields[col] = req.body[k];
@@ -197,6 +204,10 @@ app.put('/api/users/:userId/profile', async (req, res) => {
     employment: updated.employment ?? null,
     education: updated.education ?? null,
     gender: updated.gender ?? null,
+    socialCategory: updated.social_category ?? null,
+    interests: updated.interests ?? null,
+    disability: !!updated.is_disabled,
+    minority: !!updated.is_minority,
     onboardingComplete: !!updated.onboarding_complete,
     completeness: calculateProfileCompleteness(updated),
   });
@@ -300,6 +311,10 @@ app.post('/api/chat', async (req, res) => {
       employment: freshUser.employment,
       education: freshUser.education,
       gender: freshUser.gender,
+      interests: freshUser.interests,
+      social_category: freshUser.social_category,
+      is_disabled: freshUser.is_disabled,
+      is_minority: freshUser.is_minority,
       ...dbUpdates,
     };
 
