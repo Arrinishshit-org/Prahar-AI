@@ -13,19 +13,25 @@ class FeatureExtractor:
     """
     Extract and encode features from user profiles for classification.
     
-    Produces a ~50-dimensional feature vector containing:
+    Produces a feature vector containing:
     - Normalized numerical features (age, income, family size)
     - One-hot encoded categorical features (gender, marital status, etc.)
-    - Location encoding (state, district)
+    - Location encoding (state)
+    - Binary features (disability)
+    - New: poverty_status, ration_card, land_ownership encodings
     """
     
     # Define categorical feature mappings
     GENDER_CATEGORIES = ['male', 'female', 'other', 'prefer_not_to_say']
     MARITAL_STATUS_CATEGORIES = ['single', 'married', 'divorced', 'widowed']
-    EMPLOYMENT_CATEGORIES = ['employed', 'self_employed', 'unemployed', 'student', 'retired']
-    EDUCATION_CATEGORIES = ['no_formal', 'primary', 'secondary', 'higher_secondary', 'graduate', 'postgraduate']
-    CASTE_CATEGORIES = ['general', 'obc', 'sc', 'st', 'other']
-    RURAL_URBAN_CATEGORIES = ['rural', 'urban', 'semi_urban']
+    EMPLOYMENT_CATEGORIES = ['employed', 'self_employed', 'self-employed', 'unemployed', 'student', 'retired', 'salaried', 'farmer']
+    EDUCATION_CATEGORIES = ['no_formal', 'primary', 'secondary', 'higher_secondary', 'graduate', 'postgraduate',
+                            'below 10th', '10th / ssc', '12th / hsc', 'diploma']
+    CASTE_CATEGORIES = ['general', 'obc', 'sc', 'st', 'ews', 'minority', 'other']
+    RURAL_URBAN_CATEGORIES = ['rural', 'urban', 'semi-urban', 'semi_urban']
+    POVERTY_CATEGORIES = ['bpl', 'apl', 'not sure']
+    RATION_CARD_CATEGORIES = ['aay', 'bpl', 'apl', 'none']
+    LAND_CATEGORIES = ['landless', 'marginal (< 1 ha)', 'small (1-2 ha)', 'large (> 2 ha)', 'n/a']
     
     # Top states by population for encoding
     TOP_STATES = [
@@ -35,199 +41,148 @@ class FeatureExtractor:
         'Chhattisgarh', 'Haryana', 'Delhi', 'Jammu and Kashmir'
     ]
     
+    def _resolve(self, profile: Dict[str, Any], *keys, default=None):
+        """Resolve a value from the profile using multiple possible key names."""
+        for key in keys:
+            val = profile.get(key)
+            if val is not None and val != '':
+                return val
+        return default
+
     def extract_features(self, profile: Dict[str, Any]) -> np.ndarray:
         """
         Extract and encode features from user profile.
+        
+        Handles both naming conventions:
+        - Backend: employment, education, social_category, income
+        - ML formal: employment_status, education_level, caste, annual_income
         
         Args:
             profile: Dictionary containing user profile data
             
         Returns:
-            numpy array of ~50 features normalized to 0-1 range
+            numpy array of features normalized to 0-1 range
         """
         features = []
         
         # Numerical features (normalized to 0-1)
-        features.append(self.normalize_age(profile.get('age', 30)))
-        features.append(self.normalize_income(profile.get('annual_income', 0)))
-        features.append(self.normalize_family_size(profile.get('family_size', 1)))
+        age = self._resolve(profile, 'age', default=30)
+        income = self._resolve(profile, 'annual_income', 'income', default=0)
+        family_size = self._resolve(profile, 'family_size', default=1)
         
-        # Categorical features (one-hot encoded)
-        features.extend(self.encode_gender(profile.get('gender', 'prefer_not_to_say')))
-        features.extend(self.encode_marital_status(profile.get('marital_status', 'single')))
-        features.extend(self.encode_employment(profile.get('employment_status', 'unemployed')))
-        features.extend(self.encode_education(profile.get('education_level', 'secondary')))
-        features.extend(self.encode_caste(profile.get('caste', 'general')))
-        features.extend(self.encode_rural_urban(profile.get('rural_urban', 'urban')))
+        features.append(self.normalize_age(age))
+        features.append(self.normalize_income(income))
+        features.append(self.normalize_family_size(family_size))
+        
+        # Categorical features (one-hot encoded) — with key aliasing
+        gender = self._resolve(profile, 'gender', default='prefer_not_to_say')
+        marital = self._resolve(profile, 'marital_status', default='single')
+        employment = self._resolve(profile, 'employment_status', 'employment', default='unemployed')
+        education = self._resolve(profile, 'education_level', 'education', default='secondary')
+        caste = self._resolve(profile, 'caste', 'social_category', default='general')
+        rural_urban = self._resolve(profile, 'rural_urban', default='urban')
+        
+        features.extend(self.encode_gender(gender))
+        features.extend(self.encode_marital_status(marital))
+        features.extend(self.encode_employment(employment))
+        features.extend(self.encode_education(education))
+        features.extend(self.encode_caste(caste))
+        features.extend(self.encode_rural_urban(rural_urban))
+        
+        # New categorical features
+        poverty = self._resolve(profile, 'poverty_status', default='')
+        ration = self._resolve(profile, 'ration_card', default='')
+        land = self._resolve(profile, 'land_ownership', default='')
+        
+        features.extend(self._one_hot_encode(str(poverty).lower(), self.POVERTY_CATEGORIES))
+        features.extend(self._one_hot_encode(str(ration).lower(), self.RATION_CARD_CATEGORIES))
+        features.extend(self._one_hot_encode(str(land).lower(), self.LAND_CATEGORIES))
         
         # Location features
         features.extend(self.encode_state(profile.get('state', '')))
         
         # Binary features
-        features.append(1.0 if profile.get('disability', False) else 0.0)
+        is_disabled = self._resolve(profile, 'disability', 'is_disabled', default=False)
+        is_minority = self._resolve(profile, 'is_minority', 'minority', default=False)
+        features.append(1.0 if is_disabled else 0.0)
+        features.append(1.0 if is_minority else 0.0)
         
         return np.array(features, dtype=np.float64)
     
     def normalize_age(self, age: int) -> float:
-        """
-        Normalize age to 0-1 range.
-        
-        Assumes age range of 18-100 years.
-        
-        Args:
-            age: User age in years
-            
-        Returns:
-            Normalized age value between 0 and 1
-        """
-        age = max(18, min(100, age))  # Clamp to valid range
+        """Normalize age to 0-1 range (18-100)."""
+        try:
+            age = int(age)
+        except (TypeError, ValueError):
+            age = 30
+        age = max(18, min(100, age))
         return (age - 18) / (100 - 18)
     
     def normalize_income(self, income: float) -> float:
-        """
-        Normalize income using log scale to 0-1 range.
-        
-        Uses log scale to handle wide income range (0 to 10M).
-        
-        Args:
-            income: Annual income in currency units
-            
-        Returns:
-            Normalized income value between 0 and 1
-        """
+        """Normalize income using log scale to 0-1 range."""
         if income is None:
             income = 0
-        income = max(0, income)  # Ensure non-negative
+        try:
+            income = float(income)
+        except (TypeError, ValueError):
+            income = 0
+        income = max(0, income)
         return np.log1p(income) / np.log1p(10000000)
     
     def normalize_family_size(self, family_size: int) -> float:
-        """
-        Normalize family size to 0-1 range.
-        
-        Assumes family size range of 1-10 members.
-        
-        Args:
-            family_size: Number of family members
-            
-        Returns:
-            Normalized family size value between 0 and 1
-        """
-        family_size = max(1, min(10, family_size))  # Clamp to valid range
+        """Normalize family size to 0-1 range (1-10)."""
+        try:
+            family_size = int(family_size)
+        except (TypeError, ValueError):
+            family_size = 1
+        family_size = max(1, min(10, family_size))
         return (family_size - 1) / (10 - 1)
     
     def encode_gender(self, gender: str) -> List[float]:
-        """
-        One-hot encode gender.
-        
-        Args:
-            gender: Gender category
-            
-        Returns:
-            List of binary values (one-hot encoding)
-        """
-        return self._one_hot_encode(gender, self.GENDER_CATEGORIES)
+        """One-hot encode gender."""
+        return self._one_hot_encode(str(gender).lower(), self.GENDER_CATEGORIES)
     
     def encode_marital_status(self, marital_status: str) -> List[float]:
-        """
-        One-hot encode marital status.
-        
-        Args:
-            marital_status: Marital status category
-            
-        Returns:
-            List of binary values (one-hot encoding)
-        """
-        return self._one_hot_encode(marital_status, self.MARITAL_STATUS_CATEGORIES)
+        """One-hot encode marital status."""
+        return self._one_hot_encode(str(marital_status).lower(), self.MARITAL_STATUS_CATEGORIES)
     
     def encode_employment(self, employment_status: str) -> List[float]:
-        """
-        One-hot encode employment status.
-        
-        Args:
-            employment_status: Employment status category
-            
-        Returns:
-            List of binary values (one-hot encoding)
-        """
-        return self._one_hot_encode(employment_status, self.EMPLOYMENT_CATEGORIES)
+        """One-hot encode employment status."""
+        return self._one_hot_encode(str(employment_status).lower(), self.EMPLOYMENT_CATEGORIES)
     
     def encode_education(self, education_level: str) -> List[float]:
-        """
-        One-hot encode education level.
-        
-        Args:
-            education_level: Education level category
-            
-        Returns:
-            List of binary values (one-hot encoding)
-        """
-        return self._one_hot_encode(education_level, self.EDUCATION_CATEGORIES)
+        """One-hot encode education level."""
+        return self._one_hot_encode(str(education_level).lower(), self.EDUCATION_CATEGORIES)
     
     def encode_caste(self, caste: str) -> List[float]:
-        """
-        One-hot encode caste category.
-        
-        Args:
-            caste: Caste category
-            
-        Returns:
-            List of binary values (one-hot encoding)
-        """
-        return self._one_hot_encode(caste, self.CASTE_CATEGORIES)
+        """One-hot encode caste/social category."""
+        return self._one_hot_encode(str(caste).lower(), self.CASTE_CATEGORIES)
     
     def encode_rural_urban(self, rural_urban: str) -> List[float]:
-        """
-        One-hot encode rural/urban classification.
-        
-        Args:
-            rural_urban: Rural/urban category
-            
-        Returns:
-            List of binary values (one-hot encoding)
-        """
-        return self._one_hot_encode(rural_urban, self.RURAL_URBAN_CATEGORIES)
+        """One-hot encode rural/urban classification."""
+        return self._one_hot_encode(str(rural_urban).lower(), self.RURAL_URBAN_CATEGORIES)
     
     def encode_state(self, state: str) -> List[float]:
-        """
-        One-hot encode state with top 20 states.
-        
-        States not in top 20 are encoded as all zeros (other category).
-        
-        Args:
-            state: State name
-            
-        Returns:
-            List of binary values (one-hot encoding)
-        """
+        """One-hot encode state with top 20 states."""
         return self._one_hot_encode(state, self.TOP_STATES)
     
     def _one_hot_encode(self, value: str, categories: List[str]) -> List[float]:
         """
         Generic one-hot encoding helper.
-        
-        Args:
-            value: Value to encode
-            categories: List of valid categories
-            
-        Returns:
-            List of binary values where only the matching category is 1.0
+        Tries case-insensitive matching for robustness.
         """
         encoding = [0.0] * len(categories)
-        try:
-            index = categories.index(value)
-            encoding[index] = 1.0
-        except ValueError:
-            # Value not in categories - all zeros (unknown/other)
-            pass
+        if not value:
+            return encoding
+        value_lower = value.lower().strip()
+        for i, cat in enumerate(categories):
+            if cat.lower() == value_lower:
+                encoding[i] = 1.0
+                return encoding
         return encoding
     
     def get_feature_dimension(self) -> int:
-        """
-        Get the total dimension of the feature vector.
-        
-        Returns:
-            Total number of features in the output vector
-        """
+        """Get the total dimension of the feature vector."""
         return (
             3 +  # Numerical: age, income, family_size
             len(self.GENDER_CATEGORIES) +
@@ -236,17 +191,15 @@ class FeatureExtractor:
             len(self.EDUCATION_CATEGORIES) +
             len(self.CASTE_CATEGORIES) +
             len(self.RURAL_URBAN_CATEGORIES) +
+            len(self.POVERTY_CATEGORIES) +
+            len(self.RATION_CARD_CATEGORIES) +
+            len(self.LAND_CATEGORIES) +
             len(self.TOP_STATES) +
-            1  # Binary: disability
+            2  # Binary: disability, minority
         )
     
     def get_feature_names(self) -> List[str]:
-        """
-        Get descriptive names for all features.
-        
-        Returns:
-            List of feature names in order
-        """
+        """Get descriptive names for all features."""
         names = ['age_normalized', 'income_normalized', 'family_size_normalized']
         
         names.extend([f'gender_{cat}' for cat in self.GENDER_CATEGORIES])
@@ -255,7 +208,11 @@ class FeatureExtractor:
         names.extend([f'education_{cat}' for cat in self.EDUCATION_CATEGORIES])
         names.extend([f'caste_{cat}' for cat in self.CASTE_CATEGORIES])
         names.extend([f'rural_urban_{cat}' for cat in self.RURAL_URBAN_CATEGORIES])
+        names.extend([f'poverty_{cat}' for cat in self.POVERTY_CATEGORIES])
+        names.extend([f'ration_{cat}' for cat in self.RATION_CARD_CATEGORIES])
+        names.extend([f'land_{cat}' for cat in self.LAND_CATEGORIES])
         names.extend([f'state_{state.replace(" ", "_")}' for state in self.TOP_STATES])
         names.append('disability')
+        names.append('minority')
         
         return names

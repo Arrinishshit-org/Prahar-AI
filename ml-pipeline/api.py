@@ -323,17 +323,35 @@ def _rule_based_classify(message: str) -> ClassifyResponse:
 def _heuristic_rank(
     user: Dict[str, Any], schemes: List[Dict[str, Any]], limit: int
 ) -> List[Dict[str, Any]]:
-    """Simple heuristic scoring for scheme ranking."""
+    """Simple heuristic scoring for scheme ranking using all profile fields."""
 
     def score(scheme: Dict[str, Any]) -> float:
         s = 0.5  # base
         tags = [t.lower() for t in (scheme.get("tags") or [])]
+        tags_str = " ".join(tags)
+        desc = (scheme.get("description") or "").lower()
+        combined = tags_str + " " + desc
         if user.get("state") and user["state"].lower() in (scheme.get("state", "") or "").lower():
-            s += 0.2
-        if user.get("employment") and user["employment"].lower() in " ".join(tags):
             s += 0.15
-        if user.get("education") and user["education"].lower() in " ".join(tags):
-            s += 0.1
+        if user.get("employment") and user["employment"].lower() in combined:
+            s += 0.10
+        if user.get("education") and user["education"].lower() in combined:
+            s += 0.05
+        # New fields
+        cat = (user.get("social_category") or "").lower()
+        if cat and cat in combined:
+            s += 0.10
+        ru = (user.get("rural_urban") or "").lower()
+        if ru and ru in combined:
+            s += 0.05
+        pov = (user.get("poverty_status") or "").lower()
+        if pov and pov in combined:
+            s += 0.05
+        if user.get("is_disabled") and ("disability" in combined or "divyang" in combined):
+            s += 0.10
+        marital = (user.get("marital_status") or "").lower()
+        if marital and marital in combined:
+            s += 0.05
         return min(s, 1.0)
 
     ranked = sorted(schemes, key=score, reverse=True)
@@ -343,31 +361,73 @@ def _heuristic_rank(
 def _rule_based_eligibility(
     user: Dict[str, Any], scheme: Dict[str, Any], scheme_id: str
 ) -> EligibilityResponse:
-    """Simple rule-based eligibility scoring."""
+    """Rule-based eligibility scoring using all profile fields."""
     met, unmet = [], []
     score = 0.5
 
     tags_str = " ".join(scheme.get("tags") or []).lower()
     desc = (scheme.get("description") or "").lower()
+    combined = tags_str + " " + desc
 
     if user.get("state") and user["state"].lower() in (scheme.get("state", "") or tags_str):
         met.append(f"State ({user['state']}) matches")
-        score += 0.15
-    if user.get("employment") and user["employment"].lower() in tags_str + desc:
+        score += 0.10
+    if user.get("employment") and user["employment"].lower() in combined:
         met.append(f"Employment ({user['employment']}) relevant")
-        score += 0.15
+        score += 0.10
     if user.get("gender") == "Female" and (
-        "women" in tags_str or "female" in tags_str or "woman" in tags_str
+        "women" in combined or "female" in combined or "woman" in combined
     ):
         met.append("Gender (Female) matches scheme target")
-        score += 0.2
+        score += 0.15
     if (
         user.get("income")
         and user["income"] < 300000
-        and ("bpl" in tags_str or "poor" in tags_str or "low income" in tags_str)
+        and ("bpl" in combined or "poor" in combined or "low income" in combined)
     ):
         met.append("Income below poverty threshold")
-        score += 0.1
+        score += 0.10
+
+    # Social category
+    cat = (user.get("social_category") or "").lower()
+    if cat and cat in combined:
+        met.append(f"Social category ({cat.upper()}) matches")
+        score += 0.10
+
+    # Rural/Urban
+    ru = (user.get("rural_urban") or "").lower()
+    if ru and ru in combined:
+        met.append(f"Residence type ({ru.title()}) matches")
+        score += 0.05
+
+    # Poverty / BPL status
+    pov = (user.get("poverty_status") or "").lower()
+    if pov and pov in combined:
+        met.append(f"Poverty status ({pov.upper()}) matches")
+        score += 0.05
+
+    # Ration card
+    ration = (user.get("ration_card") or "").lower()
+    if ration and ration != "none" and ration in combined:
+        met.append(f"Ration card ({ration.upper()}) matches")
+        score += 0.05
+
+    # Disability
+    if user.get("is_disabled") and ("disability" in combined or "divyang" in combined or "handicap" in combined):
+        met.append("Disability status matches")
+        score += 0.10
+
+    # Marital status (widow/single schemes)
+    marital = (user.get("marital_status") or "").lower()
+    if marital and marital in combined:
+        met.append(f"Marital status ({marital.title()}) matches")
+        score += 0.05
+
+    # Land ownership (landless schemes)
+    land = (user.get("land_ownership") or "").lower()
+    if land and "landless" in land and "landless" in combined:
+        met.append("Landless status matches")
+        score += 0.05
 
     score = min(score, 1.0)
     pct = int(score * 100)

@@ -51,13 +51,17 @@ class EligibilityEngine:
         # These weights prioritize critical criteria like Income, Age, and Location
         # In a production system, these would be learned from historical data.
         self.feature_weights = {
-            "age": 0.25,
-            "annual_income": 0.30,
-            "location": 0.20,
+            "age": 0.20,
+            "annual_income": 0.20,
+            "location": 0.15,
             "occupation": 0.05,
             "education": 0.05,
             "caste": 0.10,
             "disability": 0.05,
+            "rural_urban": 0.05,
+            "marital_status": 0.05,
+            "poverty_status": 0.05,
+            "land_ownership": 0.05,
         }
 
         if self.use_milvus:
@@ -533,7 +537,7 @@ class EligibilityEngine:
 
         # Disability criterion
         requires_disability = eligibility.get("disability")
-        user_has_disability = user_profile.get("disability", False)
+        user_has_disability = user_profile.get("disability", user_profile.get("is_disabled", False))
 
         if requires_disability is not None:
             if requires_disability == user_has_disability:
@@ -543,6 +547,77 @@ class EligibilityEngine:
                         "user_value": user_has_disability,
                         "requirement": "Required" if requires_disability else "Not required",
                         "weight": 0.10,
+                    }
+                )
+
+        # Rural/Urban criterion
+        eligible_rural_urban = eligibility.get("rural_urban", [])
+        user_rural_urban = (user_profile.get("rural_urban") or "").lower()
+        if eligible_rural_urban:
+            if isinstance(eligible_rural_urban, str):
+                eligible_rural_urban = [eligible_rural_urban]
+            if user_rural_urban and user_rural_urban in [r.lower() for r in eligible_rural_urban]:
+                met_criteria.append(
+                    {
+                        "name": "rural_urban",
+                        "user_value": user_rural_urban,
+                        "requirement": ", ".join(eligible_rural_urban),
+                        "weight": 0.10,
+                    }
+                )
+            elif user_rural_urban:
+                unmet_criteria.append(
+                    {
+                        "name": "rural_urban",
+                        "user_value": user_rural_urban,
+                        "requirement": ", ".join(eligible_rural_urban),
+                        "required": False,
+                    }
+                )
+
+        # Marital status criterion
+        eligible_marital = eligibility.get("marital_status", [])
+        user_marital = (user_profile.get("marital_status") or "").lower()
+        if eligible_marital:
+            if isinstance(eligible_marital, str):
+                eligible_marital = [eligible_marital]
+            if user_marital and user_marital in [m.lower() for m in eligible_marital]:
+                met_criteria.append(
+                    {
+                        "name": "marital_status",
+                        "user_value": user_marital,
+                        "requirement": ", ".join(eligible_marital),
+                        "weight": 0.10,
+                    }
+                )
+
+        # Poverty / BPL criterion
+        scheme_poverty = eligibility.get("poverty_status", eligibility.get("bpl"))
+        user_poverty = (user_profile.get("poverty_status") or "").lower()
+        if scheme_poverty:
+            scheme_pov_str = str(scheme_poverty).lower()
+            if user_poverty and (user_poverty == scheme_pov_str or user_poverty == "bpl" and "bpl" in scheme_pov_str):
+                met_criteria.append(
+                    {
+                        "name": "poverty_status",
+                        "user_value": user_poverty.upper(),
+                        "requirement": scheme_pov_str.upper(),
+                        "weight": 0.10,
+                    }
+                )
+
+        # Land ownership criterion
+        scheme_land = eligibility.get("land_ownership", eligibility.get("landless"))
+        user_land = (user_profile.get("land_ownership") or "").lower()
+        if scheme_land and user_land:
+            scheme_land_str = str(scheme_land).lower()
+            if "landless" in scheme_land_str and "landless" in user_land:
+                met_criteria.append(
+                    {
+                        "name": "land_ownership",
+                        "user_value": user_land,
+                        "requirement": scheme_land_str,
+                        "weight": 0.08,
                     }
                 )
 
@@ -572,6 +647,14 @@ class EligibilityEngine:
                 formatted.append(f"Your category ({user_value}) is eligible")
             elif name == "disability":
                 formatted.append("Your disability status matches the scheme criteria")
+            elif name == "rural_urban":
+                formatted.append(f"Your residence type ({user_value}) matches")
+            elif name == "marital_status":
+                formatted.append(f"Your marital status ({user_value}) is eligible")
+            elif name == "poverty_status":
+                formatted.append(f"Your {user_value} status qualifies")
+            elif name == "land_ownership":
+                formatted.append(f"Your land status ({user_value}) matches")
 
         return formatted
 
@@ -638,6 +721,8 @@ class EligibilityEngine:
                 )
             elif name == "occupation":
                 recommendations.append("Explore schemes targeted at your occupation category")
+            elif name == "rural_urban":
+                recommendations.append("Check if this scheme has versions for your area type")
 
         if not recommendations:
             recommendations.append("You meet most criteria for this scheme. Consider applying!")

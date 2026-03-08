@@ -26,7 +26,7 @@ const INTERESTS = [
 
 const steps = [
   { id: 1, label: 'Personal', icon: User, title: 'Your Personal Details' },
-  { id: 2, label: 'Work', icon: Briefcase, title: 'Employment & Income' },
+  { id: 2, label: 'Work', icon: Briefcase, title: 'Work, Income & Land' },
   { id: 3, label: 'Education', icon: GraduationCap, title: 'Education & Category' },
   { id: 4, label: 'Interests', icon: Heart, title: 'Pick Your Interests' },
 ];
@@ -36,21 +36,33 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
 
-  // Step 1
+  // Step 1 — Personal
   const [name, setName] = useState(user?.name || '');
   const [age, setAge] = useState(user?.age?.toString() || '');
   const [state, setState] = useState(user?.state || '');
   const [gender, setGender] = useState((user as any)?.gender || '');
+  const [maritalStatus, setMaritalStatus] = useState((user as any)?.maritalStatus || '');
+  const [familySize, setFamilySize] = useState((user as any)?.familySize?.toString() || '');
+  const [residenceType, setResidenceType] = useState((user as any)?.residenceType || '');
 
-  // Step 2
+  // Step 2 — Work & Income
   const [employment, setEmployment] = useState(user?.employment || '');
+  const [occupation, setOccupation] = useState((user as any)?.occupation || '');
   const [income, setIncome] = useState(user?.income?.toString() || '');
+  const [povertyStatus, setPovertyStatus] = useState((user as any)?.povertyStatus || '');
+  const [rationCard, setRationCard] = useState((user as any)?.rationCard || '');
+  const [landOwnership, setLandOwnership] = useState((user as any)?.landOwnership || '');
 
-  // Step 3
+  // Step 3 — Education & Category
   const [education, setEducation] = useState(user?.education || '');
-  const [socialCategory, setSocialCategory] = useState('');
+  const [socialCategory, setSocialCategory] = useState((user as any)?.socialCategory || '');
+  const [district, setDistrict] = useState((user as any)?.district || '');
+  const [hasDisability, setHasDisability] = useState(!!(user as any)?.disability);
+  const [disabilityType, setDisabilityType] = useState((user as any)?.disabilityType || '');
+  const [isMinority, setIsMinority] = useState(!!(user as any)?.minority);
+  const [minorityCommunity, setMinorityCommunity] = useState((user as any)?.minorityCommunity || '');
 
-  // Step 4
+  // Step 4 — Interests
   const [interests, setInterests] = useState<string[]>([]);
 
   const toggleInterest = (interest: string) => {
@@ -69,12 +81,24 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         if (age) payload.age = Number(age);
         if (state) payload.state = state;
         if (gender) payload.gender = gender;
+        if (maritalStatus) payload.maritalStatus = maritalStatus;
+        if (familySize) payload.familySize = Number(familySize);
+        if (residenceType) payload.residenceType = residenceType;
       } else if (step === 2) {
         if (employment) payload.employment = employment;
+        if (occupation) payload.occupation = occupation;
         if (income) payload.income = Number(income);
+        if (povertyStatus) payload.povertyStatus = povertyStatus;
+        if (rationCard) payload.rationCard = rationCard;
+        if (landOwnership) payload.landOwnership = landOwnership;
       } else if (step === 3) {
         if (education) payload.education = education;
         if (socialCategory) payload.socialCategory = socialCategory;
+        if (district) payload.district = district;
+        payload.disability = hasDisability;
+        if (hasDisability && disabilityType) payload.disabilityType = disabilityType;
+        payload.minority = isMinority;
+        if (isMinority && minorityCommunity) payload.minorityCommunity = minorityCommunity;
       } else if (step === 4) {
         if (interests.length > 0) payload.interests = interests.join(',');
         payload.onboardingComplete = true;
@@ -104,6 +128,36 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
     return true;
   };
 
+  /* ── Chip selector helper ── */
+  const ChipGroup = ({
+    options,
+    value,
+    onChange,
+    columns = 2,
+  }: {
+    options: string[];
+    value: string;
+    onChange: (v: string) => void;
+    columns?: number;
+  }) => (
+    <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+      {options.map(opt => (
+        <button
+          key={opt}
+          type="button"
+          onClick={() => onChange(opt)}
+          className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+            value === opt
+              ? 'bg-accent text-white border-accent'
+              : 'border-border text-muted hover:border-accent/50'
+          }`}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center sm:items-center">
       <motion.div
@@ -111,6 +165,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 60 }}
         className="bg-parchment w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden border border-border"
+        style={{ maxHeight: '90vh' }}
       >
         {/* Header */}
         <div className="bg-primary p-6 text-white relative">
@@ -140,7 +195,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
         </div>
 
         {/* Body */}
-        <div className="p-6 min-h-[280px]">
+        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -150,6 +205,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
+              {/* ── Step 1: Personal ── */}
               {step === 1 && (
                 <>
                   <div>
@@ -199,28 +255,64 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                       {STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-ink mb-2">Marital Status</label>
+                    <ChipGroup
+                      options={['Single', 'Married', 'Divorced', 'Widowed']}
+                      value={maritalStatus}
+                      onChange={setMaritalStatus}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-ink mb-1.5">Family Size</label>
+                      <input
+                        type="number"
+                        value={familySize}
+                        onChange={e => setFamilySize(e.target.value)}
+                        placeholder="e.g. 4"
+                        min="1" max="20"
+                        className="input-base"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-ink mb-1.5">Residence</label>
+                      <select
+                        value={residenceType}
+                        onChange={e => setResidenceType(e.target.value)}
+                        className="input-base"
+                      >
+                        <option value="">Select</option>
+                        <option value="Rural">Rural</option>
+                        <option value="Urban">Urban</option>
+                        <option value="Semi-urban">Semi-urban</option>
+                      </select>
+                    </div>
+                  </div>
                 </>
               )}
 
+              {/* ── Step 2: Work, Income & Land ── */}
               {step === 2 && (
                 <>
                   <div>
                     <label className="block text-sm font-semibold text-ink mb-2">Employment Status *</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['Salaried', 'Self-Employed', 'Unemployed', 'Student', 'Farmer', 'Retired'].map(opt => (
-                        <button
-                          key={opt}
-                          onClick={() => setEmployment(opt)}
-                          className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                            employment === opt
-                              ? 'bg-accent text-white border-accent'
-                              : 'border-border text-muted hover:border-accent/50'
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
+                    <ChipGroup
+                      options={['Salaried', 'Self-Employed', 'Unemployed', 'Student', 'Farmer', 'Retired']}
+                      value={employment}
+                      onChange={setEmployment}
+                      columns={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-ink mb-1.5">Specific Occupation</label>
+                    <input
+                      value={occupation}
+                      onChange={e => setOccupation(e.target.value)}
+                      placeholder="e.g. Construction Worker, Artisan, Teacher"
+                      className="input-base"
+                    />
+                    <p className="text-xs text-muted mt-1">Helps match occupation-specific schemes</p>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-ink mb-1.5">Annual Income (₹)</label>
@@ -231,52 +323,124 @@ export default function OnboardingWizard({ onComplete, onSkip }: Props) {
                       placeholder="e.g. 350000"
                       className="input-base"
                     />
-                    <p className="text-xs text-muted mt-1">Used only to match relevant government schemes</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-ink mb-2">Poverty Status</label>
+                      <ChipGroup
+                        options={['BPL', 'APL', 'Not Sure']}
+                        value={povertyStatus}
+                        onChange={setPovertyStatus}
+                        columns={1}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-ink mb-2">Ration Card</label>
+                      <ChipGroup
+                        options={['AAY', 'BPL', 'APL', 'None']}
+                        value={rationCard}
+                        onChange={setRationCard}
+                        columns={1}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-ink mb-2">Land Ownership</label>
+                    <ChipGroup
+                      options={['Landless', 'Marginal (< 1 ha)', 'Small (1-2 ha)', 'Large (> 2 ha)', 'N/A']}
+                      value={landOwnership}
+                      onChange={setLandOwnership}
+                      columns={3}
+                    />
                   </div>
                 </>
               )}
 
+              {/* ── Step 3: Education & Category ── */}
               {step === 3 && (
                 <>
                   <div>
                     <label className="block text-sm font-semibold text-ink mb-2">Education Level *</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['Below 10th', '10th / SSC', '12th / HSC', 'Diploma', 'Graduate', 'Post-Graduate'].map(opt => (
-                        <button
-                          key={opt}
-                          onClick={() => setEducation(opt)}
-                          className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                            education === opt
-                              ? 'bg-accent text-white border-accent'
-                              : 'border-border text-muted hover:border-accent/50'
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
+                    <ChipGroup
+                      options={['Below 10th', '10th / SSC', '12th / HSC', 'Diploma', 'Graduate', 'Post-Graduate']}
+                      value={education}
+                      onChange={setEducation}
+                      columns={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-ink mb-1.5">District</label>
+                    <input
+                      value={district}
+                      onChange={e => setDistrict(e.target.value)}
+                      placeholder="e.g. Lucknow, Pune, Jaipur"
+                      className="input-base"
+                    />
+                    <p className="text-xs text-muted mt-1">Some schemes are district-specific</p>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-ink mb-2">Social Category</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['General', 'OBC', 'SC', 'ST', 'EWS', 'Minority'].map(opt => (
-                        <button
-                          key={opt}
-                          onClick={() => setSocialCategory(opt)}
-                          className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                            socialCategory === opt
-                              ? 'bg-accent text-white border-accent'
-                              : 'border-border text-muted hover:border-accent/50'
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
+                    <ChipGroup
+                      options={['General', 'OBC', 'SC', 'ST', 'EWS', 'Minority']}
+                      value={socialCategory}
+                      onChange={setSocialCategory}
+                      columns={3}
+                    />
+                  </div>
+                  {/* Disability */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasDisability}
+                        onChange={e => {
+                          setHasDisability(e.target.checked);
+                          if (!e.target.checked) setDisabilityType('');
+                        }}
+                        className="size-4 rounded accent-accent"
+                      />
+                      <span className="text-sm font-semibold text-ink">Person with Disability</span>
+                    </label>
+                    {hasDisability && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                        <ChipGroup
+                          options={['Visual', 'Hearing', 'Locomotor', 'Intellectual', 'Multiple', 'Other']}
+                          value={disabilityType}
+                          onChange={setDisabilityType}
+                          columns={3}
+                        />
+                      </motion.div>
+                    )}
+                  </div>
+                  {/* Minority */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isMinority}
+                        onChange={e => {
+                          setIsMinority(e.target.checked);
+                          if (!e.target.checked) setMinorityCommunity('');
+                        }}
+                        className="size-4 rounded accent-accent"
+                      />
+                      <span className="text-sm font-semibold text-ink">Minority Community</span>
+                    </label>
+                    {isMinority && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                        <ChipGroup
+                          options={['Muslim', 'Christian', 'Sikh', 'Buddhist', 'Jain', 'Parsi']}
+                          value={minorityCommunity}
+                          onChange={setMinorityCommunity}
+                          columns={3}
+                        />
+                      </motion.div>
+                    )}
                   </div>
                 </>
               )}
 
+              {/* ── Step 4: Interests ── */}
               {step === 4 && (
                 <>
                   <p className="text-sm text-muted">Select areas you are interested in (optional)</p>

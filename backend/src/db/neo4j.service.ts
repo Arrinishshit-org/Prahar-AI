@@ -1280,19 +1280,29 @@ class Neo4jDbService {
 
   async updateUserProfile(userId: string, fields: Record<string, any>): Promise<void> {
     const allowed = [
-      'name',
-      'age',
-      'income',
-      'state',
-      'gender',
-      'employment',
-      'education',
-      'interests',
-      'onboarding_complete',
-      'social_category',
-      'is_disabled',
-      'is_minority',
-    ];
+    'name',
+    'age',
+    'income',
+    'state',
+    'gender',
+    'employment',
+    'education',
+    'interests',
+    'onboarding_complete',
+    'social_category',
+    'is_disabled',
+    'is_minority',
+    'marital_status',
+    'family_size',
+    'rural_urban',
+    'occupation',
+    'poverty_status',
+    'ration_card',
+    'land_ownership',
+    'district',
+    'disability_type',
+    'minority_community',
+  ];
     const updates = Object.entries(fields).filter(([k]) => allowed.includes(k));
     if (updates.length === 0) return;
 

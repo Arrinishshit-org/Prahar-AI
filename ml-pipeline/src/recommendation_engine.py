@@ -276,6 +276,10 @@ class RecommendationEngine:
             occ,
             (profile.get("state") or "").lower(),
             (profile.get("education") or "").lower(),
+            (profile.get("social_category") or profile.get("caste") or "").lower(),
+            (profile.get("rural_urban") or "").lower(),
+            (profile.get("poverty_status") or "").lower(),
+            (profile.get("marital_status") or "").lower(),
         } - {""}
         tags = scheme.get("tags") or []
         if isinstance(tags, str):

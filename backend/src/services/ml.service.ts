@@ -87,6 +87,19 @@ function normalizeUserProfile(userProfile: Record<string, any>): Record<string, 
     is_disabled: Boolean(isDisabled),
     ...(isMinority !== undefined ? { is_minority: Boolean(isMinority) } : {}),
 
+    // New high/medium impact fields
+    marital_status: userProfile.marital_status ?? userProfile.maritalStatus ?? null,
+    family_size: toNumber(userProfile.family_size ?? userProfile.familySize, 0),
+    rural_urban: userProfile.rural_urban ?? userProfile.residenceType ?? null,
+    poverty_status: userProfile.poverty_status ?? userProfile.povertyStatus ?? null,
+    ration_card: userProfile.ration_card ?? userProfile.rationCard ?? null,
+    land_ownership: userProfile.land_ownership ?? userProfile.landOwnership ?? null,
+    district: userProfile.district ?? null,
+    disability_type: userProfile.disability_type ?? userProfile.disabilityType ?? null,
+    minority_community: userProfile.minority_community ?? userProfile.minorityCommunity ?? null,
+    social_category: userProfile.social_category ?? userProfile.socialCategory ?? null,
+    interests: userProfile.interests ?? null,
+
     // Compatibility aliases consumed by some current ML chat heuristics.
     income: toNumber(annualIncome, 0),
     employment: occupation ?? '',

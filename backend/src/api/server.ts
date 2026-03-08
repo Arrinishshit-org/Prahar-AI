@@ -49,7 +49,10 @@ export async function seedAdminUser() {
 
 // ─── Helper: profile completeness ─────────────────────────────────────────────
 function calculateProfileCompleteness(user: any): number {
-  const fields = ['name', 'email', 'age', 'income', 'state', 'employment', 'education', 'gender'];
+  const fields = [
+    'name', 'email', 'age', 'income', 'state', 'employment', 'education', 'gender',
+    'social_category', 'interests', 'marital_status', 'rural_urban', 'occupation',
+  ];
   const filledFields = fields.filter((field) => user[field] != null && user[field] !== '');
   return Math.round((filledFields.length / fields.length) * 100);
 }
@@ -161,6 +164,16 @@ app.get('/api/users/:userId/profile', async (req, res) => {
     interests: user.interests ?? null,
     disability: !!user.is_disabled,
     minority: !!user.is_minority,
+    maritalStatus: user.marital_status ?? null,
+    familySize: user.family_size ?? null,
+    residenceType: user.rural_urban ?? null,
+    occupation: user.occupation ?? null,
+    povertyStatus: user.poverty_status ?? null,
+    rationCard: user.ration_card ?? null,
+    landOwnership: user.land_ownership ?? null,
+    district: user.district ?? null,
+    disabilityType: user.disability_type ?? null,
+    minorityCommunity: user.minority_community ?? null,
     onboardingComplete: !!user.onboarding_complete,
     completeness: calculateProfileCompleteness(user),
   });
@@ -187,6 +200,16 @@ app.put('/api/users/:userId/profile', async (req, res) => {
     socialCategory: 'social_category',
     disability: 'is_disabled',
     minority: 'is_minority',
+    maritalStatus: 'marital_status',
+    familySize: 'family_size',
+    residenceType: 'rural_urban',
+    occupation: 'occupation',
+    povertyStatus: 'poverty_status',
+    rationCard: 'ration_card',
+    landOwnership: 'land_ownership',
+    district: 'district',
+    disabilityType: 'disability_type',
+    minorityCommunity: 'minority_community',
   };
   for (const [k, col] of Object.entries(fieldMap)) {
     if (req.body[k] !== undefined) mappedFields[col] = req.body[k];
@@ -208,6 +231,16 @@ app.put('/api/users/:userId/profile', async (req, res) => {
     interests: updated.interests ?? null,
     disability: !!updated.is_disabled,
     minority: !!updated.is_minority,
+    maritalStatus: updated.marital_status ?? null,
+    familySize: updated.family_size ?? null,
+    residenceType: updated.rural_urban ?? null,
+    occupation: updated.occupation ?? null,
+    povertyStatus: updated.poverty_status ?? null,
+    rationCard: updated.ration_card ?? null,
+    landOwnership: updated.land_ownership ?? null,
+    district: updated.district ?? null,
+    disabilityType: updated.disability_type ?? null,
+    minorityCommunity: updated.minority_community ?? null,
     onboardingComplete: !!updated.onboarding_complete,
     completeness: calculateProfileCompleteness(updated),
   });
@@ -315,6 +348,16 @@ app.post('/api/chat', async (req, res) => {
       social_category: freshUser.social_category,
       is_disabled: freshUser.is_disabled,
       is_minority: freshUser.is_minority,
+      marital_status: freshUser.marital_status,
+      family_size: freshUser.family_size,
+      rural_urban: freshUser.rural_urban,
+      occupation: freshUser.occupation,
+      poverty_status: freshUser.poverty_status,
+      ration_card: freshUser.ration_card,
+      land_ownership: freshUser.land_ownership,
+      district: freshUser.district,
+      disability_type: freshUser.disability_type,
+      minority_community: freshUser.minority_community,
       ...dbUpdates,
     };
 
