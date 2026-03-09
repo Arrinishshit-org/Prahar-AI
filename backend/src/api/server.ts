@@ -24,11 +24,15 @@ import { getTranslationService } from '../services/translation.service';
 import { schemeSyncAgent } from '../agents/scheme-sync-agent';
 import { mlService } from '../services/ml.service';
 import { chatIntelligenceService, ChatTurn } from '../services/chat-intelligence.service';
+import { JWTService } from '../auth/jwt.service';
+import { PasswordService } from '../auth/password.service';
 
 const app = express();
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
 const CHAT_INPUT_TOKEN_LIMIT = Number(process.env.CHAT_INPUT_TOKEN_LIMIT || 500);
 const CHAT_RESPONSE_TIMEOUT_MS = Number(process.env.CHAT_RESPONSE_TIMEOUT_MS || 12000);
+const jwtService = new JWTService();
+const passwordService = new PasswordService();
 
 function estimateTokens(text: string): number {
   return Math.ceil((text || '').length / 4);
@@ -732,18 +736,36 @@ async function requireAdminAccess(req: express.Request, res: express.Response): 
     return true;
   }
 
-  // Also allow authenticated in-app admin user.
+  // Also allow authenticated in-app admin user or a valid panchayat JWT.
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  const userId = token.replace('mock_access_token_', '').replace('mock_refresh_token_', '').trim();
 
-  if (userId) {
-    const user = await neo4jService.getUserById(userId);
-    if (
-      user &&
-      (Boolean(user.is_admin) || user.user_id === 'admin123' || user.email === 'admin@example.com')
-    ) {
-      return true;
+  if (token) {
+    // First try to verify as a proper JWT (admin or panchayat).
+    try {
+      const payload = jwtService.verifyAccessToken(token);
+      if (payload.role === 'admin' || payload.role === 'panchayat') {
+        return true;
+      }
+    } catch {
+      // Not a valid JWT — fall through to legacy mock-token check.
+    }
+
+    // Legacy mock token support for in-app admin users.
+    const userId = token
+      .replace('mock_access_token_', '')
+      .replace('mock_refresh_token_', '')
+      .trim();
+    if (userId) {
+      const user = await neo4jService.getUserById(userId);
+      if (
+        user &&
+        (Boolean(user.is_admin) ||
+          user.user_id === 'admin123' ||
+          user.email === 'admin@example.com')
+      ) {
+        return true;
+      }
     }
   }
 
@@ -1093,6 +1115,162 @@ app.post('/api/admin/ml/reset', async (req, res) => {
     });
   } catch (error: any) {
     return res.status(500).json({ error: 'Failed to reset ML status', details: error.message });
+  }
+});
+
+// ─── Panchayat Auth Middleware ────────────────────────────────────────────────
+
+async function requirePanchayatAuth(
+  req: express.Request,
+  res: express.Response
+): Promise<string | null> {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!token) {
+      res.status(401).json({ error: 'Panchayat authentication required' });
+      return null;
+    }
+    const payload = jwtService.verifyAccessToken(token);
+    if (payload.role !== 'panchayat') {
+      res.status(403).json({ error: 'Invalid token: panchayat role required' });
+      return null;
+    }
+    return payload.userId;
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired panchayat token' });
+    return null;
+  }
+}
+
+// ─── Panchayat Login & Profile ──────────────────────────────────────────────
+
+app.get('/api/panchayat/me', async (req, res) => {
+  const userId = await requirePanchayatAuth(req, res);
+  if (!userId) return;
+  try {
+    const user = await neo4jService.getPanchayatUserById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    return res.json(user);
+  } catch (error: any) {
+    console.error('Panchayat me error:', error);
+    return res.status(500).json({ error: 'Failed to get user info', details: error.message });
+  }
+});
+
+app.post('/api/panchayat/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const panchayatUser = await neo4jService.getPanchayatUserByEmail(
+      String(email).trim().toLowerCase()
+    );
+    if (!panchayatUser) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const valid = await passwordService.verifyPassword(
+      String(password),
+      panchayatUser.passwordHash
+    );
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwtService.generateAccessToken(
+      panchayatUser.userId,
+      panchayatUser.email,
+      'panchayat',
+      {
+        panchayatName: panchayatUser.panchayatName,
+        district: panchayatUser.district,
+        state: panchayatUser.state,
+      }
+    );
+
+    return res.json({
+      token,
+      user: {
+        userId: panchayatUser.userId,
+        email: panchayatUser.email,
+        name: panchayatUser.name,
+        panchayatName: panchayatUser.panchayatName,
+        district: panchayatUser.district,
+        state: panchayatUser.state,
+      },
+    });
+  } catch (error: any) {
+    console.error('Panchayat login error:', error);
+    return res.status(500).json({ error: 'Login failed', details: error.message });
+  }
+});
+
+// ─── Panchayat User Management (Admin only) ───────────────────────────────────
+
+app.get('/api/admin/panchayats', async (req, res) => {
+  if (!(await requireAdminAccess(req, res))) return;
+  try {
+    const users = await neo4jService.listPanchayatUsers();
+    return res.json(users);
+  } catch (error: any) {
+    console.error('List panchayat users error:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to list panchayat users', details: error.message });
+  }
+});
+
+app.post('/api/admin/panchayats', async (req, res) => {
+  if (!(await requireAdminAccess(req, res))) return;
+  try {
+    const { email, password, name, panchayatName, district, state } = req.body || {};
+    if (!email || !password || !name || !panchayatName || !district || !state) {
+      return res.status(400).json({
+        error: 'Missing required fields: email, password, name, panchayatName, district, state',
+      });
+    }
+    if (typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    if (typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const hash = await passwordService.hashPassword(String(password));
+    const user = await neo4jService.createPanchayatUser({
+      email: String(email).trim().toLowerCase(),
+      passwordHash: hash,
+      name: String(name).trim(),
+      panchayatName: String(panchayatName).trim(),
+      district: String(district).trim(),
+      state: String(state).trim(),
+    });
+
+    return res.status(201).json(user);
+  } catch (error: any) {
+    const status = String(error?.message || '').includes('already exists') ? 409 : 500;
+    console.error('Create panchayat user error:', error);
+    return res.status(status).json({ error: error.message || 'Failed to create panchayat user' });
+  }
+});
+
+app.delete('/api/admin/panchayats/:userId', async (req, res) => {
+  if (!(await requireAdminAccess(req, res))) return;
+  try {
+    const { userId } = req.params;
+    const deleted = await neo4jService.deletePanchayatUser(
+      String(userId).replace(/[^a-zA-Z0-9_-]/g, '')
+    );
+    if (!deleted) {
+      return res.status(404).json({ error: 'Panchayat user not found' });
+    }
+    return res.json({ success: true, message: 'Panchayat user deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete panchayat user error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to delete panchayat user' });
   }
 });
 

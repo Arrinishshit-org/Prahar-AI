@@ -161,15 +161,13 @@ function parseJsonIfString(value: unknown): unknown {
 function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return dedupeStringList(
-      value
-      .map((item) => (typeof item === 'string' ? item.trim() : ''))
-      .filter(Boolean)
+      value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
     );
   }
   if (typeof value === 'string' && value.trim()) {
     return dedupeStringList(
       cleanText(value)
-        .split(/\n|,/) 
+        .split(/\n|,/)
         .map((item) => item.trim())
         .filter(Boolean)
     );
@@ -209,24 +207,26 @@ function markdownToSteps(markdown: string): string[] {
 
   const steps = dedupeStringList(
     lines
-    .map((line) =>
-      line
-        .replace(/^[-*+]\s+/, '')
-        .replace(/^\d+[.)]\s+/, '')
-        .replace(/^\*\*Step\s*\d+\s*:\*\*/i, '')
-        .replace(/^Step\s*\d+\s*:/i, '')
-        .replace(/^#+\s*/, '')
-        .replace(/^>\s*/, '')
-        .replace(/^[*_]{2,}|[*_]{2,}$/g, '')
-        .trim()
-    )
-    .filter(Boolean)
+      .map((line) =>
+        line
+          .replace(/^[-*+]\s+/, '')
+          .replace(/^\d+[.)]\s+/, '')
+          .replace(/^\*\*Step\s*\d+\s*:\*\*/i, '')
+          .replace(/^Step\s*\d+\s*:/i, '')
+          .replace(/^#+\s*/, '')
+          .replace(/^>\s*/, '')
+          .replace(/^[*_]{2,}|[*_]{2,}$/g, '')
+          .trim()
+      )
+      .filter(Boolean)
   );
 
   return steps;
 }
 
-function normalizeApplicationProcess(value: unknown): Array<{ mode: string; markdown: string; steps: string[] }> {
+function normalizeApplicationProcess(
+  value: unknown
+): Array<{ mode: string; markdown: string; steps: string[] }> {
   const parsed = parseJsonIfString(value);
 
   if (Array.isArray(parsed)) {
@@ -247,7 +247,9 @@ function normalizeApplicationProcess(value: unknown): Array<{ mode: string; mark
 
         return { mode, markdown, steps };
       })
-      .filter((entry): entry is { mode: string; markdown: string; steps: string[] } => Boolean(entry));
+      .filter((entry): entry is { mode: string; markdown: string; steps: string[] } =>
+        Boolean(entry)
+      );
   }
 
   if (parsed && typeof parsed === 'object') {
@@ -278,7 +280,8 @@ function normalizeApplicationProcess(value: unknown): Array<{ mode: string; mark
         }
         if (modeValue && typeof modeValue === 'object') {
           const castModeValue = modeValue as Record<string, unknown>;
-          const modeMarkdown = typeof castModeValue.markdown === 'string' ? castModeValue.markdown : '';
+          const modeMarkdown =
+            typeof castModeValue.markdown === 'string' ? castModeValue.markdown : '';
           const modeSteps = toStringArray(castModeValue.steps);
           return {
             mode,
@@ -288,7 +291,9 @@ function normalizeApplicationProcess(value: unknown): Array<{ mode: string; mark
         }
         return null;
       })
-      .filter((entry): entry is { mode: string; markdown: string; steps: string[] } => Boolean(entry));
+      .filter((entry): entry is { mode: string; markdown: string; steps: string[] } =>
+        Boolean(entry)
+      );
   }
 
   return [];
@@ -324,7 +329,10 @@ function normalizePageDetails(value: unknown): SchemePageDetails | undefined {
       details.exclusionsMarkdown === null || typeof details.exclusionsMarkdown === 'string'
         ? (details.exclusionsMarkdown as string | null)
         : undefined,
-    raw: details.raw && typeof details.raw === 'object' ? (details.raw as Record<string, unknown>) : undefined,
+    raw:
+      details.raw && typeof details.raw === 'object'
+        ? (details.raw as Record<string, unknown>)
+        : undefined,
     enrichedAt:
       details.enrichedAt === null || typeof details.enrichedAt === 'string'
         ? (details.enrichedAt as string | null)
@@ -389,26 +397,19 @@ function normalizeScheme(item: unknown): Scheme {
         ? data.ministry
         : normalizedPageDetails?.ministry || undefined,
     state: typeof data.state === 'string' ? data.state : undefined,
-    benefits:
-      typeof data.benefits === 'string'
-        ? data.benefits
-        : benefitsItems[0] || undefined,
-    benefit:
-      typeof data.benefit === 'string'
-        ? data.benefit
-        : benefitsItems[0] || undefined,
+    benefits: typeof data.benefits === 'string' ? data.benefits : benefitsItems[0] || undefined,
+    benefit: typeof data.benefit === 'string' ? data.benefit : benefitsItems[0] || undefined,
     eligibility:
-      typeof data.eligibility === 'string'
-        ? data.eligibility
-        : eligibilityItems[0] || undefined,
-    applicationUrl:
-      typeof data.applicationUrl === 'string' ? data.applicationUrl : undefined,
-    tags: Array.isArray(data.tags) ? (data.tags.filter((tag) => typeof tag === 'string') as string[]) : undefined,
+      typeof data.eligibility === 'string' ? data.eligibility : eligibilityItems[0] || undefined,
+    applicationUrl: typeof data.applicationUrl === 'string' ? data.applicationUrl : undefined,
+    tags: Array.isArray(data.tags)
+      ? (data.tags.filter((tag) => typeof tag === 'string') as string[])
+      : undefined,
     rawCategories: Array.isArray(data.rawCategories)
       ? (data.rawCategories.filter((cat) => typeof cat === 'string') as string[])
       : undefined,
     matchedCategories: Array.isArray(data.matchedCategories)
-      ? (data.matchedCategories
+      ? data.matchedCategories
           .map((entry) => {
             if (!entry || typeof entry !== 'object') return null;
             const castEntry = entry as Record<string, unknown>;
@@ -416,7 +417,7 @@ function normalizeScheme(item: unknown): Scheme {
             const value = typeof castEntry.value === 'string' ? castEntry.value : '';
             return type && value ? { type, value } : null;
           })
-          .filter((entry): entry is { type: string; value: string } => Boolean(entry)))
+          .filter((entry): entry is { type: string; value: string } => Boolean(entry))
       : undefined,
     enrichment:
       data.enrichment && typeof data.enrichment === 'object'
@@ -488,9 +489,7 @@ export async function getProfile(userId: string) {
     cache: 'no-store',
   });
   if (!res.ok) {
-    const err = await res
-      .json()
-      .catch(() => ({ message: 'Failed to fetch profile' }));
+    const err = await res.json().catch(() => ({ message: 'Failed to fetch profile' }));
     throw new Error(err.message || err.error || 'Failed to fetch profile');
   }
   return res.json();
@@ -504,9 +503,7 @@ export async function updateProfile(userId: string, data: Record<string, any>) {
     cache: 'no-store',
   });
   if (!res.ok) {
-    const err = await res
-      .json()
-      .catch(() => ({ message: 'Failed to update profile' }));
+    const err = await res.json().catch(() => ({ message: 'Failed to update profile' }));
     throw new Error(err.message || err.error || 'Failed to update profile');
   }
   return res.json();
@@ -727,6 +724,80 @@ export async function deleteAdmin(userId: string, adminKey?: string) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to delete admin' }));
     throw new Error(err.error || err.details || 'Failed to delete admin');
+  }
+  return res.json() as Promise<{ success: boolean; message: string }>;
+}
+
+// ─── Panchayat User Management (Admin only) ──────────────────────────────────
+
+export interface PanchayatUserRecord {
+  userId: string;
+  email: string;
+  name: string;
+  panchayatName: string;
+  district: string;
+  state: string;
+  createdAt?: string | null;
+}
+
+export async function fetchPanchayatUsers(adminKey?: string) {
+  const configuredKey =
+    adminKey || (import.meta as any)?.env?.VITE_ADMIN_KEY || 'prahar-admin-secret';
+  const res = await fetch(`${API_BASE}/admin/panchayats`, {
+    headers: {
+      ...authHeaders(),
+      'x-admin-key': configuredKey,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch panchayat users' }));
+    throw new Error(err.error || err.details || 'Failed to fetch panchayat users');
+  }
+  return res.json() as Promise<PanchayatUserRecord[]>;
+}
+
+export async function createPanchayatUser(
+  payload: {
+    email: string;
+    password: string;
+    name: string;
+    panchayatName: string;
+    district: string;
+    state: string;
+  },
+  adminKey?: string
+) {
+  const configuredKey =
+    adminKey || (import.meta as any)?.env?.VITE_ADMIN_KEY || 'prahar-admin-secret';
+  const res = await fetch(`${API_BASE}/admin/panchayats`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+      'x-admin-key': configuredKey,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create panchayat user' }));
+    throw new Error(err.error || err.details || 'Failed to create panchayat user');
+  }
+  return res.json() as Promise<PanchayatUserRecord>;
+}
+
+export async function deletePanchayatUser(userId: string, adminKey?: string) {
+  const configuredKey =
+    adminKey || (import.meta as any)?.env?.VITE_ADMIN_KEY || 'prahar-admin-secret';
+  const res = await fetch(`${API_BASE}/admin/panchayats/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    headers: {
+      ...authHeaders(),
+      'x-admin-key': configuredKey,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to delete panchayat user' }));
+    throw new Error(err.error || err.details || 'Failed to delete panchayat user');
   }
   return res.json() as Promise<{ success: boolean; message: string }>;
 }

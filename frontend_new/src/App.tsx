@@ -1,24 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import {
-  Routes,
-  Route,
-  useNavigate,
-  useLocation,
-  Navigate,
-  useParams,
-} from 'react-router-dom';
-import {
-  Home,
-  LayoutGrid,
-  MessageSquare,
-  User,
-  LogIn,
-  LogOut,
-  Menu,
-  X,
-} from 'lucide-react';
+import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
+import { Home, LayoutGrid, MessageSquare, User, LogIn, LogOut, Menu, X } from 'lucide-react';
 import { View, Scheme } from './types';
 import { AuthProvider, useAuth } from './AuthContext';
 
@@ -35,36 +19,10 @@ import AdminDashboard from './components/AdminDashboard';
 import LoginPage from './components/LoginPage';
 import OnboardingWizard from './components/OnboardingWizard.tsx';
 import LanguageSelector from './components/LanguageSelector';
+import PanchayatLayout from './panchayat/PanchayatLayout';
 import { fetchSchemeById } from './api';
 
-/* ─────────────────────────────────────────────
-   Panchayathi Redirect
-───────────────────────────────────────────── */
-function PanchayathiRedirect() {
-  useEffect(() => {
-    window.location.href = 'http://localhost:5175';
-  }, []);
-  return (
-    <div className="min-h-[60vh] flex items-center justify-center">
-      <p className="text-muted text-sm">Redirecting to Panchayat Portal…</p>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Prahar Logo Mark
-───────────────────────────────────────────── */
-function LogoMark({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 36 36" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Stylised 'P' letterform with chakra dots */}
-      <rect width="36" height="36" rx="8" fill="currentColor" />
-      <path d="M10 26V10h9a5.5 5.5 0 0 1 0 11H10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="26" cy="26" r="2" fill="#C8700D" />
-      <circle cx="26" cy="20" r="1.2" fill="rgba(255,255,255,0.5)" />
-    </svg>
-  );
-}
+import LogoMark from './components/LogoMark';
 
 /* ─────────────────────────────────────────────
    Global Navigation Bar
@@ -77,13 +35,14 @@ function NavBar() {
   const location = useLocation();
 
   const links: { path: string; id: View; labelKey: string }[] = [
-    { path: '/',          id: 'home',      labelKey: 'nav.home' },
-    { path: '/schemes',   id: 'schemes',   labelKey: 'nav.schemes' },
+    { path: '/', id: 'home', labelKey: 'nav.home' },
+    { path: '/schemes', id: 'schemes', labelKey: 'nav.schemes' },
     { path: '/assistant', id: 'assistant', labelKey: 'nav.assistant' },
-    { path: '/about',     id: 'about',     labelKey: 'nav.about' },
+    { path: '/about', id: 'about', labelKey: 'nav.about' },
   ];
 
-  const isAdminUser = Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
+  const isAdminUser =
+    Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -110,10 +69,16 @@ function NavBar() {
           <button onClick={() => go('/')} className="flex items-center gap-2.5 shrink-0">
             <LogoMark className="size-9 text-primary" />
             <div className="leading-none">
-              <span className="block text-[1.1rem] font-bold text-primary tracking-[-0.02em]" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+              <span
+                className="block text-[1.1rem] font-bold text-primary tracking-[-0.02em]"
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
                 Prahar AI
               </span>
-              <span className="text-[9px] font-semibold text-muted tracking-[0.15em] uppercase block" style={{ fontFamily: 'Inter, sans-serif' }}>
+              <span
+                className="text-[9px] font-semibold text-muted tracking-[0.15em] uppercase block"
+                style={{ fontFamily: 'Inter, sans-serif' }}
+              >
                 {t('nav.citizen_welfare')}
               </span>
             </div>
@@ -225,7 +190,9 @@ function NavBar() {
                     key={l.path}
                     onClick={() => go(l.path)}
                     className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                      isActive(l.path) ? 'bg-primary text-white' : 'text-ink/70 hover:bg-surface-2 hover:text-ink'
+                      isActive(l.path)
+                        ? 'bg-primary text-white'
+                        : 'text-ink/70 hover:bg-surface-2 hover:text-ink'
                     }`}
                   >
                     {l.labelKey.startsWith('nav.') ? t(l.labelKey) : l.labelKey}
@@ -236,7 +203,10 @@ function NavBar() {
                   {isAuthenticated ? (
                     <div className="flex gap-2">
                       {isAdminUser && (
-                        <button onClick={() => go('/adminstrator')} className="btn btn-navy text-xs">
+                        <button
+                          onClick={() => go('/adminstrator')}
+                          className="btn btn-navy text-xs"
+                        >
                           Admin
                         </button>
                       )}
@@ -303,17 +273,18 @@ function MobileBottomNav() {
   const { user } = useAuth();
   const routerNavigate = useNavigate();
   const location = useLocation();
-  const isAdminUser = Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
+  const isAdminUser =
+    Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
 
   if (isAdminUser) {
     return null;
   }
 
   const items = [
-    { path: '/',          label: 'Home',    icon: Home },
-    { path: '/schemes',   label: 'Schemes', icon: LayoutGrid },
-    { path: '/assistant', label: 'Chat',    icon: MessageSquare },
-    { path: '/profile',   label: 'Profile', icon: User },
+    { path: '/', label: 'Home', icon: Home },
+    { path: '/schemes', label: 'Schemes', icon: LayoutGrid },
+    { path: '/assistant', label: 'Chat', icon: MessageSquare },
+    { path: '/profile', label: 'Profile', icon: User },
   ];
 
   const isActive = (path: string) => {
@@ -327,13 +298,21 @@ function MobileBottomNav() {
         {items.map(({ path, label, icon: Icon }) => (
           <button
             key={path}
-            onClick={() => { routerNavigate(path); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            onClick={() => {
+              routerNavigate(path);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-colors ${
               isActive(path) ? 'text-accent' : 'text-muted hover:text-ink'
             }`}
           >
             <Icon className={`size-5 ${isActive(path) ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
-            <span className="text-[9px] font-bold tracking-wide" style={{ fontFamily: 'Inter, sans-serif' }}>{label}</span>
+            <span
+              className="text-[9px] font-bold tracking-wide"
+              style={{ fontFamily: 'Inter, sans-serif' }}
+            >
+              {label}
+            </span>
           </button>
         ))}
       </div>
@@ -400,7 +379,10 @@ function SchemeDetailPage() {
   return (
     <SchemeDetail
       scheme={scheme}
-      onBack={() => { routerNavigate('/schemes'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+      onBack={() => {
+        routerNavigate('/schemes');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }}
     />
   );
 }
@@ -416,19 +398,20 @@ function AppContent() {
   const location = useLocation();
   const onboardingIdentity = user?.userId || user?.email || null;
   const onboardingSessionKey = `onboardingHidden:${onboardingIdentity || 'anonymous'}`;
-  const isAdminUser = Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
+  const isAdminUser =
+    Boolean((user as any)?.isAdmin) || (user?.email || '').toLowerCase() === 'admin@example.com';
 
   // Universal navigate helper — child components still call onNavigate(view)
   const viewToPath: Record<View, string> = {
-    home:        '/',
-    schemes:     '/schemes',
+    home: '/',
+    schemes: '/schemes',
     schemeDetail: '/schemes',
-    assistant:   '/assistant',
-    profile:     '/profile',
-    about:       '/about',
-    partner:     '/partner',
-    admin:       '/adminstrator',
-    login:       '/login',
+    assistant: '/assistant',
+    profile: '/profile',
+    about: '/about',
+    partner: '/partner',
+    admin: '/adminstrator',
+    login: '/login',
   };
 
   const navigate = (view: View) => {
@@ -473,7 +456,12 @@ function AppContent() {
       sessionStorage.getItem(onboardingSessionKey) === '1' ||
       sessionStorage.getItem('onboardingHidden:global') === '1';
 
-    if (!user.onboardingComplete && !sessionDismissed && !onboardingDismissed && location.pathname !== '/login') {
+    if (
+      !user.onboardingComplete &&
+      !sessionDismissed &&
+      !onboardingDismissed &&
+      location.pathname !== '/login'
+    ) {
       setShowOnboarding(true);
       return;
     }
@@ -489,9 +477,12 @@ function AppContent() {
     user?.onboardingComplete,
   ]);
 
+  const isPanchayat = location.pathname.startsWith('/panchayat');
+  const isAdmin = location.pathname.startsWith('/adminstrator');
+
   return (
     <div className="min-h-screen bg-surface flex flex-col">
-      <NavBar />
+      {!isPanchayat && !isAdmin && <NavBar />}
 
       {/* Onboarding Wizard Overlay */}
       <AnimatePresence>
@@ -530,7 +521,11 @@ function AppContent() {
                 path="/"
                 element={
                   isAuthenticated && user ? (
-                    isAdminUser ? <Navigate to="/adminstrator" replace /> : <Dashboard user={user} onNavigate={navigate} />
+                    isAdminUser ? (
+                      <Navigate to="/adminstrator" replace />
+                    ) : (
+                      <Dashboard user={user} onNavigate={navigate} />
+                    )
                   ) : (
                     <LandingPage onNavigate={navigate} />
                   )
@@ -538,30 +533,67 @@ function AppContent() {
               />
               <Route
                 path="/about"
-                element={isAdminUser ? <Navigate to="/adminstrator" replace /> : <AboutPage onNavigate={navigate} />}
+                element={
+                  isAdminUser ? (
+                    <Navigate to="/adminstrator" replace />
+                  ) : (
+                    <AboutPage onNavigate={navigate} />
+                  )
+                }
               />
-              <Route path="/login" element={<LoginPage onNavigate={navigate} onLoginSuccess={handlePostLogin} />} />
+              <Route
+                path="/login"
+                element={<LoginPage onNavigate={navigate} onLoginSuccess={handlePostLogin} />}
+              />
 
               {/* Protected routes */}
               <Route
                 path="/schemes"
-                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <SchemeExplorer onSchemeSelect={handleSchemeSelect} />}</ProtectedRoute>}
+                element={
+                  <ProtectedRoute>
+                    {isAdminUser ? (
+                      <Navigate to="/adminstrator" replace />
+                    ) : (
+                      <SchemeExplorer onSchemeSelect={handleSchemeSelect} />
+                    )}
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/schemes/:id"
-                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <SchemeDetailPage />}</ProtectedRoute>}
+                element={
+                  <ProtectedRoute>
+                    {isAdminUser ? <Navigate to="/adminstrator" replace /> : <SchemeDetailPage />}
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/assistant"
-                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <ChatAssistant />}</ProtectedRoute>}
+                element={
+                  <ProtectedRoute>
+                    {isAdminUser ? <Navigate to="/adminstrator" replace /> : <ChatAssistant />}
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/profile"
-                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <UserProfile onNavigate={navigate} />}</ProtectedRoute>}
+                element={
+                  <ProtectedRoute>
+                    {isAdminUser ? (
+                      <Navigate to="/adminstrator" replace />
+                    ) : (
+                      <UserProfile onNavigate={navigate} />
+                    )}
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/partner"
-                element={<ProtectedRoute>{isAdminUser ? <Navigate to="/adminstrator" replace /> : <PartnerPortal />}</ProtectedRoute>}
+                element={
+                  <ProtectedRoute>
+                    {isAdminUser ? <Navigate to="/adminstrator" replace /> : <PartnerPortal />}
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/adminstrator"
@@ -572,7 +604,8 @@ function AppContent() {
                 }
               />
               <Route path="/admin" element={<Navigate to="/adminstrator" replace />} />
-              <Route path="/panchayathi" element={<PanchayathiRedirect />} />
+              <Route path="/panchayat/*" element={<PanchayatLayout />} />
+              <Route path="/panchayathi" element={<Navigate to="/panchayat" replace />} />
 
               {/* Fallback */}
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -581,7 +614,7 @@ function AppContent() {
         </AnimatePresence>
       </main>
 
-      <MobileBottomNav />
+      {!isPanchayat && !isAdmin && <MobileBottomNav />}
     </div>
   );
 }
@@ -593,4 +626,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

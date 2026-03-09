@@ -12,7 +12,10 @@ function getAdminKey(): string {
 
 function adminHeaders(): Record<string, string> {
   const key = getAdminKey();
-  return key ? { 'X-Admin-Key': key } : {};
+  if (key) return { 'X-Admin-Key': key };
+  // Fall back to JWT Bearer token for admin users who logged in via normal auth
+  const jwt = localStorage.getItem('accessToken');
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {};
 }
 
 // ─── Authentication ──────────────────────────────────────────────────────────
@@ -79,12 +82,57 @@ export async function deleteUser(userId: string) {
 
 // ─── Schemes ─────────────────────────────────────────────────────────────────
 
-export async function getAllSchemes(limit = 100) {
-  const res = await fetch(`${API_BASE}/schemes?limit=${limit}`, {
-    headers: { ...adminHeaders() },
-  });
-  if (!res.ok) throw new Error('Failed to fetch schemes');
-  return res.json();
+function normalizeScheme(s: any) {
+  return {
+    scheme_id: s.id ?? s.scheme_id ?? '',
+    name: s.title ?? s.name ?? '',
+    description: s.description ?? '',
+    category:
+      Array.isArray(s.rawCategories) && s.rawCategories.length > 0
+        ? JSON.stringify(s.rawCategories)
+        : (s.category ?? ''),
+    ministry: s.ministry ?? null,
+    state: s.state ?? null,
+    tags: Array.isArray(s.tags) ? s.tags.join(', ') : (s.tags ?? ''),
+    is_active: s.is_active ?? true,
+    last_updated: s.enrichment?.enrichedAt ?? s.last_updated ?? new Date().toISOString(),
+    scheme_url: s.applicationUrl ?? s.scheme_url ?? null,
+  };
+}
+
+// Fetches all schemes by paginating through the backend (backend caps at 100/page).
+export async function getAllSchemes(_ignored = 100) {
+  const pageSize = 100;
+  const all: any[] = [];
+  let page = 1;
+
+  // First request — use paginated mode to learn the total
+  const firstRes = await fetch(
+    `${API_BASE}/schemes?limit=${pageSize}&page=${page}&paginated=true`,
+    { headers: { ...adminHeaders() } }
+  );
+  if (!firstRes.ok) throw new Error('Failed to fetch schemes');
+  const firstData = await firstRes.json();
+
+  const totalPages: number = firstData.totalPages ?? 1;
+  all.push(...(firstData.items ?? []));
+
+  // Fetch remaining pages in parallel (up to 50 pages = 5,000 schemes)
+  if (totalPages > 1) {
+    const remaining = Array.from({ length: Math.min(totalPages, 50) - 1 }, (_, i) => i + 2);
+    const results = await Promise.all(
+      remaining.map((p) =>
+        fetch(`${API_BASE}/schemes?limit=${pageSize}&page=${p}&paginated=true`, {
+          headers: { ...adminHeaders() },
+        }).then((r) => (r.ok ? r.json() : null))
+      )
+    );
+    for (const result of results) {
+      if (result?.items) all.push(...result.items);
+    }
+  }
+
+  return all.map(normalizeScheme);
 }
 
 export async function getSchemeById(schemeId: string) {
@@ -166,7 +214,9 @@ export async function getActivityLogs(limit = 50) {
 // ─── System Health ───────────────────────────────────────────────────────────
 
 export async function getSystemHealth() {
-  const res = await fetch(`${API_BASE}/health`);
+  const res = await fetch(`${API_BASE}/admin/health`, {
+    headers: { ...adminHeaders() },
+  });
   if (!res.ok) throw new Error('Failed to fetch system health');
   return res.json();
 }
