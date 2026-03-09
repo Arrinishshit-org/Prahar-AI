@@ -151,6 +151,16 @@ export async function getAnalytics() {
   return res.json();
 }
 
+// ─── AI Scheme Recommendations for a beneficiary ─────────────
+
+export async function getRecommendationsForBeneficiary(userId: string) {
+  const res = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/recommendations`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) throw new Error('Failed to get recommendations');
+  return res.json();
+}
+
 // ─── Activity logs ────────────────────────────────────────────
 
 export async function getActivityLogs() {

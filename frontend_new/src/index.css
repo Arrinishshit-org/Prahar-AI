@@ -657,43 +657,43 @@
 
 /* ══════════════════════════════════════════════════════════════
    Panchayat Portal — scoped styles (prefixed with p-)
+   Uses the main site's CSS vars (primary navy, amber accent, warm parchment)
    ══════════════════════════════════════════════════════════════ */
 
-/* ── Sidebar (navy shell — matches admin theme) ──────────────── */
-.p-sidebar {
+/* ── Top navigation bar ───────────────────────────────────────── */
+.p-topnav {
   background: var(--color-primary);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.p-sidebar-logo {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
-.p-nav-item {
-  @apply flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150;
-  color: rgba(255, 255, 255, 0.6);
+.p-topnav-tab {
+  @apply inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg transition-all duration-150 whitespace-nowrap;
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.p-nav-item:hover {
+.p-topnav-tab:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.85);
 }
 
-.p-nav-item.active {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  border-left: 2px solid var(--color-accent);
-  padding-left: calc(0.75rem - 2px);
+.p-topnav-tab.active {
+  background: rgba(217, 122, 16, 0.18);
+  color: var(--color-accent);
 }
 
 /* ── Cards ───────────────────────────────────────────────────── */
 .p-card {
-  @apply bg-white rounded-xl border border-gray-100 shadow-sm;
+  @apply bg-white rounded-xl shadow-sm;
+  border: 1px solid var(--color-border);
 }
 
 /* ── Stat cards with left-border accents ─────────────────────── */
 .p-stat-card {
-  @apply bg-white rounded-xl border border-gray-100 shadow-sm p-5 relative overflow-hidden;
+  @apply bg-white rounded-xl shadow-sm p-5 relative overflow-hidden;
+  border: 1px solid var(--color-border);
 }
 
 .p-stat-card::before {
@@ -704,50 +704,34 @@
   bottom: 16px;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: #e5e7eb;
+  background: var(--color-border-dark);
 }
 
-.p-stat-card.blue::before {
-  background: #3b82f6;
-}
-.p-stat-card.green::before {
-  background: #10b981;
-}
-.p-stat-card.purple::before {
-  background: #8b5cf6;
-}
-.p-stat-card.amber::before {
-  background: #f59e0b;
-}
-.p-stat-card.red::before {
-  background: #ef4444;
-}
-.p-stat-card.teal::before {
-  background: #14b8a6;
-}
+.p-stat-card.blue::before   { background: #3b82f6; }
+.p-stat-card.green::before  { background: var(--color-success); }
+.p-stat-card.purple::before { background: #8b5cf6; }
+.p-stat-card.amber::before  { background: var(--color-accent); }
+.p-stat-card.red::before    { background: #ef4444; }
+.p-stat-card.teal::before   { background: #14b8a6; }
 
 .p-stat-label {
-  @apply text-xs font-semibold uppercase tracking-wider text-gray-500;
+  @apply text-xs font-semibold uppercase tracking-wider;
+  color: var(--color-muted);
 }
 
 .p-stat-value {
-  @apply text-2xl font-bold text-gray-900 mt-1 tabular-nums;
+  @apply text-2xl font-bold mt-1 tabular-nums;
+  color: var(--color-ink);
 }
 
-.p-stat-change {
-  @apply text-xs mt-1;
-}
-
-.p-stat-change.positive {
-  @apply text-emerald-600;
-}
-.p-stat-change.negative {
-  @apply text-red-500;
-}
+.p-stat-change { @apply text-xs mt-1; }
+.p-stat-change.positive { @apply text-emerald-600; }
+.p-stat-change.negative { @apply text-red-500; }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
 .p-btn {
-  @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold
+    transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
 .p-btn-primary {
@@ -756,7 +740,8 @@
 }
 
 .p-btn-secondary {
-  @apply bg-white border border-gray-200 text-gray-700 hover:bg-gray-50;
+  @apply bg-white text-gray-700 hover:bg-gray-50;
+  border: 1px solid var(--color-border);
 }
 
 .p-btn-danger {
@@ -765,10 +750,16 @@
 
 /* ── Form inputs ─────────────────────────────────────────────── */
 .p-input {
-  @apply w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white
-    focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)]
-    transition-all duration-150;
+  @apply w-full px-3 py-2 text-sm rounded-lg bg-white transition-all duration-150;
+  border: 1px solid var(--color-border);
+  color: var(--color-ink);
 }
+.p-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(217, 122, 16, 0.1);
+}
+.p-input::placeholder { color: var(--color-muted-2); }
 
 /* ── Badges ──────────────────────────────────────────────────── */
 .p-badge {
@@ -785,50 +776,31 @@
   opacity: 0.7;
 }
 
-.p-badge-success {
-  @apply text-emerald-700;
-  background-color: rgba(16, 185, 129, 0.12);
-}
-
-.p-badge-warning {
-  @apply text-amber-700;
-  background-color: rgba(245, 158, 11, 0.12);
-}
-
-.p-badge-info {
-  @apply text-blue-700;
-  background-color: rgba(59, 130, 246, 0.12);
-}
-
-.p-badge-danger {
-  @apply text-red-700;
-  background-color: rgba(239, 68, 68, 0.12);
-}
+.p-badge-success { @apply text-emerald-700; background-color: rgba(16, 185, 129, 0.12); }
+.p-badge-warning { @apply text-amber-700;   background-color: rgba(245, 158, 11, 0.12); }
+.p-badge-info    { @apply text-blue-700;    background-color: rgba(59, 130, 246, 0.12); }
+.p-badge-danger  { @apply text-red-700;     background-color: rgba(239, 68, 68, 0.12); }
 
 /* ── Table ───────────────────────────────────────────────────── */
-.p-table {
-  @apply w-full text-sm;
-}
+.p-table { @apply w-full text-sm; }
 
 .p-table thead tr {
-  @apply border-b border-gray-100;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .p-table th {
-  @apply py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-400;
+  @apply py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider;
+  color: var(--color-muted);
 }
 
 .p-table td {
-  @apply py-3 px-4 text-gray-700 border-b border-gray-50;
+  @apply py-3 px-4;
+  color: var(--color-ink-2);
+  border-bottom: 1px solid var(--color-surface-2);
 }
 
-.p-table tbody tr {
-  @apply transition-colors duration-100;
-}
-
-.p-table tbody tr:hover {
-  @apply bg-green-50/40;
-}
+.p-table tbody tr { @apply transition-colors duration-100; }
+.p-table tbody tr:hover { background: var(--color-accent-50); }
 
 /* ── User avatar ─────────────────────────────────────────────── */
 .p-user-avatar {
@@ -836,29 +808,30 @@
 }
 
 /* ── Health status dot ───────────────────────────────────────── */
-.p-health-dot {
-  @apply size-2.5 rounded-full inline-block;
+.p-health-dot { @apply size-2.5 rounded-full inline-block; }
+.p-health-dot.healthy  { @apply bg-emerald-500 animate-pulse; }
+.p-health-dot.degraded { @apply bg-amber-400; }
+.p-health-dot.critical { @apply bg-red-500; }
+
+/* ── Eligibility score bar ───────────────────────────────────── */
+.p-score-bar {
+  @apply h-1.5 rounded-full overflow-hidden;
+  background: var(--color-border);
+}
+.p-score-bar-fill {
+  @apply h-full rounded-full transition-all duration-500;
+  background: linear-gradient(90deg, var(--color-accent-700), var(--color-accent));
 }
 
-.p-health-dot.healthy {
-  @apply bg-emerald-500 animate-pulse;
-}
-.p-health-dot.degraded {
-  @apply bg-amber-400;
-}
-.p-health-dot.critical {
-  @apply bg-red-500;
-}
-
-/* ── Panchayat portal reset — override main app styles ──────── */
+/* ── Panchayat portal reset — override main app body styles ──── */
 .panchayat-portal {
-  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  background: #f8f9fa;
-  color: #1a1a2e;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  min-height: 100vh;
 }
 
-/* Dark mode removed: light theme only */
 
 /* ══════════════════════════════════════════════════════════════
    Admin Portal — utility classes (warm amber/navy theme)

@@ -26,8 +26,10 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <div className="size-10 rounded-full border-2 border-gray-200 border-t-green-600 animate-spin" />
-        <p className="text-sm text-gray-500">Loading analytics…</p>
+        <div className="size-10 rounded-full border-2 border-gray-200 border-t-amber-500 animate-spin" />
+        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+          Loading analytics…
+        </p>
       </div>
     );
   }
@@ -46,8 +48,13 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900 tracking-tight">Analytics</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h1
+          className="text-xl font-bold tracking-tight"
+          style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+        >
+          Analytics
+        </h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
           Beneficiary reach and scheme coverage insights
         </p>
       </div>
@@ -77,8 +84,13 @@ export default function AnalyticsPage() {
         {data?.userGrowthTrend && data.userGrowthTrend.length > 0 && (
           <div className="p-card p-5">
             <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="size-4 text-blue-500" />
-              <h2 className="font-semibold text-gray-900">Beneficiary Growth</h2>
+              <TrendingUp className="size-4" style={{ color: 'var(--color-primary-600)' }} />
+              <h2
+                className="text-sm font-semibold"
+                style={{ color: 'var(--color-ink)', fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                Beneficiary Growth
+              </h2>
             </div>
             <div className="space-y-2">
               {data.userGrowthTrend.map((item) => {
@@ -91,8 +103,8 @@ export default function AnalyticsPage() {
                     </span>
                     <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
                       <div
-                        className="h-2 rounded-full bg-blue-500 transition-all"
-                        style={{ width: `${pct}%` }}
+                        className="h-2 rounded-full transition-all"
+                        style={{ width: `${pct}%`, background: 'var(--color-primary-600)' }}
                       />
                     </div>
                     <span className="text-xs font-semibold text-gray-700 w-8 text-right tabular-nums">
@@ -109,8 +121,13 @@ export default function AnalyticsPage() {
         {data?.schemeSyncTrend && data.schemeSyncTrend.length > 0 && (
           <div className="p-card p-5">
             <div className="flex items-center gap-2 mb-4">
-              <BarChart2 className="size-4 text-green-600" />
-              <h2 className="font-semibold text-gray-900">Scheme Sync Trend</h2>
+              <BarChart2 className="size-4" style={{ color: 'var(--color-accent)' }} />
+              <h2
+                className="text-sm font-semibold"
+                style={{ color: 'var(--color-ink)', fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                Scheme Sync Trend
+              </h2>
             </div>
             <div className="space-y-2">
               {data.schemeSyncTrend.map((item) => {
@@ -123,8 +140,8 @@ export default function AnalyticsPage() {
                     </span>
                     <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
                       <div
-                        className="h-2 rounded-full bg-green-500 transition-all"
-                        style={{ width: `${pct}%` }}
+                        className="h-2 rounded-full transition-all"
+                        style={{ width: `${pct}%`, background: 'var(--color-accent)' }}
                       />
                     </div>
                     <span className="text-xs font-semibold text-gray-700 w-12 text-right tabular-nums">
@@ -140,7 +157,12 @@ export default function AnalyticsPage() {
         {/* State distribution */}
         {data?.stateDistribution && data.stateDistribution.length > 0 && (
           <div className="p-card p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Beneficiaries by State</h2>
+            <h2
+              className="text-sm font-semibold mb-4"
+              style={{ color: 'var(--color-ink)', fontFamily: 'Space Grotesk, sans-serif' }}
+            >
+              Beneficiaries by State
+            </h2>
             <div className="space-y-2.5">
               {data.stateDistribution.slice(0, 8).map((entry) => (
                 <div key={entry.label} className="flex items-center gap-3">
@@ -149,8 +171,11 @@ export default function AnalyticsPage() {
                   </span>
                   <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
                     <div
-                      className="h-1.5 rounded-full bg-blue-400"
-                      style={{ width: `${entry.percentage}%` }}
+                      className="h-1.5 rounded-full"
+                      style={{
+                        width: `${entry.percentage}%`,
+                        background: 'var(--color-primary-600)',
+                      }}
                     />
                   </div>
                   <span className="text-xs text-gray-500 w-8 text-right tabular-nums">
@@ -165,7 +190,12 @@ export default function AnalyticsPage() {
         {/* Employment distribution */}
         {data?.employmentDistribution && data.employmentDistribution.length > 0 && (
           <div className="p-card p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Beneficiaries by Employment</h2>
+            <h2
+              className="text-sm font-semibold mb-4"
+              style={{ color: 'var(--color-ink)', fontFamily: 'Space Grotesk, sans-serif' }}
+            >
+              Beneficiaries by Employment
+            </h2>
             <div className="space-y-2.5">
               {data.employmentDistribution.map((entry) => (
                 <div key={entry.label} className="flex items-center gap-3">
@@ -174,8 +204,8 @@ export default function AnalyticsPage() {
                   </span>
                   <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
                     <div
-                      className="h-1.5 rounded-full bg-amber-400"
-                      style={{ width: `${entry.percentage}%` }}
+                      className="h-1.5 rounded-full"
+                      style={{ width: `${entry.percentage}%`, background: 'var(--color-accent)' }}
                     />
                   </div>
                   <span className="text-xs text-gray-500 w-8 text-right tabular-nums">

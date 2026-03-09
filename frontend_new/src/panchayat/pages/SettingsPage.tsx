@@ -17,8 +17,15 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900 tracking-tight">Settings</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Portal configuration and session management</p>
+        <h1
+          className="text-xl font-bold tracking-tight"
+          style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+        >
+          Settings
+        </h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
+          Portal configuration and session management
+        </p>
       </div>
 
       {/* About */}
@@ -27,14 +34,16 @@ export default function SettingsPage() {
           <div
             className="size-10 rounded-xl flex items-center justify-center"
             style={{
-              background: 'rgba(245,158,11,0.12)',
-              border: '1px solid rgba(245,158,11,0.2)',
+              background: 'rgba(217,122,16,0.12)',
+              border: '1px solid rgba(217,122,16,0.2)',
             }}
           >
-            <Leaf className="size-5 text-amber-500" />
+            <Leaf className="size-5" style={{ color: 'var(--color-accent)' }} />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Gram Sabha — Panchayat Portal</p>
+            <p className="font-semibold" style={{ color: 'var(--color-ink)' }}>
+              Gram Sabha — Panchayat Portal
+            </p>
             <p className="text-xs text-gray-500">AI4Bharat Welfare Scheme Management System</p>
           </div>
         </div>

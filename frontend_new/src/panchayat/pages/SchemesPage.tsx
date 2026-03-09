@@ -53,8 +53,10 @@ export default function SchemesPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <div className="size-10 rounded-full border-2 border-gray-200 border-t-green-600 animate-spin" />
-        <p className="text-sm text-gray-500">Loading schemes…</p>
+        <div className="size-10 rounded-full border-2 border-gray-200 border-t-amber-500 animate-spin" />
+        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+          Loading schemes…
+        </p>
       </div>
     );
   }
@@ -65,8 +67,13 @@ export default function SchemesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Scheme Catalog</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1
+            className="text-xl font-bold tracking-tight"
+            style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+          >
+            Scheme Catalog
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
             Government welfare schemes for beneficiary matching
           </p>
         </div>

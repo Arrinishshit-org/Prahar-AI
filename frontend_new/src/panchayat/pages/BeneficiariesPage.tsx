@@ -1,15 +1,25 @@
 import { useState, useEffect } from 'react';
-import { Search, Trash2, Eye, Users, X } from 'lucide-react';
-import { getAllBeneficiaries, deleteBeneficiary } from '../api';
+import {
+  Search,
+  X,
+  Sparkles,
+  ExternalLink,
+  User,
+  MapPin,
+  Briefcase,
+  GraduationCap,
+  ChevronRight,
+} from 'lucide-react';
+import { getAllBeneficiaries, getRecommendationsForBeneficiary } from '../api';
 import type { Beneficiary } from '../types';
 
 const AVATAR_PALETTE = [
-  { bg: 'rgba(59,130,246,0.15)', text: '#60a5fa' },
-  { bg: 'rgba(16,185,129,0.15)', text: '#34d399' },
-  { bg: 'rgba(139,92,246,0.15)', text: '#a78bfa' },
-  { bg: 'rgba(245,158,11,0.15)', text: '#fbbf24' },
-  { bg: 'rgba(236,72,153,0.15)', text: '#f472b6' },
-  { bg: 'rgba(6,182,212,0.15)', text: '#22d3ee' },
+  { bg: 'rgba(16,40,69,0.1)', text: '#24537d' },
+  { bg: 'rgba(217,122,16,0.12)', text: '#a95a0a' },
+  { bg: 'rgba(197,95,54,0.12)', text: '#c55f36' },
+  { bg: 'rgba(139,92,246,0.12)', text: '#7c3aed' },
+  { bg: 'rgba(6,182,212,0.12)', text: '#0891b2' },
+  { bg: 'rgba(24,122,66,0.12)', text: '#187a42' },
 ];
 
 function getAvatarStyle(name: string) {
@@ -27,35 +37,49 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
+interface Recommendation {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  benefits: string;
+  eligibilityScore: number;
+  applicationUrl: string;
+}
+
 export default function BeneficiariesPage() {
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<Beneficiary | null>(null);
+  const [selected, setSelected] = useState<Beneficiary | null>(null);
+  const [recs, setRecs] = useState<Recommendation[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState(false);
+  const [recsError, setRecsError] = useState('');
 
   useEffect(() => {
-    loadBeneficiaries();
+    getAllBeneficiaries()
+      .then((data) => setBeneficiaries(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const loadBeneficiaries = async () => {
-    try {
-      const data = await getAllBeneficiaries();
-      setBeneficiaries(data);
-    } catch (err) {
-      console.error('Failed to load beneficiaries:', err);
-    } finally {
-      setLoading(false);
-    }
+  const selectCitizen = (b: Beneficiary) => {
+    setSelected(b);
+    setRecs([]);
+    setRecsError('');
   };
 
-  const handleDelete = async (userId: string) => {
-    if (!confirm('Remove this beneficiary from the system?')) return;
+  const handleMatchSchemes = async () => {
+    if (!selected) return;
+    setLoadingRecs(true);
+    setRecsError('');
     try {
-      await deleteBeneficiary(userId);
-      setBeneficiaries((prev) => prev.filter((u) => u.userId !== userId));
-      if (selectedUser?.userId === userId) setSelectedUser(null);
+      const data = await getRecommendationsForBeneficiary(selected.userId);
+      setRecs(Array.isArray(data) ? data : []);
     } catch {
-      alert('Failed to remove beneficiary');
+      setRecsError('Could not load recommendations. Please try again.');
+    } finally {
+      setLoadingRecs(false);
     }
   };
 
@@ -64,7 +88,7 @@ export default function BeneficiariesPage() {
       u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.state?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.userId?.toLowerCase().includes(searchTerm.toLowerCase())
+      u.village?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const onboarded = beneficiaries.filter((u) => u.onboardingComplete).length;
@@ -72,123 +96,150 @@ export default function BeneficiariesPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <div className="size-10 rounded-full border-2 border-gray-200 border-t-green-600 animate-spin" />
-        <p className="text-sm text-gray-500">Loading beneficiaries…</p>
+        <div className="size-10 rounded-full border-2 border-gray-200 border-t-amber-500 animate-spin" />
+        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+          Loading citizens…
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900 tracking-tight">Beneficiaries</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Citizens registered for scheme eligibility</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-stat-card blue">
-          <p className="p-stat-label">Total</p>
-          <p className="p-stat-value">{beneficiaries.length}</p>
-        </div>
-        <div className="p-stat-card green">
-          <p className="p-stat-label">Onboarded</p>
-          <p className="p-stat-value">{onboarded}</p>
-        </div>
-        <div className="p-stat-card amber">
-          <p className="p-stat-label">Pending</p>
-          <p className="p-stat-value">{beneficiaries.length - onboarded}</p>
-        </div>
-        <div className="p-stat-card purple">
-          <p className="p-stat-label">Completion</p>
-          <p className="p-stat-value">
-            {beneficiaries.length ? Math.round((onboarded / beneficiaries.length) * 100) : 0}%
+    <div className="flex gap-5" style={{ minHeight: 'calc(100vh - 7rem)' }}>
+      {/* ── Left: citizen list ──────────────────────────────── */}
+      <div
+        className={`flex flex-col gap-4 transition-all duration-300 ${selected ? 'w-3/5 min-w-0' : 'w-full'}`}
+      >
+        {/* Header */}
+        <div>
+          <h1
+            className="text-xl font-bold tracking-tight"
+            style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+          >
+            Citizen Service Desk
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
+            Select a citizen to match them with welfare schemes
           </p>
         </div>
-      </div>
 
-      {/* Search */}
-      <div className="p-card p-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by name, email, state, or ID…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="p-input pl-9 text-sm"
-          />
+        {/* Stats strip */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-stat-card blue">
+            <p className="p-stat-label">Total</p>
+            <p className="p-stat-value">{beneficiaries.length}</p>
+          </div>
+          <div className="p-stat-card green">
+            <p className="p-stat-label">Onboarded</p>
+            <p className="p-stat-value">{onboarded}</p>
+          </div>
+          <div className="p-stat-card amber">
+            <p className="p-stat-label">Pending</p>
+            <p className="p-stat-value">{beneficiaries.length - onboarded}</p>
+          </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="p-card overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Search */}
+        <div className="p-card p-3">
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 size-4"
+              style={{ color: 'var(--color-muted-2)' }}
+            />
+            <input
+              type="text"
+              placeholder="Search by name, email, state, or village…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="p-input pl-9 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="p-card overflow-hidden flex-1 overflow-y-auto thin-scroll">
           <table className="p-table">
-            <thead>
+            <thead className="sticky top-0 z-10" style={{ background: 'var(--color-parchment)' }}>
               <tr>
-                <th>Beneficiary</th>
-                <th>State / District</th>
-                <th>Employment</th>
-                <th>Joined</th>
+                <th>Citizen</th>
+                <th className={selected ? 'hidden xl:table-cell' : ''}>Location</th>
+                <th className={selected ? 'hidden xl:table-cell' : ''}>Employment</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center py-10">
+                    <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+                      No citizens found
+                    </p>
+                  </td>
+                </tr>
+              )}
               {filtered.map((u) => {
                 const av = getAvatarStyle(u.name || '');
+                const isSelected = selected?.userId === u.userId;
                 return (
-                  <tr key={u.userId}>
+                  <tr
+                    key={u.userId}
+                    onClick={() => selectCitizen(u)}
+                    className="cursor-pointer"
+                    style={
+                      isSelected
+                        ? {
+                            background: 'var(--color-accent-50)',
+                            borderLeft: '3px solid var(--color-accent)',
+                          }
+                        : {}
+                    }
+                  >
                     <td>
                       <div className="flex items-center gap-3">
                         <div
-                          className="p-user-avatar text-xs font-bold"
+                          className="p-user-avatar"
                           style={{ background: av.bg, color: av.text }}
                         >
                           {getInitials(u.name || '')}
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900 text-sm">{u.name || '—'}</p>
-                          <p className="text-[11px] font-mono text-gray-400 tabular-nums">
-                            {u.userId.slice(0, 8)}…
+                        <div>
+                          <p
+                            className="font-semibold text-xs"
+                            style={{ color: 'var(--color-ink)' }}
+                          >
+                            {u.name || '—'}
+                          </p>
+                          <p className="text-[11px]" style={{ color: 'var(--color-muted)' }}>
+                            {u.email}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="text-sm text-gray-600">{u.state || '—'}</td>
-                    <td className="text-sm">{u.employment || '—'}</td>
-                    <td className="text-sm text-gray-500 tabular-nums">
-                      {new Date(u.createdAt).toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
+                    <td className={selected ? 'hidden xl:table-cell' : ''}>
+                      <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
+                        {[u.village, u.district, u.state].filter(Boolean).join(', ') || '—'}
+                      </span>
+                    </td>
+                    <td className={selected ? 'hidden xl:table-cell' : ''}>
+                      <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
+                        {u.employment || '—'}
+                      </span>
                     </td>
                     <td>
-                      {u.onboardingComplete ? (
-                        <span className="p-badge p-badge-success">Enrolled</span>
-                      ) : (
-                        <span className="p-badge p-badge-warning">Pending</span>
-                      )}
+                      <span
+                        className={`p-badge ${u.onboardingComplete ? 'p-badge-success' : 'p-badge-warning'}`}
+                      >
+                        {u.onboardingComplete ? 'Complete' : 'Pending'}
+                      </span>
                     </td>
                     <td>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setSelectedUser(u)}
-                          className="p-1.5 rounded-md hover:bg-blue-50 transition-colors"
-                          title="View"
-                        >
-                          <Eye className="size-3.5 text-blue-500" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(u.userId)}
-                          className="p-1.5 rounded-md hover:bg-red-50 transition-colors"
-                          title="Remove"
-                        >
-                          <Trash2 className="size-3.5 text-red-500" />
-                        </button>
-                      </div>
+                      <ChevronRight
+                        className="size-3.5"
+                        style={{
+                          color: isSelected ? 'var(--color-accent)' : 'var(--color-muted-2)',
+                        }}
+                      />
                     </td>
                   </tr>
                 );
@@ -196,124 +247,224 @@ export default function BeneficiariesPage() {
             </tbody>
           </table>
         </div>
-
-        {filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="size-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
-              <Users className="size-7 text-gray-400" />
-            </div>
-            <p className="font-semibold text-gray-700">
-              {searchTerm ? 'No matching beneficiaries' : 'No beneficiaries registered yet'}
-            </p>
-            <p className="text-sm text-gray-400 mt-1 max-w-xs">
-              {searchTerm
-                ? `No results for "${searchTerm}"`
-                : 'Beneficiaries appear here once they register through the citizen app.'}
-            </p>
-          </div>
-        )}
-
-        {filtered.length > 0 && (
-          <div className="px-4 py-2.5 border-t border-gray-100">
-            <p className="text-xs text-gray-400">
-              Showing {filtered.length} beneficiar{filtered.length === 1 ? 'y' : 'ies'}
-              {searchTerm && ` matching "${searchTerm}"`}
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* Detail modal */}
-      {selectedUser && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedUser(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+      {/* ── Right: AI matching panel ────────────────────────── */}
+      {selected && (
+        <div className="w-2/5 min-w-70 flex flex-col gap-4 overflow-y-auto thin-scroll">
+          {/* Citizen profile card */}
+          <div className="p-card p-5">
+            <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 {(() => {
-                  const s = getAvatarStyle(selectedUser.name || '');
+                  const av = getAvatarStyle(selected.name || '');
                   return (
                     <div
-                      className="p-user-avatar text-sm font-bold"
-                      style={{ background: s.bg, color: s.text }}
+                      className="size-12 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
+                      style={{ background: av.bg, color: av.text }}
                     >
-                      {getInitials(selectedUser.name || '')}
+                      {getInitials(selected.name || '')}
                     </div>
                   );
                 })()}
                 <div>
-                  <p className="font-semibold text-gray-900">{selectedUser.name || '—'}</p>
-                  <p className="text-xs text-gray-400 font-mono">{selectedUser.userId}</p>
+                  <h2
+                    className="text-base font-bold"
+                    style={{
+                      color: 'var(--color-ink)',
+                      fontFamily: 'Space Grotesk, sans-serif',
+                    }}
+                  >
+                    {selected.name || '—'}
+                  </h2>
+                  <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                    {selected.email}
+                  </p>
                 </div>
               </div>
               <button
-                onClick={() => setSelectedUser(null)}
+                onClick={() => {
+                  setSelected(null);
+                  setRecs([]);
+                }}
                 className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                style={{ color: 'var(--color-muted-2)' }}
               >
-                <X className="size-4 text-gray-500" />
+                <X className="size-4" />
               </button>
             </div>
 
-            <div className="p-5 grid grid-cols-2 gap-4">
+            {/* Profile attributes */}
+            <div className="mt-4 grid grid-cols-2 gap-2">
               {[
-                { label: 'Email', value: selectedUser.email },
-                { label: 'Age', value: selectedUser.age ? `${selectedUser.age} years` : '—' },
-                { label: 'State', value: selectedUser.state || '—' },
-                { label: 'Employment', value: selectedUser.employment || '—' },
-                { label: 'Education', value: selectedUser.education || '—' },
-                { label: 'Gender', value: selectedUser.gender || '—' },
                 {
-                  label: 'Annual Income',
-                  value: selectedUser.income
-                    ? `₹${selectedUser.income.toLocaleString('en-IN')}`
-                    : '—',
+                  icon: MapPin,
+                  label: 'Location',
+                  value:
+                    [selected.village, selected.district, selected.state]
+                      .filter(Boolean)
+                      .join(', ') || '—',
                 },
                 {
-                  label: 'Registered',
-                  value: new Date(selectedUser.createdAt).toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric',
-                  }),
+                  icon: Briefcase,
+                  label: 'Employment',
+                  value: selected.employment || '—',
                 },
-              ].map(({ label, value }) => (
-                <div key={label} className="space-y-0.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                    {label}
+                {
+                  icon: GraduationCap,
+                  label: 'Education',
+                  value: selected.education || '—',
+                },
+                {
+                  icon: User,
+                  label: 'Gender / Age',
+                  value:
+                    [selected.gender, selected.age ? `${selected.age} yrs` : undefined]
+                      .filter(Boolean)
+                      .join(', ') || '—',
+                },
+              ].map(({ icon: Icon, label, value }) => (
+                <div
+                  key={label}
+                  className="p-2.5 rounded-lg"
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <Icon className="size-3" style={{ color: 'var(--color-muted)' }} />
+                    <p
+                      className="text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: 'var(--color-muted)' }}
+                    >
+                      {label}
+                    </p>
+                  </div>
+                  <p className="text-xs font-medium" style={{ color: 'var(--color-ink-2)' }}>
+                    {value}
                   </p>
-                  <p className="text-sm font-medium text-gray-800">{value}</p>
                 </div>
               ))}
             </div>
 
-            <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-t border-gray-100">
-              {selectedUser.onboardingComplete ? (
-                <span className="p-badge p-badge-success">Enrolled</span>
+            {/* AI match button */}
+            <button
+              onClick={handleMatchSchemes}
+              disabled={loadingRecs}
+              className="p-btn p-btn-primary w-full justify-center mt-4 gap-2"
+            >
+              {loadingRecs ? (
+                <>
+                  <div className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  Matching with AI…
+                </>
               ) : (
-                <span className="p-badge p-badge-warning">Onboarding Pending</span>
+                <>
+                  <Sparkles className="size-4" />
+                  Match Schemes with AI
+                </>
               )}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedUser(null)}
-                  className="p-btn p-btn-secondary text-sm"
+            </button>
+          </div>
+
+          {/* Error */}
+          {recsError && (
+            <div className="p-card p-4" style={{ borderColor: '#fecaca' }}>
+              <p className="text-sm text-red-600">{recsError}</p>
+            </div>
+          )}
+
+          {/* Scheme recommendations */}
+          {recs.length > 0 && (
+            <div className="p-card overflow-hidden">
+              <div className="p-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                <p
+                  className="text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-muted)' }}
                 >
-                  Close
-                </button>
-                <button
-                  onClick={() => handleDelete(selectedUser.userId)}
-                  className="p-btn p-btn-danger text-sm"
-                >
-                  <Trash2 className="size-3.5" />
-                  Remove
-                </button>
+                  {recs.length} scheme{recs.length !== 1 ? 's' : ''} matched
+                </p>
+              </div>
+              <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                {recs.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="p-4 transition-colors"
+                    style={{ background: 'transparent' }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = 'var(--color-accent-50)')
+                    }
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
+                          {rec.title}
+                        </p>
+                        <p
+                          className="text-xs mt-0.5 line-clamp-2"
+                          style={{ color: 'var(--color-muted)' }}
+                        >
+                          {rec.description}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                            style={{
+                              background: 'var(--color-accent-50)',
+                              color: 'var(--color-accent-800)',
+                              border: '1px solid var(--color-accent-100)',
+                            }}
+                          >
+                            {rec.category}
+                          </span>
+                          {rec.eligibilityScore > 0 && (
+                            <span className="text-[10px]" style={{ color: 'var(--color-muted)' }}>
+                              {Math.round(rec.eligibilityScore * 100)}% match
+                            </span>
+                          )}
+                        </div>
+                        {rec.eligibilityScore > 0 && (
+                          <div className="p-score-bar mt-2">
+                            <div
+                              className="p-score-bar-fill"
+                              style={{
+                                width: `${Math.round(rec.eligibilityScore * 100)}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <a
+                        href={rec.applicationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-btn p-btn-secondary px-3 py-1.5 text-xs shrink-0 gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Apply
+                        <ExternalLink className="size-3" />
+                      </a>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Empty state */}
+          {!loadingRecs && recs.length === 0 && !recsError && (
+            <div className="p-card p-8 text-center">
+              <Sparkles className="size-8 mx-auto mb-3" style={{ color: 'var(--color-muted-2)' }} />
+              <p className="text-sm font-medium" style={{ color: 'var(--color-ink-2)' }}>
+                Match this citizen with welfare schemes
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
+                Click "Match Schemes with AI" to get personalised recommendations
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

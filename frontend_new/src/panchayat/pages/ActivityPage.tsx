@@ -37,8 +37,10 @@ export default function ActivityPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <div className="size-10 rounded-full border-2 border-gray-200 border-t-green-600 animate-spin" />
-        <p className="text-sm text-gray-500">Loading activity…</p>
+        <div className="size-10 rounded-full border-2 border-gray-200 border-t-amber-500 animate-spin" />
+        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+          Loading activity…
+        </p>
       </div>
     );
   }
@@ -49,8 +51,13 @@ export default function ActivityPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Activity Log</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1
+            className="text-xl font-bold tracking-tight"
+            style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+          >
+            Activity Log
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
             System events, enrollments, and scheme updates
           </p>
         </div>
@@ -67,10 +74,13 @@ export default function ActivityPage() {
             key={t}
             onClick={() => setFilter(t)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              filter === t
-                ? 'bg-green-700 text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              filter === t ? 'text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'
             }`}
+            style={
+              filter === t
+                ? { background: 'var(--color-primary)', border: '1px solid var(--color-primary)' }
+                : { borderColor: 'var(--color-border)' }
+            }
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
             {t !== 'all' && ` (${logs.filter((l) => l.type === t).length})`}
