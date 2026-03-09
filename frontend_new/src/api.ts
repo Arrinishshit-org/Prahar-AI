@@ -53,6 +53,64 @@ export interface ChatApiResponse {
   };
 }
 
+export interface AdminMetricsResponse {
+  users: {
+    total: number;
+    onboarded: number;
+    updatedProfiles: number;
+  };
+  schemes: {
+    pulled: number;
+    inGraph: number;
+    enriched: number;
+    withEligibility: number;
+    withBenefits: number;
+    enrichmentRate: number;
+  };
+  sync: {
+    totalSchemes: number;
+    lastSync: string | null;
+    nextSync: string | null;
+    isSyncing: boolean;
+  };
+  trends: {
+    users: Array<{
+      date: string;
+      count: number;
+    }>;
+    sync: Array<{
+      date: string;
+      synced: number;
+      enriched: number;
+    }>;
+  };
+  cache: {
+    hits: number;
+    misses: number;
+    sets: number;
+    deletes: number;
+    errors: number;
+    hitRate: number;
+    available: boolean;
+    uptime: number;
+  };
+  mlService: {
+    baseUrl: string;
+    timeoutMs: number;
+    available: boolean | null;
+    lastCheckAt: string | null;
+  };
+  generatedAt: string;
+}
+
+export interface AdminUser {
+  userId: string;
+  email: string;
+  name: string;
+  isAdmin: boolean;
+  createdAt?: string | null;
+}
+
 function cleanText(value: string): string {
   return value
     .replace(/<br\s*\/?>/gi, '\n')
@@ -425,10 +483,16 @@ export async function registerUser(data: {
 // ─── Profile ─────────────────────────────────────────────────────────────────
 
 export async function getProfile(userId: string) {
-  const res = await fetch(`${API_BASE}/users/${userId}/profile`, {
+  const res = await fetch(`${API_BASE}/users/${userId}/profile?t=${Date.now()}`, {
     headers: { ...authHeaders() },
+    cache: 'no-store',
   });
-  if (!res.ok) throw new Error('Failed to fetch profile');
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ message: 'Failed to fetch profile' }));
+    throw new Error(err.message || err.error || 'Failed to fetch profile');
+  }
   return res.json();
 }
 
@@ -437,8 +501,14 @@ export async function updateProfile(userId: string, data: Record<string, any>) {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(data),
+    cache: 'no-store',
   });
-  if (!res.ok) throw new Error('Failed to update profile');
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ message: 'Failed to update profile' }));
+    throw new Error(err.message || err.error || 'Failed to update profile');
+  }
   return res.json();
 }
 
@@ -529,8 +599,9 @@ export async function fetchSchemeById(id: string) {
 }
 
 export async function fetchRecommendations(userId: string) {
-  const res = await fetch(`${API_BASE}/users/${userId}/recommendations`, {
+  const res = await fetch(`${API_BASE}/users/${userId}/recommendations?t=${Date.now()}`, {
     headers: { ...authHeaders() },
+    cache: 'no-store',
   });
   if (!res.ok) throw new Error('Failed to fetch recommendations');
   return res.json() as Promise<RecommendationApiItem[]>;
@@ -582,4 +653,80 @@ export async function fetchNudges(userId: string) {
   });
   if (!res.ok) throw new Error('Failed to fetch nudges');
   return res.json();
+}
+
+export async function fetchAdminMetrics(adminKey?: string) {
+  const configuredKey =
+    adminKey || (import.meta as any)?.env?.VITE_ADMIN_KEY || 'prahar-admin-secret';
+
+  const res = await fetch(`${API_BASE}/admin/metrics?t=${Date.now()}`, {
+    headers: {
+      ...authHeaders(),
+      'x-admin-key': configuredKey,
+    },
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch admin metrics' }));
+    throw new Error(err.error || err.details || 'Failed to fetch admin metrics');
+  }
+
+  return res.json() as Promise<AdminMetricsResponse>;
+}
+
+export async function fetchAdmins(adminKey?: string) {
+  const configuredKey =
+    adminKey || (import.meta as any)?.env?.VITE_ADMIN_KEY || 'prahar-admin-secret';
+  const res = await fetch(`${API_BASE}/admin/admins?t=${Date.now()}`, {
+    headers: {
+      ...authHeaders(),
+      'x-admin-key': configuredKey,
+    },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch admins' }));
+    throw new Error(err.error || err.details || 'Failed to fetch admins');
+  }
+  return res.json() as Promise<AdminUser[]>;
+}
+
+export async function createAdmin(
+  payload: { email: string; password: string; name?: string },
+  adminKey?: string
+) {
+  const configuredKey =
+    adminKey || (import.meta as any)?.env?.VITE_ADMIN_KEY || 'prahar-admin-secret';
+  const res = await fetch(`${API_BASE}/admin/admins`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+      'x-admin-key': configuredKey,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create admin' }));
+    throw new Error(err.error || err.details || 'Failed to create admin');
+  }
+  return res.json() as Promise<AdminUser>;
+}
+
+export async function deleteAdmin(userId: string, adminKey?: string) {
+  const configuredKey =
+    adminKey || (import.meta as any)?.env?.VITE_ADMIN_KEY || 'prahar-admin-secret';
+  const res = await fetch(`${API_BASE}/admin/admins/${userId}`, {
+    method: 'DELETE',
+    headers: {
+      ...authHeaders(),
+      'x-admin-key': configuredKey,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to delete admin' }));
+    throw new Error(err.error || err.details || 'Failed to delete admin');
+  }
+  return res.json() as Promise<{ success: boolean; message: string }>;
 }

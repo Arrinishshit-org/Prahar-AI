@@ -899,6 +899,151 @@ class Neo4jDbService {
     return cnt;
   }
 
+  async getEnrichedSchemeCount(): Promise<number> {
+    const cached = await redisService.get<number>('schemes:count:enriched');
+    if (cached != null) return cached;
+
+    const rows = await this.connection.executeRead<{ cnt: number }>(
+      `MATCH (s:Scheme)
+       WHERE coalesce(s.page_scheme_id, '') <> '' OR coalesce(s.page_enriched_at, '') <> ''
+       RETURN count(s) AS cnt`
+    );
+    const cnt = Number(rows[0]?.cnt) || 0;
+    await redisService.set('schemes:count:enriched', cnt, CacheTTL.CATEGORIES);
+    return cnt;
+  }
+
+  async getAdminMetrics(): Promise<{
+    users: {
+      total: number;
+      onboarded: number;
+      updatedProfiles: number;
+    };
+    schemes: {
+      total: number;
+      enriched: number;
+      withEligibility: number;
+      withBenefits: number;
+      enrichmentRate: number;
+    };
+    trends: {
+      users: Array<{ date: string; count: number }>;
+      sync: Array<{ date: string; synced: number; enriched: number }>;
+    };
+  }> {
+    const today = new Date();
+    const dateKeys: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      dateKeys.push(d.toISOString().slice(0, 10));
+    }
+    const fromDate = dateKeys[0];
+
+    const [userRows, schemeRows] = await Promise.all([
+      this.connection.executeRead<{
+        totalUsers: number;
+        onboardedUsers: number;
+        updatedProfiles: number;
+      }>(
+        `MATCH (u:User)
+         RETURN
+           count(u) AS totalUsers,
+           sum(CASE WHEN coalesce(u.onboarding_complete, false) = true THEN 1 ELSE 0 END) AS onboardedUsers,
+           sum(CASE WHEN coalesce(u.updated_at, '') <> '' THEN 1 ELSE 0 END) AS updatedProfiles`
+      ),
+      this.connection.executeRead<{
+        totalSchemes: number;
+        enrichedSchemes: number;
+        withEligibility: number;
+        withBenefits: number;
+      }>(
+        `MATCH (s:Scheme)
+         RETURN
+           count(s) AS totalSchemes,
+           sum(CASE WHEN coalesce(s.page_scheme_id, '') <> '' OR coalesce(s.page_enriched_at, '') <> '' THEN 1 ELSE 0 END) AS enrichedSchemes,
+           sum(CASE WHEN coalesce(s.page_eligibility_json, '[]') <> '[]' THEN 1 ELSE 0 END) AS withEligibility,
+           sum(CASE WHEN coalesce(s.page_benefits_json, '[]') <> '[]' THEN 1 ELSE 0 END) AS withBenefits`
+      ),
+    ]);
+
+    const [userTrendRows, syncTrendRows] = await Promise.all([
+      this.connection.executeRead<{ date: string; count: number }>(
+        `MATCH (u:User)
+         WHERE coalesce(u.created_at, '') <> ''
+           AND substring(u.created_at, 0, 10) >= $fromDate
+         RETURN substring(u.created_at, 0, 10) AS date, count(u) AS count
+         ORDER BY date ASC`,
+        { fromDate }
+      ),
+      this.connection.executeRead<{ date: string; synced: number; enriched: number }>(
+        `MATCH (s:Scheme)
+         WHERE coalesce(s.updated_at, s.last_updated, '') <> ''
+           AND substring(coalesce(s.updated_at, s.last_updated), 0, 10) >= $fromDate
+         RETURN
+           substring(coalesce(s.updated_at, s.last_updated), 0, 10) AS date,
+           count(s) AS synced,
+           sum(CASE WHEN coalesce(s.page_enriched_at, '') <> '' THEN 1 ELSE 0 END) AS enriched
+         ORDER BY date ASC`,
+        { fromDate }
+      ),
+    ]);
+
+    const userTrendMap = new Map<string, number>();
+    userTrendRows.forEach((row) => {
+      userTrendMap.set(String(row.date), Number(row.count) || 0);
+    });
+
+    const syncTrendMap = new Map<string, { synced: number; enriched: number }>();
+    syncTrendRows.forEach((row) => {
+      syncTrendMap.set(String(row.date), {
+        synced: Number(row.synced) || 0,
+        enriched: Number(row.enriched) || 0,
+      });
+    });
+
+    const users = userRows[0] || { totalUsers: 0, onboardedUsers: 0, updatedProfiles: 0 };
+    const schemes = schemeRows[0] || {
+      totalSchemes: 0,
+      enrichedSchemes: 0,
+      withEligibility: 0,
+      withBenefits: 0,
+    };
+
+    const totalSchemes = Number(schemes.totalSchemes) || 0;
+    const enrichedSchemes = Number(schemes.enrichedSchemes) || 0;
+
+    return {
+      users: {
+        total: Number(users.totalUsers) || 0,
+        onboarded: Number(users.onboardedUsers) || 0,
+        updatedProfiles: Number(users.updatedProfiles) || 0,
+      },
+      schemes: {
+        total: totalSchemes,
+        enriched: enrichedSchemes,
+        withEligibility: Number(schemes.withEligibility) || 0,
+        withBenefits: Number(schemes.withBenefits) || 0,
+        enrichmentRate:
+          totalSchemes > 0 ? Math.round((enrichedSchemes / totalSchemes) * 1000) / 10 : 0,
+      },
+      trends: {
+        users: dateKeys.map((date) => ({
+          date,
+          count: userTrendMap.get(date) || 0,
+        })),
+        sync: dateKeys.map((date) => {
+          const values = syncTrendMap.get(date) || { synced: 0, enriched: 0 };
+          return {
+            date,
+            synced: values.synced,
+            enriched: values.enriched,
+          };
+        }),
+      },
+    };
+  }
+
   async getAllSchemes(limit = 5000, offset = 0): Promise<SchemeRow[]> {
     const limitInt = Math.floor(Number(limit));
     const offsetInt = Math.max(0, Math.floor(Number(offset) || 0));
@@ -1209,6 +1354,7 @@ class Neo4jDbService {
     income?: string;
     state?: string;
     gender?: string;
+    isAdmin?: boolean;
   }): Promise<void> {
     const pii = await encryptPII({
       email: user.email,
@@ -1220,6 +1366,7 @@ class Neo4jDbService {
          user_id: $userId, email: $email, email_hash: $emailHash, password: $password,
          name: $name, age: $age, income: $income, state: $state, gender: $gender,
          employment: '', education: '', interests: '',
+        is_admin: $isAdmin,
          onboarding_complete: false,
          created_at: toString(datetime())
        })`,
@@ -1233,6 +1380,7 @@ class Neo4jDbService {
         income: user.income ?? '',
         state: user.state ?? '',
         gender: user.gender ?? '',
+        isAdmin: Boolean(user.isAdmin),
       }
     );
     // Auto-assign UserGroups
@@ -1280,30 +1428,31 @@ class Neo4jDbService {
 
   async updateUserProfile(userId: string, fields: Record<string, any>): Promise<void> {
     const allowed = [
-    'name',
-    'date_of_birth',
-    'age',
-    'income',
-    'state',
-    'gender',
-    'employment',
-    'education',
-    'interests',
-    'onboarding_complete',
-    'social_category',
-    'is_disabled',
-    'is_minority',
-    'marital_status',
-    'family_size',
-    'rural_urban',
-    'occupation',
-    'poverty_status',
-    'ration_card',
-    'land_ownership',
-    'district',
-    'disability_type',
-    'minority_community',
-  ];
+      'name',
+      'date_of_birth',
+      'age',
+      'income',
+      'state',
+      'gender',
+      'employment',
+      'education',
+      'interests',
+      'onboarding_complete',
+      'social_category',
+      'is_disabled',
+      'is_minority',
+      'marital_status',
+      'family_size',
+      'rural_urban',
+      'occupation',
+      'poverty_status',
+      'ration_card',
+      'land_ownership',
+      'district',
+      'disability_type',
+      'minority_community',
+    'is_admin',
+    ];
     const updates = Object.entries(fields).filter(([k]) => allowed.includes(k));
     if (updates.length === 0) return;
 
@@ -1433,6 +1582,7 @@ class Neo4jDbService {
       email: p.email,
       password: p.password,
       name: p.name || null,
+      date_of_birth: p.date_of_birth?.toString?.() || p.date_of_birth || null,
       age: p.age != null ? Number(p.age) : null,
       income: p.income || null,
       state: p.state || null,
@@ -1440,10 +1590,75 @@ class Neo4jDbService {
       employment: p.employment || null,
       education: p.education || null,
       interests: p.interests || null,
+      social_category: p.social_category || null,
+      is_disabled: Boolean(p.is_disabled),
+      is_minority: Boolean(p.is_minority),
+      marital_status: p.marital_status || null,
+      family_size: p.family_size != null ? Number(p.family_size) : null,
+      rural_urban: p.rural_urban || null,
+      occupation: p.occupation || null,
+      poverty_status: p.poverty_status || null,
+      ration_card: p.ration_card || null,
+      land_ownership: p.land_ownership || null,
+      district: p.district || null,
+      disability_type: p.disability_type || null,
+      minority_community: p.minority_community || null,
+      is_admin: Boolean(p.is_admin),
       onboarding_complete: p.onboarding_complete ? 1 : 0,
       created_at: p.created_at?.toString?.() || null,
+      updated_at: p.updated_at?.toString?.() || null,
     };
     return decryptPII(raw);
+  }
+
+  async listAdminUsers(): Promise<any[]> {
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (u:User)
+       WHERE coalesce(u.is_admin, false) = true OR u.user_id = 'admin123' OR u.email = 'admin@example.com'
+       RETURN u
+       ORDER BY u.created_at DESC`
+    );
+    return Promise.all(rows.map((r: any) => this.nodeToUser(r.u)));
+  }
+
+  async createAdminUser(input: { email: string; password: string; name?: string }): Promise<any> {
+    const existing = await this.getUserByEmail(input.email);
+    if (existing) {
+      throw new Error('Admin user with this email already exists');
+    }
+
+    const userId = `admin_${Date.now()}`;
+    await this.createUser({
+      userId,
+      email: input.email,
+      password: input.password,
+      name: input.name || 'Admin User',
+      isAdmin: true,
+    });
+
+    await this.updateUserProfile(userId, {
+      onboarding_complete: true,
+      is_admin: true,
+    });
+
+    return this.getUserById(userId);
+  }
+
+  async deleteAdminUser(userId: string): Promise<boolean> {
+    const user = await this.getUserById(userId);
+    if (!user) return false;
+
+    const isAdmin =
+      Boolean(user.is_admin) || user.user_id === 'admin123' || user.email === 'admin@example.com';
+    if (!isAdmin) return false;
+
+    // Safety rule: do not allow admin deletion when total admins are below 2.
+    const admins = await this.listAdminUsers();
+    if (admins.length < 2) {
+      throw new Error('Cannot delete admin account while total admin accounts are below 2');
+    }
+
+    return this.deleteUserById(userId);
   }
 
   // ─── Graph-specific queries ────────────────────────────────────────────────
@@ -1489,6 +1704,108 @@ class Neo4jDbService {
     const ugMatches = Number(rows[0]?.ugMatches) || 0;
     const score = Math.min(100, matched.length * 15 + ugMatches * 20);
     return { eligible: score > 30, matchedCategories: matched, score };
+  }
+
+  // ─── Nudge helpers (stubs — to be fully implemented with Nudge node model) ──
+
+  async getNudgePreferences(_userId: string): Promise<{
+    enabled: boolean;
+    categories: string[];
+    minEligibilityScore: number;
+    maxPerWeek: number;
+    channels: string[];
+  }> {
+    return {
+      enabled: true,
+      categories: [],
+      minEligibilityScore: 70,
+      maxPerWeek: 3,
+      channels: ['in_app'],
+    };
+  }
+
+  async countNudgesSince(userId: string, sinceIso: string): Promise<number> {
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (u:User { user_id: $userId })-[:HAS_NUDGE]->(n:Nudge)
+       WHERE n.createdAt >= $sinceIso
+       RETURN count(n) AS cnt`,
+      { userId, sinceIso }
+    );
+    return Number(rows[0]?.cnt) || 0;
+  }
+
+  async hasRecentNudgeForScheme(
+    userId: string,
+    schemeId: string,
+    type: string,
+    withinDays: number
+  ): Promise<boolean> {
+    const since = new Date(Date.now() - withinDays * 86400000).toISOString();
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (u:User { user_id: $userId })-[:HAS_NUDGE]->(n:Nudge { schemeId: $schemeId, type: $type })
+       WHERE n.createdAt >= $since
+       RETURN count(n) AS cnt`,
+      { userId, schemeId, type, since }
+    );
+    return (Number(rows[0]?.cnt) || 0) > 0;
+  }
+
+  async createNudge(nudge: {
+    userId: string;
+    type: string;
+    schemeId?: string;
+    title: string;
+    message: string;
+    actionUrl?: string;
+    priority: string;
+    eligibilityScore?: number;
+    channels: string[];
+    expiresAt?: string;
+  }): Promise<void> {
+    await this.connection.executeWrite(
+      `MATCH (u:User { user_id: $userId })
+       CREATE (u)-[:HAS_NUDGE]->(n:Nudge {
+         id: randomUUID(),
+         type: $type,
+         schemeId: $schemeId,
+         title: $title,
+         message: $message,
+         actionUrl: $actionUrl,
+         priority: $priority,
+         eligibilityScore: $eligibilityScore,
+         channels: $channels,
+         read: false,
+         createdAt: datetime().epochMillis,
+         expiresAt: $expiresAt
+       })`,
+      {
+        userId: nudge.userId,
+        type: nudge.type,
+        schemeId: nudge.schemeId ?? '',
+        title: nudge.title,
+        message: nudge.message,
+        actionUrl: nudge.actionUrl ?? '',
+        priority: nudge.priority,
+        eligibilityScore: nudge.eligibilityScore ?? 0,
+        channels: nudge.channels,
+        expiresAt: nudge.expiresAt ?? '',
+      }
+    );
+  }
+
+  async getSchemesWithUpcomingDeadlines(daysAhead: number): Promise<SchemeRow[]> {
+    const futureDate = new Date(Date.now() + daysAhead * 86400000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (s:Scheme)
+       WHERE s.applicationDeadline IS NOT NULL
+         AND s.applicationDeadline >= $today
+         AND s.applicationDeadline <= $futureDate
+       RETURN properties(s) AS props
+       ORDER BY s.applicationDeadline ASC`,
+      { today, futureDate }
+    );
+    return rows.map((r: any) => r.props);
   }
 
   // ─── Graceful close ─────────────────────────────────────────────────────────

@@ -322,7 +322,9 @@ export class SchemesController {
       if (mlResult && mlResult.recommendations && mlResult.recommendations.length > 0) {
         // ML succeeded — return ML-ranked results
         const ranked = mlResult.recommendations.map((rec: any) => {
-          const original = candidateSchemes.find((s: any) => s.id === rec.id || s.scheme_id === rec.id);
+          const original = candidateSchemes.find(
+            (s: any) => s.id === rec.id || s.scheme_id === rec.id
+          );
           return {
             id: rec.id || original?.id,
             title: original?.title || original?.name || rec.name || 'Unknown Scheme',
@@ -350,7 +352,9 @@ export class SchemesController {
       );
     } catch (error: any) {
       console.error('Error in getRecommendations:', error);
-      res.status(500).json({ error: 'Failed to fetch recommendations', details: error.message });
+      return res
+        .status(500)
+        .json({ error: 'Failed to fetch recommendations', details: error.message });
     }
   }
 }
