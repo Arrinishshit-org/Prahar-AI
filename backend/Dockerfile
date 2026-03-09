@@ -19,10 +19,13 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# bcrypt requires native compilation tools
+RUN apk add --no-cache python3 make g++
+
 COPY package.json package-lock.json* ./
 COPY backend/package.json backend/
 
-RUN npm ci --omit=dev --ignore-scripts 2>/dev/null || npm install --omit=dev --ignore-scripts
+RUN npm ci --omit=dev 2>/dev/null || npm install --omit=dev
 
 COPY --from=builder /app/backend/dist backend/dist
 
