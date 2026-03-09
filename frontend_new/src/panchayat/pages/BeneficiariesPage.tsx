@@ -9,8 +9,15 @@ import {
   Briefcase,
   GraduationCap,
   ChevronRight,
+  PlusCircle,
 } from 'lucide-react';
-import { getAllBeneficiaries, getRecommendationsForBeneficiary } from '../api';
+import { useLocation } from 'react-router-dom';
+import {
+  getPanchayatCitizens,
+  registerCitizen,
+  getPanchayatUser,
+  getRecommendationsForBeneficiary,
+} from '../api';
 import type { Beneficiary } from '../types';
 
 const AVATAR_PALETTE = [
@@ -55,13 +62,71 @@ export default function BeneficiariesPage() {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [recsError, setRecsError] = useState('');
+  const [showRegister, setShowRegister] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState('');
+  const [registerSuccess, setRegisterSuccess] = useState('');
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    age: '',
+    gender: '',
+    employment: '',
+    income: '',
+    education: '',
+  });
+  const locationState = useLocation().state as { openRegister?: boolean } | null;
+  const panchayatUser = getPanchayatUser();
 
   useEffect(() => {
-    getAllBeneficiaries()
+    getPanchayatCitizens()
       .then((data) => setBeneficiaries(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // Open register panel if navigated here with openRegister state
+  useEffect(() => {
+    if (locationState?.openRegister) setShowRegister(true);
+  }, [locationState]);
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.email.trim()) {
+      setRegisterError('Name and email are required.');
+      return;
+    }
+    setRegistering(true);
+    setRegisterError('');
+    setRegisterSuccess('');
+    try {
+      await registerCitizen({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        age: form.age ? Number(form.age) : undefined,
+        gender: form.gender || undefined,
+        employment: form.employment || undefined,
+        income: form.income || undefined,
+        education: form.education || undefined,
+      });
+      setRegisterSuccess(`${form.name} registered successfully.`);
+      setForm({
+        name: '',
+        email: '',
+        age: '',
+        gender: '',
+        employment: '',
+        income: '',
+        education: '',
+      });
+      // Refresh list
+      getPanchayatCitizens().then((data) => setBeneficiaries(Array.isArray(data) ? data : []));
+    } catch (err) {
+      setRegisterError(err instanceof Error ? err.message : 'Registration failed.');
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   const selectCitizen = (b: Beneficiary) => {
     setSelected(b);
@@ -105,368 +170,607 @@ export default function BeneficiariesPage() {
   }
 
   return (
-    <div className="flex gap-5" style={{ minHeight: 'calc(100vh - 7rem)' }}>
-      {/* ── Left: citizen list ──────────────────────────────── */}
-      <div
-        className={`flex flex-col gap-4 transition-all duration-300 ${selected ? 'w-3/5 min-w-0' : 'w-full'}`}
-      >
-        {/* Header */}
-        <div>
-          <h1
-            className="text-xl font-bold tracking-tight"
-            style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+    <>
+      <div className="flex gap-5" style={{ minHeight: 'calc(100vh - 7rem)' }}>
+        {/* ── Left: citizen list ──────────────────────────────── */}
+        <div
+          className={`flex flex-col gap-4 transition-all duration-300 ${selected ? 'w-3/5 min-w-0' : 'w-full'}`}
+        >
+          {/* Header */}
+          <div>
+            <h1
+              className="text-xl font-bold tracking-tight"
+              style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+            >
+              Citizen Service Desk
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
+              {panchayatUser?.panchayatName
+                ? `${panchayatUser.panchayatName} — ${panchayatUser.district || panchayatUser.state || ''}`
+                : 'Select a citizen to match them with welfare schemes'}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setShowRegister(true);
+              setRegisterError('');
+              setRegisterSuccess('');
+            }}
+            className="p-btn p-btn-primary gap-1.5 shrink-0"
           >
-            Citizen Service Desk
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
-            Select a citizen to match them with welfare schemes
-          </p>
-        </div>
+            <PlusCircle className="size-3.5" />
+            Register Citizen
+          </button>
 
-        {/* Stats strip */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="p-stat-card blue">
-            <p className="p-stat-label">Total</p>
-            <p className="p-stat-value">{beneficiaries.length}</p>
+          {/* Stats strip */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-stat-card blue">
+              <p className="p-stat-label">Total</p>
+              <p className="p-stat-value">{beneficiaries.length}</p>
+            </div>
+            <div className="p-stat-card green">
+              <p className="p-stat-label">Onboarded</p>
+              <p className="p-stat-value">{onboarded}</p>
+            </div>
+            <div className="p-stat-card amber">
+              <p className="p-stat-label">Pending</p>
+              <p className="p-stat-value">{beneficiaries.length - onboarded}</p>
+            </div>
           </div>
-          <div className="p-stat-card green">
-            <p className="p-stat-label">Onboarded</p>
-            <p className="p-stat-value">{onboarded}</p>
-          </div>
-          <div className="p-stat-card amber">
-            <p className="p-stat-label">Pending</p>
-            <p className="p-stat-value">{beneficiaries.length - onboarded}</p>
-          </div>
-        </div>
 
-        {/* Search */}
-        <div className="p-card p-3">
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 size-4"
-              style={{ color: 'var(--color-muted-2)' }}
-            />
-            <input
-              type="text"
-              placeholder="Search by name, email, state, or village…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="p-input pl-9 text-sm"
-            />
+          {/* Search */}
+          <div className="p-card p-3">
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 size-4"
+                style={{ color: 'var(--color-muted-2)' }}
+              />
+              <input
+                type="text"
+                placeholder="Search by name, email, state, or village…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="p-input pl-9 text-sm"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Table */}
-        <div className="p-card overflow-hidden flex-1 overflow-y-auto thin-scroll">
-          <table className="p-table">
-            <thead className="sticky top-0 z-10" style={{ background: 'var(--color-parchment)' }}>
-              <tr>
-                <th>Citizen</th>
-                <th className={selected ? 'hidden xl:table-cell' : ''}>Location</th>
-                <th className={selected ? 'hidden xl:table-cell' : ''}>Employment</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
+          {/* Table */}
+          <div className="p-card overflow-hidden flex-1 overflow-y-auto thin-scroll">
+            <table className="p-table">
+              <thead className="sticky top-0 z-10" style={{ background: 'var(--color-parchment)' }}>
                 <tr>
-                  <td colSpan={5} className="text-center py-10">
-                    <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
-                      No citizens found
-                    </p>
-                  </td>
+                  <th>Citizen</th>
+                  <th className={selected ? 'hidden xl:table-cell' : ''}>Location</th>
+                  <th className={selected ? 'hidden xl:table-cell' : ''}>Employment</th>
+                  <th>Status</th>
+                  <th></th>
                 </tr>
-              )}
-              {filtered.map((u) => {
-                const av = getAvatarStyle(u.name || '');
-                const isSelected = selected?.userId === u.userId;
-                return (
-                  <tr
-                    key={u.userId}
-                    onClick={() => selectCitizen(u)}
-                    className="cursor-pointer"
-                    style={
-                      isSelected
-                        ? {
-                            background: 'var(--color-accent-50)',
-                            borderLeft: '3px solid var(--color-accent)',
-                          }
-                        : {}
-                    }
-                  >
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="p-user-avatar"
-                          style={{ background: av.bg, color: av.text }}
-                        >
-                          {getInitials(u.name || '')}
-                        </div>
-                        <div>
-                          <p
-                            className="font-semibold text-xs"
-                            style={{ color: 'var(--color-ink)' }}
-                          >
-                            {u.name || '—'}
-                          </p>
-                          <p className="text-[11px]" style={{ color: 'var(--color-muted)' }}>
-                            {u.email}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className={selected ? 'hidden xl:table-cell' : ''}>
-                      <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
-                        {[u.village, u.district, u.state].filter(Boolean).join(', ') || '—'}
-                      </span>
-                    </td>
-                    <td className={selected ? 'hidden xl:table-cell' : ''}>
-                      <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
-                        {u.employment || '—'}
-                      </span>
-                    </td>
-                    <td>
-                      <span
-                        className={`p-badge ${u.onboardingComplete ? 'p-badge-success' : 'p-badge-warning'}`}
-                      >
-                        {u.onboardingComplete ? 'Complete' : 'Pending'}
-                      </span>
-                    </td>
-                    <td>
-                      <ChevronRight
-                        className="size-3.5"
-                        style={{
-                          color: isSelected ? 'var(--color-accent)' : 'var(--color-muted-2)',
-                        }}
-                      />
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-center py-10">
+                      <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+                        No citizens found
+                      </p>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── Right: AI matching panel ────────────────────────── */}
-      {selected && (
-        <div className="w-2/5 min-w-70 flex flex-col gap-4 overflow-y-auto thin-scroll">
-          {/* Citizen profile card */}
-          <div className="p-card p-5">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                {(() => {
-                  const av = getAvatarStyle(selected.name || '');
+                )}
+                {filtered.map((u) => {
+                  const av = getAvatarStyle(u.name || '');
+                  const isSelected = selected?.userId === u.userId;
                   return (
-                    <div
-                      className="size-12 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
-                      style={{ background: av.bg, color: av.text }}
+                    <tr
+                      key={u.userId}
+                      onClick={() => selectCitizen(u)}
+                      className="cursor-pointer"
+                      style={
+                        isSelected
+                          ? {
+                              background: 'var(--color-accent-50)',
+                              borderLeft: '3px solid var(--color-accent)',
+                            }
+                          : {}
+                      }
                     >
-                      {getInitials(selected.name || '')}
-                    </div>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="p-user-avatar"
+                            style={{ background: av.bg, color: av.text }}
+                          >
+                            {getInitials(u.name || '')}
+                          </div>
+                          <div>
+                            <p
+                              className="font-semibold text-xs"
+                              style={{ color: 'var(--color-ink)' }}
+                            >
+                              {u.name || '—'}
+                            </p>
+                            <p className="text-[11px]" style={{ color: 'var(--color-muted)' }}>
+                              {u.email}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className={selected ? 'hidden xl:table-cell' : ''}>
+                        <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
+                          {[u.village, u.district, u.state].filter(Boolean).join(', ') || '—'}
+                        </span>
+                      </td>
+                      <td className={selected ? 'hidden xl:table-cell' : ''}>
+                        <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
+                          {u.employment || '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`p-badge ${u.onboardingComplete ? 'p-badge-success' : 'p-badge-warning'}`}
+                        >
+                          {u.onboardingComplete ? 'Complete' : 'Pending'}
+                        </span>
+                      </td>
+                      <td>
+                        <ChevronRight
+                          className="size-3.5"
+                          style={{
+                            color: isSelected ? 'var(--color-accent)' : 'var(--color-muted-2)',
+                          }}
+                        />
+                      </td>
+                    </tr>
                   );
-                })()}
-                <div>
-                  <h2
-                    className="text-base font-bold"
-                    style={{
-                      color: 'var(--color-ink)',
-                      fontFamily: 'Space Grotesk, sans-serif',
-                    }}
-                  >
-                    {selected.name || '—'}
-                  </h2>
-                  <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
-                    {selected.email}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setSelected(null);
-                  setRecs([]);
-                }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                style={{ color: 'var(--color-muted-2)' }}
-              >
-                <X className="size-4" />
-              </button>
-            </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-            {/* Profile attributes */}
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {[
-                {
-                  icon: MapPin,
-                  label: 'Location',
-                  value:
-                    [selected.village, selected.district, selected.state]
-                      .filter(Boolean)
-                      .join(', ') || '—',
-                },
-                {
-                  icon: Briefcase,
-                  label: 'Employment',
-                  value: selected.employment || '—',
-                },
-                {
-                  icon: GraduationCap,
-                  label: 'Education',
-                  value: selected.education || '—',
-                },
-                {
-                  icon: User,
-                  label: 'Gender / Age',
-                  value:
-                    [selected.gender, selected.age ? `${selected.age} yrs` : undefined]
-                      .filter(Boolean)
-                      .join(', ') || '—',
-                },
-              ].map(({ icon: Icon, label, value }) => (
-                <div
-                  key={label}
-                  className="p-2.5 rounded-lg"
-                  style={{
-                    background: 'var(--color-surface)',
-                    border: '1px solid var(--color-border)',
-                  }}
-                >
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <Icon className="size-3" style={{ color: 'var(--color-muted)' }} />
-                    <p
-                      className="text-[10px] font-semibold uppercase tracking-wider"
-                      style={{ color: 'var(--color-muted)' }}
+        {/* ── Right: AI matching panel ────────────────────────── */}
+        {selected && (
+          <div className="w-2/5 min-w-70 flex flex-col gap-4 overflow-y-auto thin-scroll">
+            {/* Citizen profile card */}
+            <div className="p-card p-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const av = getAvatarStyle(selected.name || '');
+                    return (
+                      <div
+                        className="size-12 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
+                        style={{ background: av.bg, color: av.text }}
+                      >
+                        {getInitials(selected.name || '')}
+                      </div>
+                    );
+                  })()}
+                  <div>
+                    <h2
+                      className="text-base font-bold"
+                      style={{
+                        color: 'var(--color-ink)',
+                        fontFamily: 'Space Grotesk, sans-serif',
+                      }}
                     >
-                      {label}
+                      {selected.name || '—'}
+                    </h2>
+                    <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                      {selected.email}
                     </p>
                   </div>
-                  <p className="text-xs font-medium" style={{ color: 'var(--color-ink-2)' }}>
-                    {value}
-                  </p>
                 </div>
-              ))}
-            </div>
-
-            {/* AI match button */}
-            <button
-              onClick={handleMatchSchemes}
-              disabled={loadingRecs}
-              className="p-btn p-btn-primary w-full justify-center mt-4 gap-2"
-            >
-              {loadingRecs ? (
-                <>
-                  <div className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Matching with AI…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="size-4" />
-                  Match Schemes with AI
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Error */}
-          {recsError && (
-            <div className="p-card p-4" style={{ borderColor: '#fecaca' }}>
-              <p className="text-sm text-red-600">{recsError}</p>
-            </div>
-          )}
-
-          {/* Scheme recommendations */}
-          {recs.length > 0 && (
-            <div className="p-card overflow-hidden">
-              <div className="p-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <p
-                  className="text-xs font-semibold uppercase tracking-wider"
-                  style={{ color: 'var(--color-muted)' }}
+                <button
+                  onClick={() => {
+                    setSelected(null);
+                    setRecs([]);
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  style={{ color: 'var(--color-muted-2)' }}
                 >
-                  {recs.length} scheme{recs.length !== 1 ? 's' : ''} matched
-                </p>
+                  <X className="size-4" />
+                </button>
               </div>
-              <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-                {recs.map((rec) => (
+
+              {/* Profile attributes */}
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {[
+                  {
+                    icon: MapPin,
+                    label: 'Location',
+                    value:
+                      [selected.village, selected.district, selected.state]
+                        .filter(Boolean)
+                        .join(', ') || '—',
+                  },
+                  {
+                    icon: Briefcase,
+                    label: 'Employment',
+                    value: selected.employment || '—',
+                  },
+                  {
+                    icon: GraduationCap,
+                    label: 'Education',
+                    value: selected.education || '—',
+                  },
+                  {
+                    icon: User,
+                    label: 'Gender / Age',
+                    value:
+                      [selected.gender, selected.age ? `${selected.age} yrs` : undefined]
+                        .filter(Boolean)
+                        .join(', ') || '—',
+                  },
+                ].map(({ icon: Icon, label, value }) => (
                   <div
-                    key={rec.id}
-                    className="p-4 transition-colors"
-                    style={{ background: 'transparent' }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'var(--color-accent-50)')
-                    }
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    key={label}
+                    className="p-2.5 rounded-lg"
+                    style={{
+                      background: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                    }}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
-                          {rec.title}
-                        </p>
-                        <p
-                          className="text-xs mt-0.5 line-clamp-2"
-                          style={{ color: 'var(--color-muted)' }}
-                        >
-                          {rec.description}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          <span
-                            className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                            style={{
-                              background: 'var(--color-accent-50)',
-                              color: 'var(--color-accent-800)',
-                              border: '1px solid var(--color-accent-100)',
-                            }}
-                          >
-                            {rec.category}
-                          </span>
-                          {rec.eligibilityScore > 0 && (
-                            <span className="text-[10px]" style={{ color: 'var(--color-muted)' }}>
-                              {Math.round(rec.eligibilityScore * 100)}% match
-                            </span>
-                          )}
-                        </div>
-                        {rec.eligibilityScore > 0 && (
-                          <div className="p-score-bar mt-2">
-                            <div
-                              className="p-score-bar-fill"
-                              style={{
-                                width: `${Math.round(rec.eligibilityScore * 100)}%`,
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                      <a
-                        href={rec.applicationUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-btn p-btn-secondary px-3 py-1.5 text-xs shrink-0 gap-1"
-                        onClick={(e) => e.stopPropagation()}
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Icon className="size-3" style={{ color: 'var(--color-muted)' }} />
+                      <p
+                        className="text-[10px] font-semibold uppercase tracking-wider"
+                        style={{ color: 'var(--color-muted)' }}
                       >
-                        Apply
-                        <ExternalLink className="size-3" />
-                      </a>
+                        {label}
+                      </p>
                     </div>
+                    <p className="text-xs font-medium" style={{ color: 'var(--color-ink-2)' }}>
+                      {value}
+                    </p>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
 
-          {/* Empty state */}
-          {!loadingRecs && recs.length === 0 && !recsError && (
-            <div className="p-card p-8 text-center">
-              <Sparkles className="size-8 mx-auto mb-3" style={{ color: 'var(--color-muted-2)' }} />
-              <p className="text-sm font-medium" style={{ color: 'var(--color-ink-2)' }}>
-                Match this citizen with welfare schemes
-              </p>
-              <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
-                Click "Match Schemes with AI" to get personalised recommendations
-              </p>
+              {/* AI match button */}
+              <button
+                onClick={handleMatchSchemes}
+                disabled={loadingRecs}
+                className="p-btn p-btn-primary w-full justify-center mt-4 gap-2"
+              >
+                {loadingRecs ? (
+                  <>
+                    <div className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    Matching with AI…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-4" />
+                    Match Schemes with AI
+                  </>
+                )}
+              </button>
             </div>
-          )}
+
+            {/* Error */}
+            {recsError && (
+              <div className="p-card p-4" style={{ borderColor: '#fecaca' }}>
+                <p className="text-sm text-red-600">{recsError}</p>
+              </div>
+            )}
+
+            {/* Scheme recommendations */}
+            {recs.length > 0 && (
+              <div className="p-card overflow-hidden">
+                <div className="p-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: 'var(--color-muted)' }}
+                  >
+                    {recs.length} scheme{recs.length !== 1 ? 's' : ''} matched
+                  </p>
+                </div>
+                <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                  {recs.map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="p-4 transition-colors"
+                      style={{ background: 'transparent' }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = 'var(--color-accent-50)')
+                      }
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="text-sm font-semibold"
+                            style={{ color: 'var(--color-ink)' }}
+                          >
+                            {rec.title}
+                          </p>
+                          <p
+                            className="text-xs mt-0.5 line-clamp-2"
+                            style={{ color: 'var(--color-muted)' }}
+                          >
+                            {rec.description}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            <span
+                              className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                              style={{
+                                background: 'var(--color-accent-50)',
+                                color: 'var(--color-accent-800)',
+                                border: '1px solid var(--color-accent-100)',
+                              }}
+                            >
+                              {rec.category}
+                            </span>
+                            {rec.eligibilityScore > 0 && (
+                              <span className="text-[10px]" style={{ color: 'var(--color-muted)' }}>
+                                {Math.round(rec.eligibilityScore * 100)}% match
+                              </span>
+                            )}
+                          </div>
+                          {rec.eligibilityScore > 0 && (
+                            <div className="p-score-bar mt-2">
+                              <div
+                                className="p-score-bar-fill"
+                                style={{
+                                  width: `${Math.round(rec.eligibilityScore * 100)}%`,
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                        <a
+                          href={rec.applicationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-btn p-btn-secondary px-3 py-1.5 text-xs shrink-0 gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Apply
+                          <ExternalLink className="size-3" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!loadingRecs && recs.length === 0 && !recsError && (
+              <div className="p-card p-8 text-center">
+                <Sparkles
+                  className="size-8 mx-auto mb-3"
+                  style={{ color: 'var(--color-muted-2)' }}
+                />
+                <p className="text-sm font-medium" style={{ color: 'var(--color-ink-2)' }}>
+                  Match this citizen with welfare schemes
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
+                  Click "Match Schemes with AI" to get personalised recommendations
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Register Citizen panel ───────────────────────── */}
+      {showRegister && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-end"
+          style={{ background: 'rgba(0,0,0,0.35)' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowRegister(false);
+          }}
+        >
+          <div
+            className="h-full w-full max-w-md flex flex-col overflow-y-auto"
+            style={{
+              background: 'var(--color-parchment)',
+              borderLeft: '1px solid var(--color-border)',
+            }}
+          >
+            <div
+              className="sticky top-0 flex items-center justify-between px-6 py-4 border-b"
+              style={{
+                background: 'var(--color-parchment)',
+                borderColor: 'var(--color-border)',
+                zIndex: 1,
+              }}
+            >
+              <div>
+                <h2
+                  className="text-base font-bold"
+                  style={{ color: 'var(--color-ink)', fontFamily: 'Space Grotesk, sans-serif' }}
+                >
+                  Register New Citizen
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>
+                  {panchayatUser?.state
+                    ? `Will be registered in ${panchayatUser.district || panchayatUser.state}`
+                    : 'New citizen registration'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowRegister(false)}
+                className="p-1.5 rounded-lg"
+                style={{ color: 'var(--color-muted-2)' }}
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegister} className="flex flex-col gap-4 p-6">
+              {registerSuccess && (
+                <div
+                  className="p-3 rounded-xl text-sm font-medium"
+                  style={{
+                    background: 'var(--color-success-50)',
+                    color: 'var(--color-success)',
+                    border: '1px solid var(--color-success-100)',
+                  }}
+                >
+                  {registerSuccess}
+                </div>
+              )}
+              {registerError && (
+                <div
+                  className="p-3 rounded-xl text-sm"
+                  style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
+                >
+                  {registerError}
+                </div>
+              )}
+
+              {[
+                {
+                  field: 'name',
+                  label: 'Full Name *',
+                  type: 'text',
+                  placeholder: 'e.g. Ramesh Kumar',
+                },
+                {
+                  field: 'email',
+                  label: 'Email Address *',
+                  type: 'email',
+                  placeholder: 'e.g. ramesh@example.com',
+                },
+                { field: 'age', label: 'Age', type: 'number', placeholder: 'e.g. 35' },
+                {
+                  field: 'income',
+                  label: 'Annual Income (₹)',
+                  type: 'text',
+                  placeholder: 'e.g. 120000',
+                },
+              ].map(({ field, label, type, placeholder }) => (
+                <div key={field}>
+                  <label
+                    className="block text-xs font-semibold mb-1.5"
+                    style={{ color: 'var(--color-ink-2)' }}
+                  >
+                    {label}
+                  </label>
+                  <input
+                    type={type}
+                    placeholder={placeholder}
+                    value={(form as any)[field]}
+                    onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+                    className="p-input text-sm"
+                  />
+                </div>
+              ))}
+
+              <div>
+                <label
+                  className="block text-xs font-semibold mb-1.5"
+                  style={{ color: 'var(--color-ink-2)' }}
+                >
+                  Gender
+                </label>
+                <select
+                  value={form.gender}
+                  onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
+                  className="p-input text-sm"
+                >
+                  <option value="">Select gender</option>
+                  {['Male', 'Female', 'Other', 'Prefer not to say'].map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  className="block text-xs font-semibold mb-1.5"
+                  style={{ color: 'var(--color-ink-2)' }}
+                >
+                  Employment
+                </label>
+                <select
+                  value={form.employment}
+                  onChange={(e) => setForm((f) => ({ ...f, employment: e.target.value }))}
+                  className="p-input text-sm"
+                >
+                  <option value="">Select employment</option>
+                  {[
+                    'Farmer',
+                    'Agricultural Labourer',
+                    'Daily Wage Worker',
+                    'Self-Employed',
+                    'Salaried',
+                    'Unemployed',
+                    'Student',
+                    'Homemaker',
+                    'Other',
+                  ].map((e) => (
+                    <option key={e} value={e}>
+                      {e}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  className="block text-xs font-semibold mb-1.5"
+                  style={{ color: 'var(--color-ink-2)' }}
+                >
+                  Education
+                </label>
+                <select
+                  value={form.education}
+                  onChange={(e) => setForm((f) => ({ ...f, education: e.target.value }))}
+                  className="p-input text-sm"
+                >
+                  <option value="">Select education</option>
+                  {[
+                    'No Formal Education',
+                    'Primary',
+                    'Middle School',
+                    'Secondary (10th)',
+                    'Higher Secondary (12th)',
+                    'Graduate',
+                    'Post-Graduate',
+                  ].map((e) => (
+                    <option key={e} value={e}>
+                      {e}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRegister(false)}
+                  className="p-btn p-btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={registering}
+                  className="p-btn p-btn-primary flex-1 gap-2"
+                >
+                  {registering ? (
+                    <>
+                      <div className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      Registering…
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="size-4" />
+                      Register
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

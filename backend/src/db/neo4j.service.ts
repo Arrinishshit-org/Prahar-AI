@@ -1426,6 +1426,16 @@ class Neo4jDbService {
     return Promise.all(rows.map((r: any) => this.nodeToUser(r.u)));
   }
 
+  async getUsersByState(state: string): Promise<any[]> {
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (u:User)
+       WHERE toLower(coalesce(u.state, '')) = toLower($state)
+       RETURN u ORDER BY u.created_at DESC`,
+      { state }
+    );
+    return Promise.all(rows.map((r: any) => this.nodeToUser(r.u)));
+  }
+
   async updateUserProfile(userId: string, fields: Record<string, any>): Promise<void> {
     const allowed = [
       'name',
@@ -1452,6 +1462,7 @@ class Neo4jDbService {
       'disability_type',
       'minority_community',
       'is_admin',
+      'registered_by_panchayat',
     ];
     const updates = Object.entries(fields).filter(([k]) => allowed.includes(k));
     if (updates.length === 0) return;
