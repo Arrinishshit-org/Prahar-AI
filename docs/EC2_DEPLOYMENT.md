@@ -167,6 +167,51 @@ Open `http://<YOUR_EC2_PUBLIC_IP>` in your browser.
 
 ---
 
+## 3.5. HTTPS / SSL Setup (prahar.app)
+
+### Prerequisites
+
+- Domain `prahar.app` with an **A record** pointing to your EC2 Elastic IP
+- Port **443** open in your EC2 Security Group
+
+### One-Command Setup
+
+```bash
+cd /home/ubuntu/praharai
+chmod +x deploy/ssl-setup.sh
+./deploy/ssl-setup.sh your-email@example.com
+```
+
+This will:
+
+1. Install Certbot
+2. Obtain a Let's Encrypt certificate for `prahar.app` and `www.prahar.app`
+3. Copy certificates to `deploy/ssl/` (mounted into the nginx container)
+4. Restart all containers with HTTPS enabled
+5. Set up a cron job for automatic certificate renewal
+
+### Verify HTTPS
+
+```bash
+curl -I https://prahar.app
+```
+
+### Manual Certificate Renewal
+
+```bash
+sudo certbot renew --dry-run    # test renewal
+sudo ./deploy/ssl-renew.sh      # force renewal
+```
+
+### How It Works
+
+- HTTP (port 80) → automatically redirects to HTTPS
+- HTTPS (port 443) → serves frontend + proxies `/api/` to backend
+- Certificates auto-renew via cron (runs at 3am and 3pm daily)
+- Certificates are stored in `deploy/ssl/` (git-ignored)
+
+---
+
 ## 4. GitHub Actions CI/CD
 
 The workflow at `.github/workflows/deploy.yml` auto-deploys on every push to `main`.

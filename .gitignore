@@ -19,6 +19,9 @@ build/
 .env.*.local
 .env.production
 
+# SSL certificates
+deploy/ssl/
+
 # IDE
 .vscode/
 .idea/
