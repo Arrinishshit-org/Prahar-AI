@@ -115,7 +115,7 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setSettings({ ...settings, maintenanceMode: e.target.checked })
               }
-              className="size-4 rounded border-gray-300 text-blue-700 focus:ring-blue-500"
+              className="size-4 rounded border-gray-300 text-primary focus:ring-primary"
             />
             <label htmlFor="maintenanceMode" className="text-sm font-medium text-gray-700">
               Enable Maintenance Mode
@@ -181,7 +181,7 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setSettings({ ...settings, enableNotifications: e.target.checked })
               }
-              className="size-4 rounded border-gray-300 text-blue-700 focus:ring-blue-500"
+              className="size-4 rounded border-gray-300 text-primary focus:ring-primary"
             />
             <label htmlFor="enableNotifications" className="text-sm font-medium text-gray-700">
               Enable Email Notifications
@@ -196,7 +196,7 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setSettings({ ...settings, enableAnalytics: e.target.checked })
               }
-              className="size-4 rounded border-gray-300 text-blue-700 focus:ring-blue-500"
+              className="size-4 rounded border-gray-300 text-primary focus:ring-primary"
             />
             <label htmlFor="enableAnalytics" className="text-sm font-medium text-gray-700">
               Enable Analytics Tracking
@@ -230,4 +230,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

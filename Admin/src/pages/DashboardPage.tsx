@@ -5,7 +5,9 @@ import {
   TrendingUp,
   Activity,
   RefreshCw,
+  AlertCircle,
   CheckCircle,
+  Clock,
 } from 'lucide-react';
 import { getDashboardStats, getSyncStatus, getSystemHealth } from '../api';
 import type { DashboardStats, SyncStatus, SystemHealth } from '../types';
@@ -112,10 +114,10 @@ export default function DashboardPage() {
               <div
                 className={`size-3 rounded-full ${
                   health.status === 'healthy'
-                    ? 'bg-green-600 animate-pulse'
+                    ? 'bg-success animate-pulse'
                     : health.status === 'degraded'
-                    ? 'bg-amber-600'
-                    : 'bg-red-600'
+                    ? 'bg-warning'
+                    : 'bg-danger'
                 }`}
               ></div>
               <span className="font-medium text-gray-900">
@@ -123,10 +125,10 @@ export default function DashboardPage() {
                 <span
                   className={
                     health.status === 'healthy'
-                      ? 'text-green-600'
+                      ? 'text-success'
                       : health.status === 'degraded'
-                      ? 'text-amber-600'
-                      : 'text-red-600'
+                      ? 'text-warning'
+                      : 'text-danger'
                   }
                 >
                   {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
@@ -134,13 +136,13 @@ export default function DashboardPage() {
               </span>
             </div>
             <div className="flex items-center gap-4 text-sm">
-              <span className={health.neo4j ? 'text-green-600' : 'text-red-600'}>
+              <span className={health.neo4j ? 'text-success' : 'text-danger'}>
                 Neo4j: {health.neo4j ? '✓' : '✗'}
               </span>
-              <span className={health.redis ? 'text-green-600' : 'text-red-600'}>
+              <span className={health.redis ? 'text-success' : 'text-danger'}>
                 Redis: {health.redis ? '✓' : '✗'}
               </span>
-              <span className={health.api ? 'text-green-600' : 'text-red-600'}>
+              <span className={health.api ? 'text-success' : 'text-danger'}>
                 API: {health.api ? '✓' : '✗'}
               </span>
             </div>
@@ -239,8 +241,8 @@ export default function DashboardPage() {
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-              <div className="size-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                <Activity className="size-4 text-blue-700" />
+              <div className="size-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+                <Activity className="size-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900">System activity {i}</p>

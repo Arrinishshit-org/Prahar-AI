@@ -36,7 +36,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center size-16 bg-blue-700 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center size-16 bg-primary rounded-2xl mb-4">
             <Shield className="size-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Prahar AI</h1>
@@ -67,9 +67,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <AlertCircle className="size-5 text-red-600 shrink-0 mt-0.5" />
-                <p className="text-sm text-red-600">{error}</p>
+              <div className="flex items-start gap-2 p-3 bg-danger-50 border border-danger-200 rounded-lg">
+                <AlertCircle className="size-5 text-danger shrink-0 mt-0.5" />
+                <p className="text-sm text-danger">{error}</p>
               </div>
             )}
 
