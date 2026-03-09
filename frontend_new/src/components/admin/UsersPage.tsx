@@ -65,23 +65,21 @@ export default function UsersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card p-4">
           <p className="text-sm text-gray-600">Total Users</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{users.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-sm text-gray-600">Active Today</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{Math.floor(users.length * 0.3)}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-sm text-gray-600">New This Month</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{Math.floor(users.length * 0.15)}</p>
-        </div>
-        <div className="card p-4">
           <p className="text-sm text-gray-600">Onboarding Complete</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">
             {users.filter((u) => u.onboardingComplete).length}
+          </p>
+        </div>
+        <div className="card p-4">
+          <p className="text-sm text-gray-600">Pending Onboarding</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">
+            {users.filter((u) => !u.onboardingComplete).length}
           </p>
         </div>
       </div>
@@ -137,7 +135,7 @@ export default function UsersPage() {
                   <td>{user.employment || 'N/A'}</td>
                   <td>{user.age || 'N/A'}</td>
                   <td className="text-sm text-gray-600">
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}
                   </td>
                   <td>
                     {user.onboardingComplete ? (

@@ -7,8 +7,8 @@ import {
   Activity,
   Settings,
   LogOut,
-  Menu,
-  X,
+  PanelLeftClose,
+  PanelLeftOpen,
   Building2,
 } from 'lucide-react';
 import LogoMark from './LogoMark';
@@ -148,8 +148,13 @@ export default function AdminDashboard() {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="size-10 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
-            {sidebarOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {sidebarOpen ? (
+              <PanelLeftClose className="size-5" />
+            ) : (
+              <PanelLeftOpen className="size-5" />
+            )}
           </button>
 
           <div className="flex items-center gap-4">

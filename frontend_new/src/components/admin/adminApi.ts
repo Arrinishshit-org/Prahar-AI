@@ -82,15 +82,8 @@ export async function deleteUser(userId: string) {
 
 // ─── Schemes ─────────────────────────────────────────────────────────────────
 
-export async function getAllSchemes(limit = 100) {
-  const res = await fetch(`${API_BASE}/schemes?limit=${limit}`, {
-    headers: { ...adminHeaders() },
-  });
-  if (!res.ok) throw new Error('Failed to fetch schemes');
-  const data = await res.json();
-  // /api/schemes returns {id, title, ...}; normalize to the admin Scheme type
-  const raw: any[] = Array.isArray(data) ? data : (data.items ?? []);
-  return raw.map((s: any) => ({
+function normalizeScheme(s: any) {
+  return {
     scheme_id: s.id ?? s.scheme_id ?? '',
     name: s.title ?? s.name ?? '',
     description: s.description ?? '',
@@ -104,7 +97,42 @@ export async function getAllSchemes(limit = 100) {
     is_active: s.is_active ?? true,
     last_updated: s.enrichment?.enrichedAt ?? s.last_updated ?? new Date().toISOString(),
     scheme_url: s.applicationUrl ?? s.scheme_url ?? null,
-  }));
+  };
+}
+
+// Fetches all schemes by paginating through the backend (backend caps at 100/page).
+export async function getAllSchemes(_ignored = 100) {
+  const pageSize = 100;
+  const all: any[] = [];
+  let page = 1;
+
+  // First request — use paginated mode to learn the total
+  const firstRes = await fetch(
+    `${API_BASE}/schemes?limit=${pageSize}&page=${page}&paginated=true`,
+    { headers: { ...adminHeaders() } }
+  );
+  if (!firstRes.ok) throw new Error('Failed to fetch schemes');
+  const firstData = await firstRes.json();
+
+  const totalPages: number = firstData.totalPages ?? 1;
+  all.push(...(firstData.items ?? []));
+
+  // Fetch remaining pages in parallel (up to 50 pages = 5,000 schemes)
+  if (totalPages > 1) {
+    const remaining = Array.from({ length: Math.min(totalPages, 50) - 1 }, (_, i) => i + 2);
+    const results = await Promise.all(
+      remaining.map((p) =>
+        fetch(`${API_BASE}/schemes?limit=${pageSize}&page=${p}&paginated=true`, {
+          headers: { ...adminHeaders() },
+        }).then((r) => (r.ok ? r.json() : null))
+      )
+    );
+    for (const result of results) {
+      if (result?.items) all.push(...result.items);
+    }
+  }
+
+  return all.map(normalizeScheme);
 }
 
 export async function getSchemeById(schemeId: string) {
