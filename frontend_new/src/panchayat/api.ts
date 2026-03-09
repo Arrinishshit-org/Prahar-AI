@@ -1,49 +1,74 @@
 /**
  * Panchayat Dashboard API Service
- * Uses admin credentials with X-Admin-Key header
+ * Panchayat users authenticate with email/password and receive a JWT token.
  */
 
 const API_BASE = '/api';
 
-function getAdminKey(): string {
-  return localStorage.getItem('panchayatKey') || '';
+const TOKEN_KEY = 'panchayatToken';
+const USER_KEY = 'panchayatUser';
+
+export interface PanchayatUser {
+  userId: string;
+  email: string;
+  name: string;
+  panchayatName: string;
+  district: string;
+  state: string;
 }
 
-function adminHeaders(): Record<string, string> {
-  const key = getAdminKey();
-  return key ? { 'X-Admin-Key': key } : {};
+function getToken(): string {
+  return localStorage.getItem(TOKEN_KEY) || '';
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token
+    ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' };
 }
 
 // ─── Authentication ───────────────────────────────────────────
 
-export async function verifyAdminKey(key: string): Promise<boolean> {
+export async function panchayatLogin(email: string, password: string): Promise<PanchayatUser> {
+  const res = await fetch(`${API_BASE}/panchayat/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).error || 'Login failed');
+  }
+  const data = await res.json();
+  localStorage.setItem(TOKEN_KEY, data.token);
+  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  return data.user as PanchayatUser;
+}
+
+export function getPanchayatUser(): PanchayatUser | null {
   try {
-    const res = await fetch(`${API_BASE}/admin/sync/status`, {
-      headers: { 'X-Admin-Key': key },
-    });
-    return res.ok;
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as PanchayatUser) : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-export function saveAdminKey(key: string): void {
-  localStorage.setItem('panchayatKey', key);
-}
-
-export function clearAdminKey(): void {
-  localStorage.removeItem('panchayatKey');
+export function clearSession(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 }
 
 export function isAuthenticated(): boolean {
-  return !!getAdminKey();
+  return !!getToken();
 }
 
 // ─── Dashboard Stats ──────────────────────────────────────────
 
 export async function getDashboardStats() {
   const res = await fetch(`${API_BASE}/admin/stats`, {
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to fetch dashboard stats');
   return res.json();
@@ -53,7 +78,7 @@ export async function getDashboardStats() {
 
 export async function getAllBeneficiaries() {
   const res = await fetch(`${API_BASE}/admin/users`, {
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to fetch beneficiaries');
   return res.json();
@@ -62,7 +87,7 @@ export async function getAllBeneficiaries() {
 export async function deleteBeneficiary(userId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}`, {
     method: 'DELETE',
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to delete beneficiary');
 }
@@ -81,7 +106,7 @@ export async function getSchemes(params?: {
   if (params?.search) query.set('search', params.search);
   if (params?.category) query.set('category', params.category);
   const res = await fetch(`${API_BASE}/admin/schemes?${query}`, {
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to fetch schemes');
   return res.json();
@@ -91,7 +116,7 @@ export async function getSchemes(params?: {
 
 export async function getSyncStatus() {
   const res = await fetch(`${API_BASE}/admin/sync/status`, {
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to fetch sync status');
   return res.json();
@@ -100,7 +125,7 @@ export async function getSyncStatus() {
 export async function triggerSync() {
   const res = await fetch(`${API_BASE}/admin/sync`, {
     method: 'POST',
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to trigger sync');
   return res.json();
@@ -110,7 +135,7 @@ export async function triggerSync() {
 
 export async function getSystemHealth() {
   const res = await fetch(`${API_BASE}/admin/health`, {
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to fetch health');
   return res.json();
@@ -120,7 +145,7 @@ export async function getSystemHealth() {
 
 export async function getAnalytics() {
   const res = await fetch(`${API_BASE}/admin/analytics`, {
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to fetch analytics');
   return res.json();
@@ -130,7 +155,7 @@ export async function getAnalytics() {
 
 export async function getActivityLogs() {
   const res = await fetch(`${API_BASE}/admin/activity`, {
-    headers: { ...adminHeaders() },
+    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to fetch activity logs');
   return res.json();

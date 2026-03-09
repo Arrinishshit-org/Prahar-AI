@@ -1,5 +1,17 @@
 import { useState } from 'react';
-import { Shield, LayoutDashboard, Users, FileText, BarChart3, Activity, Settings, LogOut, Menu, X } from 'lucide-react';
+import {
+  Shield,
+  LayoutDashboard,
+  Users,
+  FileText,
+  BarChart3,
+  Activity,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  Building2,
+} from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import DashboardPage from './admin/DashboardPage';
 import UsersPage from './admin/UsersPage';
@@ -7,8 +19,16 @@ import SchemesPage from './admin/SchemesPage';
 import AnalyticsPage from './admin/AnalyticsPage';
 import ActivityPage from './admin/ActivityPage';
 import SettingsPage from './admin/SettingsPage';
+import PanchayatUsersPage from './admin/PanchayatUsersPage';
 
-type AdminView = 'dashboard' | 'users' | 'schemes' | 'analytics' | 'activity' | 'settings';
+type AdminView =
+  | 'dashboard'
+  | 'users'
+  | 'schemes'
+  | 'analytics'
+  | 'activity'
+  | 'settings'
+  | 'panchayats';
 
 export default function AdminDashboard() {
   const [currentView, setCurrentView] = useState<AdminView>('dashboard');
@@ -18,6 +38,7 @@ export default function AdminDashboard() {
   const menuItems: { id: AdminView; label: string; icon: typeof LayoutDashboard }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
+    { id: 'panchayats', label: 'Panchayat Users', icon: Building2 },
     { id: 'schemes', label: 'Schemes', icon: FileText },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'activity', label: 'Activity', icon: Activity },
@@ -30,6 +51,8 @@ export default function AdminDashboard() {
         return <DashboardPage />;
       case 'users':
         return <UsersPage />;
+      case 'panchayats':
+        return <PanchayatUsersPage />;
       case 'schemes':
         return <SchemesPage />;
       case 'analytics':
@@ -76,9 +99,7 @@ export default function AdminDashboard() {
                 key={item.id}
                 onClick={() => setCurrentView(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-blue-700 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                  isActive ? 'bg-blue-700 text-white' : 'text-gray-700 hover:bg-gray-100'
                 }`}
                 title={!sidebarOpen ? item.label : undefined}
               >
@@ -94,7 +115,9 @@ export default function AdminDashboard() {
           {sidebarOpen ? (
             <div className="flex items-center gap-3 mb-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'Admin'}</p>
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {user?.name || 'Admin'}
+                </p>
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>
               <div className="size-10 rounded-full bg-blue-100 flex items-center justify-center">
@@ -135,9 +158,7 @@ export default function AdminDashboard() {
         </header>
 
         {/* Page content */}
-        <main className="p-6">
-          {renderView()}
-        </main>
+        <main className="p-6">{renderView()}</main>
       </div>
     </div>
   );

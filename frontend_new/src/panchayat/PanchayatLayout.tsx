@@ -14,7 +14,7 @@ import {
   Bell,
   Leaf,
 } from 'lucide-react';
-import { clearAdminKey, isAuthenticated } from './api';
+import { clearSession, isAuthenticated, getPanchayatUser } from './api';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import BeneficiariesPage from './pages/BeneficiariesPage';
@@ -47,8 +47,10 @@ export default function PanchayatLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const panchayatUser = getPanchayatUser();
+
   const handleLogout = () => {
-    clearAdminKey();
+    clearSession();
     setAuthenticated(false);
   };
 
@@ -184,11 +186,15 @@ export default function PanchayatLayout() {
             <div className="h-6 w-px bg-gray-200" />
             <div className="flex items-center gap-2.5">
               <div className="size-8 rounded-full bg-linear-to-br from-green-600 to-green-800 flex items-center justify-center text-white text-xs font-bold shadow-sm">
-                P
+                {panchayatUser?.name?.[0]?.toUpperCase() ?? 'P'}
               </div>
               <div className="hidden sm:block leading-none">
-                <p className="text-xs font-semibold text-gray-800">Panchayat</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Administrator</p>
+                <p className="text-xs font-semibold text-gray-800 truncate max-w-[120px]">
+                  {panchayatUser?.name || 'Panchayat'}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[120px]">
+                  {panchayatUser?.panchayatName || 'Administrator'}
+                </p>
               </div>
             </div>
           </div>

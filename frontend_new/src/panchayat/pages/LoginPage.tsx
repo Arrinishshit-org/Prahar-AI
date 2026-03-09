@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { Leaf, Lock, AlertCircle, MapPin } from 'lucide-react';
-import { verifyAdminKey, saveAdminKey } from '../api';
+﻿import { useState } from 'react';
+import { Leaf, Lock, Mail, AlertCircle, MapPin } from 'lucide-react';
+import { panchayatLogin } from '../api';
 
 interface LoginPageProps {
   onLogin: () => void;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
-  const [adminKey, setAdminKey] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -16,23 +17,33 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setError('');
     setLoading(true);
     try {
-      const isValid = await verifyAdminKey(adminKey);
-      if (isValid) {
-        saveAdminKey(adminKey);
-        onLogin();
-      } else {
-        setError('Invalid access key. Please contact your district administrator.');
-      }
-    } catch {
-      setError('Failed to connect. Please check your network and try again.');
+      await panchayatLogin(email.trim().toLowerCase(), password);
+      onLogin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const inputStyle = {
+    background: '#142a17',
+    border: '1px solid #1e3322',
+    caretColor: '#f59e0b',
+  };
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = 'rgba(245,158,11,0.5)';
+    e.target.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.06)';
+  };
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = '#1e3322';
+    e.target.style.boxShadow = 'none';
+  };
+
   return (
     <div className="min-h-screen flex" style={{ background: '#0a1a0e' }}>
-      {/* ── Left panel ── */}
+      {/* â”€â”€ Left panel â”€â”€ */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden">
         {/* Grid pattern */}
         <div
@@ -113,11 +124,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
 
         <p className="text-[11px] relative" style={{ color: '#1e3322' }}>
-          Authorised Panchayat officials only — access is audited
+          Authorised Panchayat officials only â€” access is audited
         </p>
       </div>
 
-      {/* ── Right login panel ── */}
+      {/* â”€â”€ Right login panel â”€â”€ */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
@@ -135,45 +146,65 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white tracking-tight">Welcome</h2>
+            <h2 className="text-2xl font-bold text-white tracking-tight">Welcome back</h2>
             <p className="mt-1.5 text-sm" style={{ color: '#4a6a50' }}>
-              Enter your Panchayat access key
+              Sign in to your Panchayat account
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email */}
             <div>
               <label
-                htmlFor="panchayatAdminKey"
+                htmlFor="panchayatEmail"
                 className="block text-xs font-semibold uppercase tracking-wider mb-2"
                 style={{ color: '#5a7a62' }}
               >
-                Access Key
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-600" />
+                <input
+                  id="panchayatEmail"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="official@panchayat.gov.in"
+                  className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg transition-all duration-150
+                    placeholder:text-gray-700 text-white focus:outline-none"
+                  style={inputStyle}
+                  onFocus={handleFocus}
+                  onBlur={handleBlur}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label
+                htmlFor="panchayatPassword"
+                className="block text-xs font-semibold uppercase tracking-wider mb-2"
+                style={{ color: '#5a7a62' }}
+              >
+                Password
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-600" />
                 <input
-                  id="panchayatAdminKey"
+                  id="panchayatPassword"
                   type="password"
-                  value={adminKey}
-                  onChange={(e) => setAdminKey(e.target.value)}
-                  placeholder="••••••••••••••••••••••••"
-                  className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg font-mono transition-all duration-150
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg transition-all duration-150
                     placeholder:text-gray-700 text-white focus:outline-none"
-                  style={{
-                    background: '#142a17',
-                    border: '1px solid #1e3322',
-                    caretColor: '#f59e0b',
-                  }}
+                  style={inputStyle}
+                  onFocus={handleFocus}
+                  onBlur={handleBlur}
                   required
-                  onFocus={(e) => {
-                    e.target.style.borderColor = 'rgba(245,158,11,0.5)';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.06)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#1e3322';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                  autoComplete="current-password"
                 />
               </div>
             </div>
@@ -194,7 +225,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
             <button
               type="submit"
-              disabled={loading || !adminKey}
+              disabled={loading || !email || !password}
               className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
               style={{
                 background: loading ? '#142a17' : 'linear-gradient(135deg, #f59e0b, #d97706)',
@@ -204,16 +235,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="size-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Verifying…
+                  Signing inâ€¦
                 </span>
               ) : (
-                'Enter Portal →'
+                'Sign in â†’'
               )}
             </button>
           </form>
 
           <p className="mt-8 text-center text-[11px]" style={{ color: '#1e3322' }}>
-            Gram Panchayat Welfare Portal — Ministry of Panchayati Raj
+            Gram Panchayat Welfare Portal â€” Ministry of Panchayati Raj
           </p>
         </div>
       </div>

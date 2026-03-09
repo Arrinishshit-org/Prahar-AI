@@ -6,7 +6,11 @@ import * as path from 'path';
 export interface TokenPayload {
   userId: string;
   email: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'panchayat';
+  // panchayat-specific claims (present when role === 'panchayat')
+  panchayatName?: string;
+  district?: string;
+  state?: string;
   iat: number;
   exp: number;
 }
@@ -63,11 +67,17 @@ export class JWTService {
     fs.writeFileSync(publicKeyPath, publicKey);
   }
 
-  generateAccessToken(userId: string, email: string, role: 'user' | 'admin' = 'user'): string {
+  generateAccessToken(
+    userId: string,
+    email: string,
+    role: 'user' | 'admin' | 'panchayat' = 'user',
+    extra?: Record<string, string>
+  ): string {
     const payload = {
       userId,
       email,
       role,
+      ...extra,
     };
 
     return jwt.sign(payload, this.privateKey, {
@@ -76,7 +86,11 @@ export class JWTService {
     });
   }
 
-  generateRefreshToken(userId: string, email: string, role: 'user' | 'admin' = 'user'): string {
+  generateRefreshToken(
+    userId: string,
+    email: string,
+    role: 'user' | 'admin' | 'panchayat' = 'user'
+  ): string {
     const payload = {
       userId,
       email,
@@ -89,7 +103,11 @@ export class JWTService {
     });
   }
 
-  generateTokenPair(userId: string, email: string, role: 'user' | 'admin' = 'user'): TokenPair {
+  generateTokenPair(
+    userId: string,
+    email: string,
+    role: 'user' | 'admin' | 'panchayat' = 'user'
+  ): TokenPair {
     const accessToken = this.generateAccessToken(userId, email, role);
     const refreshToken = this.generateRefreshToken(userId, email, role);
 

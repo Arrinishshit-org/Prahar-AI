@@ -1451,7 +1451,7 @@ class Neo4jDbService {
       'district',
       'disability_type',
       'minority_community',
-    'is_admin',
+      'is_admin',
     ];
     const updates = Object.entries(fields).filter(([k]) => allowed.includes(k));
     if (updates.length === 0) return;
@@ -1659,6 +1659,125 @@ class Neo4jDbService {
     }
 
     return this.deleteUserById(userId);
+  }
+
+  // ─── Panchayat Users ────────────────────────────────────────────────────────
+
+  async createPanchayatUser(input: {
+    email: string;
+    passwordHash: string;
+    name: string;
+    panchayatName: string;
+    district: string;
+    state: string;
+  }): Promise<any> {
+    const existing = await this.getPanchayatUserByEmail(input.email);
+    if (existing) {
+      throw new Error('Panchayat user with this email already exists');
+    }
+
+    const userId = `panchayat_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+    await this.connection.executeWrite(
+      `CREATE (p:PanchayatUser {
+         user_id: $userId,
+         email: $email,
+         email_hash: $emailHash,
+         password_hash: $passwordHash,
+         name: $name,
+         panchayat_name: $panchayatName,
+         district: $district,
+         state: $state,
+         created_at: toString(datetime())
+       })`,
+      {
+        userId,
+        email: input.email,
+        emailHash: emailHash(input.email),
+        passwordHash: input.passwordHash,
+        name: input.name,
+        panchayatName: input.panchayatName,
+        district: input.district,
+        state: input.state,
+      }
+    );
+
+    return this.getPanchayatUserById(userId);
+  }
+
+  async listPanchayatUsers(): Promise<any[]> {
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (p:PanchayatUser) RETURN p ORDER BY p.created_at DESC`
+    );
+    return rows.map((r: any) => {
+      const n = r.p.properties ?? r.p;
+      return {
+        userId: n.user_id,
+        email: n.email,
+        name: n.name,
+        panchayatName: n.panchayat_name,
+        district: n.district,
+        state: n.state,
+        createdAt: n.created_at ?? null,
+      };
+    });
+  }
+
+  async getPanchayatUserByEmail(email: string): Promise<any | undefined> {
+    const hash = emailHash(email);
+    let rows = await this.connection.executeRead<any>(
+      'MATCH (p:PanchayatUser { email_hash: $hash }) RETURN p',
+      { hash }
+    );
+    if (rows.length === 0) {
+      rows = await this.connection.executeRead<any>(
+        'MATCH (p:PanchayatUser { email: $email }) RETURN p',
+        { email }
+      );
+    }
+    if (rows.length === 0) return undefined;
+    const n = rows[0].p.properties ?? rows[0].p;
+    return {
+      userId: n.user_id,
+      email: n.email,
+      passwordHash: n.password_hash,
+      name: n.name,
+      panchayatName: n.panchayat_name,
+      district: n.district,
+      state: n.state,
+      createdAt: n.created_at ?? null,
+    };
+  }
+
+  async getPanchayatUserById(userId: string): Promise<any | undefined> {
+    const rows = await this.connection.executeRead<any>(
+      'MATCH (p:PanchayatUser { user_id: $userId }) RETURN p',
+      { userId }
+    );
+    if (rows.length === 0) return undefined;
+    const n = rows[0].p.properties ?? rows[0].p;
+    return {
+      userId: n.user_id,
+      email: n.email,
+      name: n.name,
+      panchayatName: n.panchayat_name,
+      district: n.district,
+      state: n.state,
+      createdAt: n.created_at ?? null,
+    };
+  }
+
+  async deletePanchayatUser(userId: string): Promise<boolean> {
+    const rows = await this.connection.executeRead<any>(
+      'MATCH (p:PanchayatUser { user_id: $userId }) RETURN p LIMIT 1',
+      { userId }
+    );
+    if (rows.length === 0) return false;
+
+    await this.connection.executeWrite(
+      'MATCH (p:PanchayatUser { user_id: $userId }) DETACH DELETE p',
+      { userId }
+    );
+    return true;
   }
 
   // ─── Graph-specific queries ────────────────────────────────────────────────

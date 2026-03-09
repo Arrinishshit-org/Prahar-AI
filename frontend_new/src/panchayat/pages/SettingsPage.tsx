@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { clearAdminKey } from '../api';
+import { clearSession } from '../api';
 import { LogOut, ShieldAlert, Leaf } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -7,7 +7,7 @@ export default function SettingsPage() {
 
   const handleClearKey = () => {
     if (!confirm('This will log you out of the Panchayat portal. Continue?')) return;
-    clearAdminKey();
+    clearSession();
     setCleared(true);
     setTimeout(() => {
       window.location.href = '/panchayat';
