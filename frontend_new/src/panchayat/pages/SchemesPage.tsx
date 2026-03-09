@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, RefreshCw, ExternalLink, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getSyncStatus } from '../api';
-import type { Scheme, SyncStatus } from '../types';
+import type { Scheme } from '../types';
 
 const API_BASE = '/api';
 const PAGE_SIZE = 50;
@@ -35,7 +34,6 @@ async function fetchAllSchemes(): Promise<Scheme[]> {
 
 export default function SchemesPage() {
   const [schemes, setSchemes] = useState<Scheme[]>([]);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,12 +42,8 @@ export default function SchemesPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [schemesData, syncData] = await Promise.all([
-        fetchAllSchemes().catch(() => []),
-        getSyncStatus().catch(() => null),
-      ]);
+      const schemesData = await fetchAllSchemes().catch(() => []);
       setSchemes(schemesData);
-      setSyncStatus(syncData);
     } catch (err) {
       console.error('Failed to load schemes:', err);
     } finally {
@@ -122,28 +116,14 @@ export default function SchemesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className="p-stat-card blue">
           <p className="p-stat-label">Total Schemes</p>
           <p className="p-stat-value">{schemes.length.toLocaleString('en-IN')}</p>
         </div>
         <div className="p-stat-card green">
-          <p className="p-stat-label">Matching</p>
+          <p className="p-stat-label">Matching Search</p>
           <p className="p-stat-value">{filtered.length.toLocaleString('en-IN')}</p>
-        </div>
-        <div className="p-stat-card amber">
-          <p className="p-stat-label">Last Synced</p>
-          <p className="text-sm font-bold mt-1 leading-tight" style={{ color: 'var(--color-ink)' }}>
-            {syncStatus?.lastSync
-              ? new Date(syncStatus.lastSync).toLocaleDateString('en-IN')
-              : 'Never'}
-          </p>
-        </div>
-        <div className="p-stat-card purple">
-          <p className="p-stat-label">Next Sync</p>
-          <p className="text-sm font-bold mt-1 leading-tight" style={{ color: 'var(--color-ink)' }}>
-            {syncStatus?.nextSync ? new Date(syncStatus.nextSync).toLocaleDateString('en-IN') : '—'}
-          </p>
         </div>
       </div>
 

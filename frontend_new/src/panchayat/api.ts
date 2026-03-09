@@ -65,16 +65,52 @@ export function isAuthenticated(): boolean {
 }
 
 // ─── Dashboard Stats ──────────────────────────────────────────
-
+// (kept for backwards compat but prefer getPanchayatScopedStats)
 export async function getDashboardStats() {
-  const res = await fetch(`${API_BASE}/admin/stats`, {
+  return getPanchayatScopedStats();
+}
+
+// ─── Panchayat-scoped stats ──────────────────────────────────
+
+export async function getPanchayatScopedStats() {
+  const res = await fetch(`${API_BASE}/panchayat/stats`, {
     headers: { ...authHeaders() },
   });
-  if (!res.ok) throw new Error('Failed to fetch dashboard stats');
+  if (!res.ok) throw new Error('Failed to fetch panchayat stats');
   return res.json();
 }
 
-// ─── Beneficiaries (users) ────────────────────────────────────
+// ─── Panchayat-scoped citizens ────────────────────────────────
+
+export async function getPanchayatCitizens(q?: string): Promise<import('./types').Beneficiary[]> {
+  const url = q
+    ? `${API_BASE}/panchayat/citizens?q=${encodeURIComponent(q)}`
+    : `${API_BASE}/panchayat/citizens`;
+  const res = await fetch(url, { headers: { ...authHeaders() } });
+  if (!res.ok) throw new Error('Failed to fetch citizens');
+  return res.json();
+}
+
+export async function registerCitizen(data: {
+  name: string;
+  email: string;
+  age?: number;
+  gender?: string;
+  employment?: string;
+  income?: string;
+  education?: string;
+}): Promise<{ citizenId: string; message: string }> {
+  const res = await fetch(`${API_BASE}/panchayat/citizens`, {
+    method: 'POST',
+    headers: { ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error((body as any).error || 'Failed to register citizen');
+  return body;
+}
+
+// ─── Beneficiaries (all, admin-level – kept for backwards compat) ─────────────
 
 export async function getAllBeneficiaries() {
   const res = await fetch(`${API_BASE}/admin/users`, {
@@ -131,7 +167,7 @@ export async function triggerSync() {
   return res.json();
 }
 
-// ─── Health ───────────────────────────────────────────────────
+// ─── Health (not shown in panchayat UI) ─────────────────────
 
 export async function getSystemHealth() {
   const res = await fetch(`${API_BASE}/admin/health`, {
@@ -141,7 +177,7 @@ export async function getSystemHealth() {
   return res.json();
 }
 
-// ─── Analytics ────────────────────────────────────────────────
+// ─── Analytics (panchayat-scoped local derivation) ───────────
 
 export async function getAnalytics(): Promise<import('./types').AnalyticsData> {
   const res = await fetch(`${API_BASE}/panchayat/analytics`, {
@@ -202,7 +238,7 @@ export async function getRecommendationsForBeneficiary(userId: string) {
   return res.json();
 }
 
-// ─── Activity logs ────────────────────────────────────────────
+// ─── Activity logs (not used in panchayat UI) ───────────────
 
 export async function getActivityLogs() {
   const res = await fetch(`${API_BASE}/admin/activity`, {
