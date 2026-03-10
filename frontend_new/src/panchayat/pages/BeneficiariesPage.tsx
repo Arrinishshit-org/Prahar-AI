@@ -177,154 +177,189 @@ export default function BeneficiariesPage() {
           className={`flex flex-col gap-4 transition-all duration-300 ${selected ? 'w-3/5 min-w-0' : 'w-full'}`}
         >
           {/* Header */}
-          <div>
-            <h1
-              className="text-xl font-bold tracking-tight"
-              style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1
+                className="text-xl font-bold tracking-tight"
+                style={{ color: 'var(--color-ink)', fontFamily: 'Lora, Georgia, serif' }}
+              >
+                Citizen Service Desk
+              </h1>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
+                {panchayatUser?.panchayatName
+                  ? `${panchayatUser.panchayatName} — ${panchayatUser.district || panchayatUser.state || ''}`
+                  : 'Select a citizen to match them with welfare schemes'}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowRegister(true);
+                setRegisterError('');
+                setRegisterSuccess('');
+              }}
+              className="p-btn p-btn-primary gap-1.5 shrink-0"
             >
-              Citizen Service Desk
-            </h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--color-muted)' }}>
-              {panchayatUser?.panchayatName
-                ? `${panchayatUser.panchayatName} — ${panchayatUser.district || panchayatUser.state || ''}`
-                : 'Select a citizen to match them with welfare schemes'}
-            </p>
+              <PlusCircle className="size-3.5" />
+              Register Citizen
+            </button>
           </div>
-          <button
-            onClick={() => {
-              setShowRegister(true);
-              setRegisterError('');
-              setRegisterSuccess('');
-            }}
-            className="p-btn p-btn-primary gap-1.5 shrink-0"
-          >
-            <PlusCircle className="size-3.5" />
-            Register Citizen
-          </button>
 
           {/* Stats strip */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-stat-card blue">
-              <p className="p-stat-label">Total</p>
-              <p className="p-stat-value">{beneficiaries.length}</p>
-            </div>
-            <div className="p-stat-card green">
-              <p className="p-stat-label">Onboarded</p>
-              <p className="p-stat-value">{onboarded}</p>
-            </div>
-            <div className="p-stat-card amber">
-              <p className="p-stat-label">Pending</p>
-              <p className="p-stat-value">{beneficiaries.length - onboarded}</p>
-            </div>
+          <div
+            className="grid grid-cols-3 gap-px rounded-xl overflow-hidden"
+            style={{ background: 'var(--color-border)', border: '1px solid var(--color-border)' }}
+          >
+            {[
+              {
+                label: 'Total Citizens',
+                value: beneficiaries.length,
+                color: 'var(--color-primary-600)',
+              },
+              { label: 'Active', value: onboarded, color: '#059669' },
+              {
+                label: 'Registered',
+                value: beneficiaries.length - onboarded,
+                color: 'var(--color-accent-700)',
+              },
+            ].map(({ label, value, color }) => (
+              <div
+                key={label}
+                className="px-5 py-3.5 flex items-center gap-3"
+                style={{ background: 'var(--color-parchment)' }}
+              >
+                <p className="text-2xl font-bold tabular-nums leading-none" style={{ color }}>
+                  {value}
+                </p>
+                <p
+                  className="text-xs font-medium leading-tight"
+                  style={{ color: 'var(--color-muted)' }}
+                >
+                  {label}
+                </p>
+              </div>
+            ))}
           </div>
 
-          {/* Search */}
-          <div className="p-card p-3">
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 size-4"
-                style={{ color: 'var(--color-muted-2)' }}
-              />
+          {/* Table + integrated search */}
+          <div className="p-card overflow-hidden flex-1 flex flex-col">
+            {/* Search header */}
+            <div
+              className="px-4 py-3 flex items-center gap-3"
+              style={{ borderBottom: '1px solid var(--color-border)' }}
+            >
+              <Search className="size-4 shrink-0" style={{ color: 'var(--color-muted-2)' }} />
               <input
                 type="text"
                 placeholder="Search by name, email, state, or village…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="p-input pl-9 text-sm"
+                className="flex-1 bg-transparent outline-none text-sm"
+                style={{ color: 'var(--color-ink)' }}
               />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="shrink-0"
+                  style={{ color: 'var(--color-muted-2)' }}
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
-          </div>
 
-          {/* Table */}
-          <div className="p-card overflow-hidden flex-1 overflow-y-auto thin-scroll">
-            <table className="p-table">
-              <thead className="sticky top-0 z-10" style={{ background: 'var(--color-parchment)' }}>
-                <tr>
-                  <th>Citizen</th>
-                  <th className={selected ? 'hidden xl:table-cell' : ''}>Location</th>
-                  <th className={selected ? 'hidden xl:table-cell' : ''}>Employment</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 && (
+            <div className="overflow-y-auto thin-scroll flex-1">
+              <table className="p-table">
+                <thead
+                  className="sticky top-0 z-10"
+                  style={{ background: 'var(--color-parchment)' }}
+                >
                   <tr>
-                    <td colSpan={5} className="text-center py-10">
-                      <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
-                        No citizens found
-                      </p>
-                    </td>
+                    <th>Citizen</th>
+                    <th className={selected ? 'hidden xl:table-cell' : ''}>Location</th>
+                    <th className={selected ? 'hidden xl:table-cell' : ''}>Employment</th>
+                    <th>Status</th>
+                    <th></th>
                   </tr>
-                )}
-                {filtered.map((u) => {
-                  const av = getAvatarStyle(u.name || '');
-                  const isSelected = selected?.userId === u.userId;
-                  return (
-                    <tr
-                      key={u.userId}
-                      onClick={() => selectCitizen(u)}
-                      className="cursor-pointer"
-                      style={
-                        isSelected
-                          ? {
-                              background: 'var(--color-accent-50)',
-                              borderLeft: '3px solid var(--color-accent)',
-                            }
-                          : {}
-                      }
-                    >
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="p-user-avatar"
-                            style={{ background: av.bg, color: av.text }}
-                          >
-                            {getInitials(u.name || '')}
-                          </div>
-                          <div>
-                            <p
-                              className="font-semibold text-xs"
-                              style={{ color: 'var(--color-ink)' }}
-                            >
-                              {u.name || '—'}
-                            </p>
-                            <p className="text-[11px]" style={{ color: 'var(--color-muted)' }}>
-                              {u.email}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className={selected ? 'hidden xl:table-cell' : ''}>
-                        <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
-                          {[u.village, u.district, u.state].filter(Boolean).join(', ') || '—'}
-                        </span>
-                      </td>
-                      <td className={selected ? 'hidden xl:table-cell' : ''}>
-                        <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
-                          {u.employment || '—'}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={`p-badge ${u.onboardingComplete ? 'p-badge-success' : 'p-badge-warning'}`}
-                        >
-                          {u.onboardingComplete ? 'Complete' : 'Pending'}
-                        </span>
-                      </td>
-                      <td>
-                        <ChevronRight
-                          className="size-3.5"
-                          style={{
-                            color: isSelected ? 'var(--color-accent)' : 'var(--color-muted-2)',
-                          }}
-                        />
+                </thead>
+                <tbody>
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="text-center py-10">
+                        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+                          No citizens found
+                        </p>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  )}
+                  {filtered.map((u) => {
+                    const av = getAvatarStyle(u.name || '');
+                    const isSelected = selected?.userId === u.userId;
+                    return (
+                      <tr
+                        key={u.userId}
+                        onClick={() => selectCitizen(u)}
+                        className="cursor-pointer"
+                        style={
+                          isSelected
+                            ? {
+                                background: 'var(--color-accent-50)',
+                                borderLeft: '3px solid var(--color-accent)',
+                              }
+                            : {}
+                        }
+                      >
+                        <td>
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="p-user-avatar"
+                              style={{ background: av.bg, color: av.text }}
+                            >
+                              {getInitials(u.name || '')}
+                            </div>
+                            <div>
+                              <p
+                                className="font-semibold text-xs"
+                                style={{ color: 'var(--color-ink)' }}
+                              >
+                                {u.name || '—'}
+                              </p>
+                              <p className="text-[11px]" style={{ color: 'var(--color-muted)' }}>
+                                {u.email}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className={selected ? 'hidden xl:table-cell' : ''}>
+                          <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
+                            {[u.village, u.district, u.state].filter(Boolean).join(', ') || '—'}
+                          </span>
+                        </td>
+                        <td className={selected ? 'hidden xl:table-cell' : ''}>
+                          <span className="text-xs" style={{ color: 'var(--color-ink-2)' }}>
+                            {u.employment || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={`p-badge ${u.onboardingComplete ? 'p-badge-success' : 'p-badge-info'}`}
+                          >
+                            {u.onboardingComplete ? 'Active' : 'Registered'}
+                          </span>
+                        </td>
+                        <td>
+                          <ChevronRight
+                            className="size-3.5"
+                            style={{
+                              color: isSelected ? 'var(--color-accent)' : 'var(--color-muted-2)',
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
