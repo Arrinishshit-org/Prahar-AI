@@ -6,6 +6,7 @@ import {
   createPanchayatUser,
   deletePanchayatUser,
 } from '../../api';
+import { useDialog } from '../DialogProvider';
 
 const INDIA_STATES = [
   'Andhra Pradesh',
@@ -56,6 +57,7 @@ const defaultForm = {
 };
 
 export default function PanchayatUsersPage() {
+  const { confirm } = useDialog();
   const [users, setUsers] = useState<PanchayatUserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -110,7 +112,12 @@ export default function PanchayatUsersPage() {
   };
 
   const handleDelete = async (user: PanchayatUserRecord) => {
-    if (!window.confirm(`Delete panchayat account for ${user.name} (${user.email})?`)) return;
+    const ok = await confirm({
+      title: 'Delete Panchayat Account',
+      message: `Delete panchayat account for ${user.name} (${user.email})? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     try {
       await deletePanchayatUser(user.userId);
       setFormMessage('Panchayat user deleted successfully.');
