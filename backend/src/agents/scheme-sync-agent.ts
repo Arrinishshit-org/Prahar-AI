@@ -232,10 +232,7 @@ class SchemeSyncAgent {
           `🔁 Resuming incremental sync from index ${startIndex}/${totalSchemes} (remaining ${totalSchemes - startIndex})`
         );
       } else {
-        console.log(
-          '🧹 Starting new incremental sync run (resetting existing Scheme nodes once)...'
-        );
-        await neo4jService.resetSchemesForIncrementalSync();
+        console.log('🔄 Starting new incremental sync run without clearing existing Scheme nodes...');
         await this.saveResumeState(0, totalSchemes);
       }
 

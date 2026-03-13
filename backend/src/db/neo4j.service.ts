@@ -40,6 +40,56 @@ function emailHash(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
 }
 
+function computeSchemeSourceHash(scheme: {
+  name: string;
+  description: string;
+  category: string[];
+  ministry: string | null;
+  tags: string[];
+  state: string | null;
+  schemeUrl?: string | null;
+  page_scheme_id?: string | null;
+  page_title?: string | null;
+  page_ministry?: string | null;
+  page_description?: string | null;
+  page_eligibility_json?: string;
+  page_benefits_json?: string;
+  page_references_json?: string;
+  page_application_process_json?: string;
+  page_eligibility_md?: string | null;
+  page_benefits_md?: string | null;
+  page_description_md?: string | null;
+  page_exclusions_md?: string | null;
+  page_scheme_raw_json?: string;
+  page_enriched_at?: string | null;
+}): string {
+  const normalized = {
+    name: scheme.name || '',
+    description: scheme.description || '',
+    category: [...(scheme.category || [])].map(String).sort(),
+    ministry: scheme.ministry || '',
+    tags: [...(scheme.tags || [])].map(String).sort(),
+    state: scheme.state || '',
+    schemeUrl: scheme.schemeUrl || '',
+    page_scheme_id: scheme.page_scheme_id || '',
+    page_title: scheme.page_title || '',
+    page_ministry: scheme.page_ministry || '',
+    page_description: scheme.page_description || '',
+    page_eligibility_json: scheme.page_eligibility_json || '[]',
+    page_benefits_json: scheme.page_benefits_json || '[]',
+    page_references_json: scheme.page_references_json || '[]',
+    page_application_process_json: scheme.page_application_process_json || '[]',
+    page_eligibility_md: scheme.page_eligibility_md || '',
+    page_benefits_md: scheme.page_benefits_md || '',
+    page_description_md: scheme.page_description_md || '',
+    page_exclusions_md: scheme.page_exclusions_md || '',
+    page_scheme_raw_json: scheme.page_scheme_raw_json || '{}',
+    page_enriched_at: scheme.page_enriched_at || '',
+  };
+
+  return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
 async function encryptPII(fields: { email: string; name: string }): Promise<{
   email: string;
   name: string;
@@ -720,6 +770,7 @@ class Neo4jDbService {
       return true;
     });
 
+    const nowIso = new Date().toISOString();
     const rows = uniqueSchemes.map((s) => {
       const cats = extractCategories(s.name, s.description, s.tags);
       return {
@@ -747,37 +798,43 @@ class Neo4jDbService {
         page_scheme_raw_json: s.page_scheme_raw_json ?? '{}',
         page_enriched_at: s.page_enriched_at ?? '',
         is_active: true,
-        last_updated: new Date().toISOString(),
+        source_hash: computeSchemeSourceHash(s),
+        last_updated: nowIso,
+        last_seen_at: nowIso,
       };
     });
 
     await this.connection.executeWrite(
       `UNWIND $rows AS row
        MERGE (s:Scheme { scheme_id: row.scheme_id })
-       SET s.name = row.name,
-           s.description = row.description,
-           s.category = row.category,
-           s.ministry = row.ministry,
-           s.tags = row.tags,
-           s.state = row.state,
-           s.categories_json = row.categories_json,
-           s.scheme_url = row.scheme_url,
-           s.page_scheme_id = row.page_scheme_id,
-           s.page_title = row.page_title,
-           s.page_ministry = row.page_ministry,
-           s.page_description = row.page_description,
-           s.page_eligibility_json = row.page_eligibility_json,
-           s.page_benefits_json = row.page_benefits_json,
-           s.page_references_json = row.page_references_json,
-           s.page_application_process_json = row.page_application_process_json,
-           s.page_eligibility_md = row.page_eligibility_md,
-           s.page_benefits_md = row.page_benefits_md,
-           s.page_description_md = row.page_description_md,
-           s.page_exclusions_md = row.page_exclusions_md,
-           s.page_scheme_raw_json = row.page_scheme_raw_json,
-           s.page_enriched_at = row.page_enriched_at,
-           s.is_active = row.is_active,
-           s.last_updated = row.last_updated`,
+       SET s.is_active = row.is_active,
+           s.last_seen_at = row.last_seen_at
+       FOREACH (_ IN CASE WHEN coalesce(s.source_hash, '') <> row.source_hash THEN [1] ELSE [] END |
+         SET s.name = row.name,
+             s.description = row.description,
+             s.category = row.category,
+             s.ministry = row.ministry,
+             s.tags = row.tags,
+             s.state = row.state,
+             s.categories_json = row.categories_json,
+             s.scheme_url = row.scheme_url,
+             s.page_scheme_id = row.page_scheme_id,
+             s.page_title = row.page_title,
+             s.page_ministry = row.page_ministry,
+             s.page_description = row.page_description,
+             s.page_eligibility_json = row.page_eligibility_json,
+             s.page_benefits_json = row.page_benefits_json,
+             s.page_references_json = row.page_references_json,
+             s.page_application_process_json = row.page_application_process_json,
+             s.page_eligibility_md = row.page_eligibility_md,
+             s.page_benefits_md = row.page_benefits_md,
+             s.page_description_md = row.page_description_md,
+             s.page_exclusions_md = row.page_exclusions_md,
+             s.page_scheme_raw_json = row.page_scheme_raw_json,
+             s.page_enriched_at = row.page_enriched_at,
+             s.source_hash = row.source_hash,
+             s.last_updated = row.last_updated
+       )`,
       { rows }
     );
 
