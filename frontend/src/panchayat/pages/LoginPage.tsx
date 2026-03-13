@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Leaf, Lock, Mail, MapPin } from 'lucide-react';
+import { Leaf, Lock, Mail, MapPin, Eye, EyeOff } from 'lucide-react';
 import { panchayatLogin, PanchayatUser } from '../api';
 
 interface LoginPageProps {
@@ -9,6 +9,7 @@ interface LoginPageProps {
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -193,17 +194,26 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               >
                 Password
               </label>
-              <div className="field-with-icon">
+              <div className="field-with-icon relative">
                 <Lock className="field-icon size-4" style={{ color: 'var(--color-muted-2)' }} />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="p-input"
+                  className="p-input pr-10"
                   required
                   autoComplete="current-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--color-muted-2)' }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
               </div>
             </div>
 

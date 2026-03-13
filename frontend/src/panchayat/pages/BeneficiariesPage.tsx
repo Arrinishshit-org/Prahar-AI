@@ -707,8 +707,8 @@ export default function BeneficiariesPage() {
       {/* ── Register Citizen panel ───────────────────────── */}
       {showRegister && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-end"
-          style={{ background: 'rgba(0,0,0,0.35)' }}
+          className="fixed inset-0 flex items-start justify-end"
+          style={{ background: 'rgba(0,0,0,0.35)', zIndex: 70 }}
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowRegister(false);
           }}
@@ -750,7 +750,10 @@ export default function BeneficiariesPage() {
               </button>
             </div>
 
-            <form onSubmit={handleRegister} className="flex flex-col gap-4 p-6">
+            <form
+              onSubmit={handleRegister}
+              className="flex flex-col gap-4 p-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-6"
+            >
               {registerSuccess && (
                 <div
                   className="p-3 rounded-xl text-sm font-medium"
@@ -891,7 +894,13 @@ export default function BeneficiariesPage() {
                 </select>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div
+                className="sticky bottom-0 -mx-6 px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:pb-4 flex gap-3"
+                style={{
+                  background:
+                    'linear-gradient(to top, color-mix(in srgb, var(--color-parchment) 94%, white), transparent)',
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setShowRegister(false)}

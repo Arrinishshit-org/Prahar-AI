@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, Lock, AlertCircle } from 'lucide-react';
+import { Shield, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { verifyAdminKey, saveAdminKey } from './adminApi';
 
 interface LoginPageProps {
@@ -8,6 +8,7 @@ interface LoginPageProps {
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [adminKey, setAdminKey] = useState('');
+  const [showAdminKey, setShowAdminKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,17 +53,25 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               <label htmlFor="adminKey" className="block text-sm font-medium text-gray-700 mb-2">
                 Admin Key
               </label>
-              <div className="field-with-icon">
+              <div className="field-with-icon relative">
                 <Lock className="field-icon size-5 text-gray-400" />
                 <input
                   id="adminKey"
-                  type="password"
+                  type={showAdminKey ? 'text' : 'password'}
                   value={adminKey}
                   onChange={(e) => setAdminKey(e.target.value)}
                   placeholder="Enter your admin key"
-                  className="input"
+                  className="input pr-10"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminKey((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  aria-label={showAdminKey ? 'Hide admin key' : 'Show admin key'}
+                >
+                  {showAdminKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
               </div>
             </div>
 

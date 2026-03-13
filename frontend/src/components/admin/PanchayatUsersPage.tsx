@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Trash2, UserPlus, Building2, MapPin, Mail, User, Lock, RefreshCw } from 'lucide-react';
+import {
+  Trash2,
+  UserPlus,
+  Building2,
+  MapPin,
+  Mail,
+  User,
+  Lock,
+  RefreshCw,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import {
   PanchayatUserRecord,
   fetchPanchayatUsers,
@@ -27,6 +38,7 @@ export default function PanchayatUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState(defaultForm);
+  const [showPassword, setShowPassword] = useState(false);
   const [formBusy, setFormBusy] = useState(false);
   const [formMessage, setFormMessage] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -224,14 +236,22 @@ export default function PanchayatUsersPage() {
               <div className="field-with-icon">
                 <Lock className="field-icon size-4 text-gray-400" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="Min 8 characters"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className={inputClass}
+                  className={`${inputClass} pr-10`}
                   minLength={8}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
               </div>
             </div>
 

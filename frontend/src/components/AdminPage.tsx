@@ -11,6 +11,8 @@ import {
   HardDrive,
   Cpu,
   Trash2,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import {
   AdminMetricsResponse,
@@ -70,6 +72,7 @@ export default function AdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
 
@@ -526,14 +529,27 @@ export default function AdminPage() {
                   className="w-full rounded-lg border px-3 py-2 text-sm"
                   style={{ borderColor: 'var(--color-border)' }}
                 />
-                <input
-                  value={adminForm.password}
-                  type="password"
-                  onChange={(e) => setAdminForm((prev) => ({ ...prev, password: e.target.value }))}
-                  placeholder="Temporary password"
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
-                  style={{ borderColor: 'var(--color-border)' }}
-                />
+                <div className="relative">
+                  <input
+                    value={adminForm.password}
+                    type={showAdminPassword ? 'text' : 'password'}
+                    onChange={(e) =>
+                      setAdminForm((prev) => ({ ...prev, password: e.target.value }))
+                    }
+                    placeholder="Temporary password"
+                    className="w-full rounded-lg border px-3 py-2 text-sm pr-10"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: 'var(--color-muted-2)' }}
+                    aria-label={showAdminPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showAdminPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-3 mb-4">

@@ -2110,6 +2110,69 @@ class Neo4jDbService {
     };
   }
 
+  async getPanchayatUserAuthById(userId: string): Promise<any | undefined> {
+    const rows = await this.connection.executeRead<any>(
+      'MATCH (p:PanchayatUser { user_id: $userId }) RETURN p',
+      { userId }
+    );
+    if (rows.length === 0) return undefined;
+    const n = rows[0].p.properties ?? rows[0].p;
+    return {
+      userId: n.user_id,
+      email: n.email,
+      passwordHash: n.password_hash,
+      name: n.name,
+      panchayatName: n.panchayat_name,
+      district: n.district,
+      state: n.state,
+      createdAt: n.created_at ?? null,
+    };
+  }
+
+  async updatePanchayatUserProfile(
+    userId: string,
+    updates: {
+      name?: string;
+      panchayatName?: string;
+    }
+  ): Promise<any | undefined> {
+    const setParts: string[] = [];
+    const params: Record<string, any> = { userId };
+
+    if (typeof updates.name === 'string') {
+      setParts.push('p.name = $name');
+      params.name = updates.name;
+    }
+    if (typeof updates.panchayatName === 'string') {
+      setParts.push('p.panchayat_name = $panchayatName');
+      params.panchayatName = updates.panchayatName;
+    }
+
+    if (setParts.length === 0) {
+      return this.getPanchayatUserById(userId);
+    }
+
+    await this.connection.executeWrite(
+      `MATCH (p:PanchayatUser { user_id: $userId })
+       SET ${setParts.join(', ')}
+       RETURN p`,
+      params
+    );
+
+    return this.getPanchayatUserById(userId);
+  }
+
+  async updatePanchayatUserPassword(userId: string, passwordHash: string): Promise<boolean> {
+    const rows = await this.connection.executeWrite<any>(
+      `MATCH (p:PanchayatUser { user_id: $userId })
+       SET p.password_hash = $passwordHash
+       RETURN p`,
+      { userId, passwordHash }
+    );
+
+    return rows.length > 0;
+  }
+
   async deletePanchayatUser(userId: string): Promise<boolean> {
     const rows = await this.connection.executeRead<any>(
       'MATCH (p:PanchayatUser { user_id: $userId }) RETURN p LIMIT 1',

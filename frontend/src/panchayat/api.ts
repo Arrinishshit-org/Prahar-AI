@@ -100,6 +100,33 @@ export async function getCurrentPanchayatUser(): Promise<PanchayatUser> {
   return setPanchayatUser(user);
 }
 
+export async function updateCurrentPanchayatUser(input: { name?: string }): Promise<PanchayatUser> {
+  const res = await panchayatFetch(`${API_BASE}/panchayat/me`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as any).error || 'Failed to update profile');
+  }
+  const user = (body as any).user as PanchayatUser;
+  return setPanchayatUser(user);
+}
+
+export async function updatePanchayatPassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  const res = await panchayatFetch(`${API_BASE}/panchayat/password`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as any).error || 'Failed to update password');
+  }
+}
+
 export function getPanchayatUser(): PanchayatUser | null {
   try {
     const raw = localStorage.getItem(USER_KEY);

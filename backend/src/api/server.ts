@@ -893,6 +893,96 @@ app.get('/api/panchayat/me', async (req, res) => {
   }
 });
 
+app.put('/api/panchayat/me', async (req, res) => {
+  const userId = await requirePanchayatAuth(req, res);
+  if (!userId) return;
+
+  try {
+    const { name, panchayatName } = req.body || {};
+    const updates: { name?: string } = {};
+
+    if (typeof panchayatName !== 'undefined') {
+      return res
+        .status(400)
+        .json({ error: 'Panchayat assignment cannot be changed from this account' });
+    }
+
+    if (typeof name === 'string') {
+      const normalizedName = name.trim();
+      if (!normalizedName) {
+        return res.status(400).json({ error: 'Name cannot be empty' });
+      }
+      if (normalizedName.length > 120) {
+        return res.status(400).json({ error: 'Name is too long' });
+      }
+      updates.name = normalizedName;
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: 'No valid fields provided to update' });
+    }
+
+    const updated = await neo4jService.updatePanchayatUserProfile(userId, updates);
+    if (!updated) return res.status(404).json({ error: 'User not found' });
+
+    return res.json({ success: true, user: updated });
+  } catch (error: any) {
+    console.error('Panchayat profile update error:', error);
+    return res.status(500).json({ error: 'Failed to update profile', details: error.message });
+  }
+});
+
+app.put('/api/panchayat/password', async (req, res) => {
+  const userId = await requirePanchayatAuth(req, res);
+  if (!userId) return;
+
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new passwords are required' });
+    }
+
+    const panchayatUser = await neo4jService.getPanchayatUserAuthById(userId);
+    if (!panchayatUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const validCurrent = await passwordService.verifyPassword(
+      String(currentPassword),
+      panchayatUser.passwordHash
+    );
+    if (!validCurrent) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    const passwordValidation = passwordService.validatePasswordStrength(String(newPassword));
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ error: passwordValidation.message });
+    }
+
+    const samePassword = await passwordService.verifyPassword(
+      String(newPassword),
+      panchayatUser.passwordHash
+    );
+    if (samePassword) {
+      return res
+        .status(400)
+        .json({ error: 'New password must be different from current password' });
+    }
+
+    const newHash = await passwordService.hashPassword(String(newPassword));
+    const updated = await neo4jService.updatePanchayatUserPassword(userId, newHash);
+    if (!updated) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error: any) {
+    console.error('Panchayat password update error:', error);
+    return res.status(500).json({ error: 'Failed to update password', details: error.message });
+  }
+});
+
 app.get('/api/panchayat/analytics', async (req, res) => {
   const userId = await requirePanchayatAuth(req, res);
   if (!userId) return;
