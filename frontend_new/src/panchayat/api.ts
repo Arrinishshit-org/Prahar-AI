@@ -8,6 +8,13 @@ const API_BASE = '/api';
 const TOKEN_KEY = 'panchayatToken';
 const USER_KEY = 'panchayatUser';
 
+export class PanchayatSessionError extends Error {
+  constructor(message = 'Your panchayat session has expired. Please sign in again.') {
+    super(message);
+    this.name = 'PanchayatSessionError';
+  }
+}
+
 export interface PanchayatUser {
   userId: string;
   email: string;
@@ -21,11 +28,34 @@ function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) || '';
 }
 
+function setPanchayatUser(user: PanchayatUser): PanchayatUser {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  return user;
+}
+
 function authHeaders(): Record<string, string> {
   const token = getToken();
   return token
     ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
     : { 'Content-Type': 'application/json' };
+}
+
+async function panchayatFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(input, {
+    ...init,
+    headers: {
+      ...authHeaders(),
+      ...(init.headers || {}),
+    },
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    clearSession();
+    const body = await res.json().catch(() => ({}));
+    throw new PanchayatSessionError((body as any).error || undefined);
+  }
+
+  return res;
 }
 
 // ─── Authentication ───────────────────────────────────────────
@@ -42,8 +72,19 @@ export async function panchayatLogin(email: string, password: string): Promise<P
   }
   const data = await res.json();
   localStorage.setItem(TOKEN_KEY, data.token);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-  return data.user as PanchayatUser;
+  return setPanchayatUser(data.user as PanchayatUser);
+}
+
+export async function getCurrentPanchayatUser(): Promise<PanchayatUser> {
+  const res = await panchayatFetch(`${API_BASE}/panchayat/me`, {
+    method: 'GET',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).error || 'Failed to fetch panchayat profile');
+  }
+  const user = (await res.json()) as PanchayatUser;
+  return setPanchayatUser(user);
 }
 
 export function getPanchayatUser(): PanchayatUser | null {
@@ -73,9 +114,7 @@ export async function getDashboardStats() {
 // ─── Panchayat-scoped stats ──────────────────────────────────
 
 export async function getPanchayatScopedStats() {
-  const res = await fetch(`${API_BASE}/panchayat/stats`, {
-    headers: { ...authHeaders() },
-  });
+  const res = await panchayatFetch(`${API_BASE}/panchayat/stats`);
   if (!res.ok) throw new Error('Failed to fetch panchayat stats');
   return res.json();
 }
@@ -86,7 +125,7 @@ export async function getPanchayatCitizens(q?: string): Promise<import('./types'
   const url = q
     ? `${API_BASE}/panchayat/citizens?q=${encodeURIComponent(q)}`
     : `${API_BASE}/panchayat/citizens`;
-  const res = await fetch(url, { headers: { ...authHeaders() } });
+  const res = await panchayatFetch(url);
   if (!res.ok) throw new Error('Failed to fetch citizens');
   return res.json();
 }
@@ -100,9 +139,8 @@ export async function registerCitizen(data: {
   income?: string;
   education?: string;
 }): Promise<{ citizenId: string; message: string }> {
-  const res = await fetch(`${API_BASE}/panchayat/citizens`, {
+  const res = await panchayatFetch(`${API_BASE}/panchayat/citizens`, {
     method: 'POST',
-    headers: { ...authHeaders() },
     body: JSON.stringify(data),
   });
   const body = await res.json();
@@ -113,17 +151,14 @@ export async function registerCitizen(data: {
 // ─── Beneficiaries (all, admin-level – kept for backwards compat) ─────────────
 
 export async function getAllBeneficiaries() {
-  const res = await fetch(`${API_BASE}/admin/users`, {
-    headers: { ...authHeaders() },
-  });
+  const res = await panchayatFetch(`${API_BASE}/admin/users`);
   if (!res.ok) throw new Error('Failed to fetch beneficiaries');
   return res.json();
 }
 
 export async function deleteBeneficiary(userId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}`, {
+  const res = await panchayatFetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}`, {
     method: 'DELETE',
-    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to delete beneficiary');
 }
@@ -141,9 +176,7 @@ export async function getSchemes(params?: {
   if (params?.limit) query.set('limit', String(params.limit));
   if (params?.search) query.set('q', params.search);
   if (params?.category) query.set('category', params.category);
-  const res = await fetch(`${API_BASE}/schemes?${query}`, {
-    headers: { ...authHeaders() },
-  });
+  const res = await panchayatFetch(`${API_BASE}/schemes?${query}`);
   if (!res.ok) throw new Error('Failed to fetch schemes');
   return res.json();
 }
@@ -151,17 +184,14 @@ export async function getSchemes(params?: {
 // ─── Sync status ──────────────────────────────────────────────
 
 export async function getSyncStatus() {
-  const res = await fetch(`${API_BASE}/admin/sync/status`, {
-    headers: { ...authHeaders() },
-  });
+  const res = await panchayatFetch(`${API_BASE}/admin/sync/status`);
   if (!res.ok) throw new Error('Failed to fetch sync status');
   return res.json();
 }
 
 export async function triggerSync() {
-  const res = await fetch(`${API_BASE}/admin/sync`, {
+  const res = await panchayatFetch(`${API_BASE}/admin/sync`, {
     method: 'POST',
-    headers: { ...authHeaders() },
   });
   if (!res.ok) throw new Error('Failed to trigger sync');
   return res.json();
@@ -170,9 +200,7 @@ export async function triggerSync() {
 // ─── Health (not shown in panchayat UI) ─────────────────────
 
 export async function getSystemHealth() {
-  const res = await fetch(`${API_BASE}/admin/health`, {
-    headers: { ...authHeaders() },
-  });
+  const res = await panchayatFetch(`${API_BASE}/admin/health`);
   if (!res.ok) throw new Error('Failed to fetch health');
   return res.json();
 }
@@ -180,9 +208,7 @@ export async function getSystemHealth() {
 // ─── Analytics (panchayat-scoped local derivation) ───────────
 
 export async function getAnalytics(): Promise<import('./types').AnalyticsData> {
-  const res = await fetch(`${API_BASE}/panchayat/analytics`, {
-    headers: { ...authHeaders() },
-  });
+  const res = await panchayatFetch(`${API_BASE}/panchayat/analytics`);
   if (!res.ok) throw new Error('Failed to fetch analytics');
   const raw = await res.json();
   const summary = raw.summary ?? {};
@@ -227,9 +253,9 @@ export async function getAnalytics(): Promise<import('./types').AnalyticsData> {
 // ─── AI Scheme Recommendations for a beneficiary ─────────────
 
 export async function getRecommendationsForBeneficiary(userId: string) {
-  const res = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/recommendations`, {
-    headers: { ...authHeaders() },
-  });
+  const res = await panchayatFetch(
+    `${API_BASE}/users/${encodeURIComponent(userId)}/recommendations`
+  );
   if (!res.ok) throw new Error('Failed to get recommendations');
   return res.json();
 }
@@ -237,9 +263,7 @@ export async function getRecommendationsForBeneficiary(userId: string) {
 // ─── Activity logs (not used in panchayat UI) ───────────────
 
 export async function getActivityLogs() {
-  const res = await fetch(`${API_BASE}/admin/activity`, {
-    headers: { ...authHeaders() },
-  });
+  const res = await panchayatFetch(`${API_BASE}/admin/activity`);
   if (!res.ok) throw new Error('Failed to fetch activity logs');
   return res.json();
 }

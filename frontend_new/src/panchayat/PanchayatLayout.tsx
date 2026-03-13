@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -11,7 +11,14 @@ import {
   LogOut,
   Leaf,
 } from 'lucide-react';
-import { clearSession, isAuthenticated, getPanchayatUser } from './api';
+import {
+  clearSession,
+  isAuthenticated,
+  getPanchayatUser,
+  getCurrentPanchayatUser,
+  PanchayatSessionError,
+  PanchayatUser,
+} from './api';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import BeneficiariesPage from './pages/BeneficiariesPage';
@@ -31,17 +38,77 @@ const navigation = [
 
 export default function PanchayatLayout() {
   const [authenticated, setAuthenticated] = useState(isAuthenticated());
+  const [checkingSession, setCheckingSession] = useState(isAuthenticated());
+  const [panchayatUser, setPanchayatUser] = useState<PanchayatUser | null>(getPanchayatUser());
   const navigate = useNavigate();
   const location = useLocation();
-  const panchayatUser = getPanchayatUser();
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setAuthenticated(false);
+      setPanchayatUser(null);
+      setCheckingSession(false);
+      return;
+    }
+
+    let active = true;
+    setCheckingSession(true);
+
+    getCurrentPanchayatUser()
+      .then((user) => {
+        if (!active) return;
+        setPanchayatUser(user);
+        setAuthenticated(true);
+      })
+      .catch((error) => {
+        if (!active) return;
+        if (!(error instanceof PanchayatSessionError)) {
+          console.error('Failed to validate panchayat session:', error);
+        }
+        clearSession();
+        setPanchayatUser(null);
+        setAuthenticated(false);
+      })
+      .finally(() => {
+        if (active) setCheckingSession(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleLogout = () => {
     clearSession();
     setAuthenticated(false);
+    setPanchayatUser(null);
   };
 
+  const handleLogin = (user: PanchayatUser) => {
+    setPanchayatUser(user);
+    setAuthenticated(true);
+    setCheckingSession(false);
+  };
+
+  if (checkingSession) {
+    return (
+      <div
+        className="min-h-screen flex flex-col items-center justify-center gap-3"
+        style={{ background: 'var(--color-surface)' }}
+      >
+        <div
+          className="size-10 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: 'var(--color-border)', borderTopColor: 'var(--color-accent)' }}
+        />
+        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+          Restoring panchayat session…
+        </p>
+      </div>
+    );
+  }
+
   if (!authenticated) {
-    return <LoginPage onLogin={() => setAuthenticated(true)} />;
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   const subPath = location.pathname.replace(/^\/panchayat\/?/, '').split('/')[0] || '';
