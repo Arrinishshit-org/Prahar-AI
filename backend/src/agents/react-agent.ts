@@ -26,6 +26,11 @@ import {
 import { mlService } from '../services/ml.service';
 
 const MAX_ITERATIONS = 5;
+const MAX_TOOL_FAILURES = 2;
+
+function createTraceId(): string {
+  return `react_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** Planned step that the agent intends to execute */
 interface PlanStep {
@@ -56,7 +61,8 @@ class ReActAgent {
     userId: string,
     _conversationHistory: ChatMessage[] = []
   ): Promise<AgentResponse> {
-    console.log(`\n🤖 ReAct Agent processing: "${message}"`);
+    const traceId = createTraceId();
+    console.log(`\n🤖 ReAct Agent [${traceId}] processing: "${message}"`);
 
     const thoughts: AgentThought[] = [];
     const actions: AgentAction[] = [];
@@ -81,20 +87,55 @@ class ReActAgent {
 
     // Step 2: Generate plan
     const plan = this.generatePlan(message, userId, intent);
+    const safePlan = this.validateAndNormalizePlan(plan, traceId);
     const planThought: AgentThought = {
       type: 'reasoning',
-      content: `Plan: ${plan.map((s, i) => `${i + 1}) ${s.toolName}`).join(' → ')}`,
+      content: `Plan: ${safePlan.map((s, i) => `${i + 1}) ${s.toolName}`).join(' → ')}`,
       timestamp: Date.now(),
     };
     thoughts.push(planThought);
     console.log(`📋 ${planThought.content}`);
 
     // Step 3: Execute plan steps
-    for (let i = 0; i < Math.min(plan.length, MAX_ITERATIONS); i++) {
-      const step = plan[i];
+    let failureCount = 0;
+    for (let i = 0; i < Math.min(safePlan.length, MAX_ITERATIONS); i++) {
+      const step = safePlan[i];
+
+      if (step.dependsOn !== undefined) {
+        const dependency = observations[step.dependsOn];
+        if (!dependency?.result?.success) {
+          const skippedMsg = `Skipping ${step.toolName}: dependency step ${step.dependsOn + 1} failed.`;
+          console.log(`⏭️ [${traceId}] ${skippedMsg}`);
+          observations.push({
+            toolName: step.toolName,
+            result: { success: false, error: 'Dependency failed' },
+            interpretation: skippedMsg,
+          });
+          context.errors.push(`${step.toolName}: dependency failed`);
+          continue;
+        }
+      }
 
       // Resolve dynamic parameters from context
       const resolvedParams = this.resolveParameters(step, context, userId);
+
+      const validationError = this.validateAction(step.toolName, resolvedParams);
+      if (validationError) {
+        const errMsg = `Skipping ${step.toolName}: ${validationError}`;
+        console.log(`⏭️ [${traceId}] ${errMsg}`);
+        observations.push({
+          toolName: step.toolName,
+          result: { success: false, error: validationError },
+          interpretation: errMsg,
+        });
+        context.errors.push(`${step.toolName}: ${validationError}`);
+        failureCount++;
+        if (failureCount >= MAX_TOOL_FAILURES) {
+          console.log(`🛑 [${traceId}] Tool failure budget reached (${failureCount}).`);
+          break;
+        }
+        continue;
+      }
 
       const action: AgentAction = {
         toolName: step.toolName,
@@ -102,8 +143,13 @@ class ReActAgent {
         reasoning: step.reasoning,
       };
       actions.push(action);
+      thoughts.push({
+        type: 'tool_selection',
+        content: `Using tool: ${step.toolName}`,
+        timestamp: Date.now(),
+      });
       console.log(
-        `⚡ Step ${i + 1}: ${action.toolName}(${JSON.stringify(resolvedParams).slice(0, 80)}...)`
+        `⚡ [${traceId}] Step ${i + 1}: ${action.toolName}(${JSON.stringify(resolvedParams).slice(0, 80)}...)`
       );
 
       try {
@@ -123,6 +169,7 @@ class ReActAgent {
           this.updateContext(context, action.toolName, toolResult.data);
         } else {
           context.errors.push(`${action.toolName}: ${toolResult.error}`);
+          failureCount++;
         }
 
         // Generate reflection after each step
@@ -133,14 +180,20 @@ class ReActAgent {
         };
         thoughts.push(reflectionThought);
       } catch (error: any) {
-        console.error(`❌ Step ${i + 1} error: ${error.message}`);
+        console.error(`❌ [${traceId}] Step ${i + 1} error: ${error.message}`);
         context.errors.push(`${step.toolName}: ${error.message}`);
+        failureCount++;
         observations.push({
           toolName: step.toolName,
           result: { success: false, error: error.message },
           interpretation: `Skipping failed step: ${error.message}`,
         });
         // Continue to next step — don't abort the whole plan
+      }
+
+      if (failureCount >= MAX_TOOL_FAILURES) {
+        console.log(`🛑 [${traceId}] Tool failure budget reached (${failureCount}).`);
+        break;
       }
     }
 
@@ -299,6 +352,66 @@ class ReActAgent {
           },
         ];
     }
+  }
+
+  /**
+   * Remove invalid/unavailable tools and enforce sane dependency structure.
+   */
+  private validateAndNormalizePlan(plan: PlanStep[], traceId: string): PlanStep[] {
+    const sanitized: PlanStep[] = [];
+
+    for (const step of plan) {
+      if (!toolRegistry.has(step.toolName)) {
+        console.log(`⚠️ [${traceId}] Dropping unknown tool from plan: ${step.toolName}`);
+        continue;
+      }
+
+      const normalizedStep: PlanStep = {
+        ...step,
+      };
+
+      if (
+        normalizedStep.dependsOn !== undefined &&
+        (normalizedStep.dependsOn < 0 || normalizedStep.dependsOn >= sanitized.length)
+      ) {
+        console.log(
+          `⚠️ [${traceId}] Removing invalid dependency for ${normalizedStep.toolName}: ${normalizedStep.dependsOn}`
+        );
+        delete normalizedStep.dependsOn;
+      }
+
+      sanitized.push(normalizedStep);
+      if (sanitized.length >= MAX_ITERATIONS) break;
+    }
+
+    if (sanitized.length === 0) {
+      return [
+        {
+          toolName: 'search_schemes',
+          parameters: { query: 'schemes', limit: 5 },
+          reasoning: 'Fallback plan when generated plan is empty or invalid.',
+        },
+      ];
+    }
+
+    return sanitized;
+  }
+
+  /**
+   * Validate action parameters before execution to avoid noisy tool calls.
+   */
+  private validateAction(toolName: string, params: Record<string, any>): string | null {
+    const tool = toolRegistry.get(toolName);
+    if (!tool) return `Tool not found: ${toolName}`;
+
+    if (typeof tool.validate === 'function') {
+      const validation = tool.validate(params);
+      if (!validation.valid) {
+        return validation.error || 'Invalid parameters';
+      }
+    }
+
+    return null;
   }
 
   /**
