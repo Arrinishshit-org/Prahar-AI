@@ -13,9 +13,11 @@ import {
 import { AdminSystemSettings, getAdminSettings, updateAdminSettings } from './adminApi';
 import { updateCurrentUserPassword } from '../../api';
 import { useDialog } from '../DialogProvider';
+import { useAuth } from '../../AuthContext';
 
 export default function SettingsPage() {
   const { toast } = useDialog();
+  const { logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<AdminSystemSettings | null>(null);
@@ -162,7 +164,15 @@ export default function SettingsPage() {
         newPassword: passwordForm.newPassword,
       });
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      toast({ message: 'Admin password updated successfully.', variant: 'success' });
+      toast({
+        message: 'Admin password updated successfully. Please sign in again.',
+        variant: 'success',
+      });
+      setTimeout(() => {
+        localStorage.removeItem('adminKey');
+        logout();
+        window.location.href = '/';
+      }, 900);
     } catch (error) {
       toast({
         message: error instanceof Error ? error.message : 'Failed to update password',

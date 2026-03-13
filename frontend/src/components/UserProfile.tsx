@@ -422,7 +422,11 @@ export default function UserProfile({ onNavigate }: UserProfileProps) {
         newPassword: passwordForm.newPassword,
       });
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setMessage('Password updated successfully.');
+      setMessage('Password updated successfully. Please sign in again.');
+      setTimeout(() => {
+        logout();
+        onNavigate('home');
+      }, 900);
     } catch (err) {
       const nextMessage =
         err instanceof Error && err.message

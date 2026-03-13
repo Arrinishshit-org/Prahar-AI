@@ -400,7 +400,11 @@ app.put('/api/auth/password', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.json({ success: true, message: 'Password updated successfully' });
+    return res.json({
+      success: true,
+      message: 'Password updated successfully',
+      reauthRequired: true,
+    });
   } catch (error: any) {
     console.error('User password update error:', error);
     return res.status(500).json({ error: 'Failed to update password', details: error.message });
