@@ -7,6 +7,7 @@ import {
   deletePanchayatUser,
   getLGDStates,
   getLGDDistricts,
+  getLGDPanchayats,
 } from '../../api';
 import { useDialog } from '../DialogProvider';
 import SearchableSelect from '../SearchableSelect';
@@ -33,7 +34,9 @@ export default function PanchayatUsersPage() {
   // LGD cascading dropdowns
   const [stateOptions, setStateOptions] = useState<string[]>([]);
   const [districtOptions, setDistrictOptions] = useState<string[]>([]);
+  const [panchayatOptions, setPanchayatOptions] = useState<string[]>([]);
   const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingPanchayats, setLoadingPanchayats] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -57,6 +60,7 @@ export default function PanchayatUsersPage() {
   useEffect(() => {
     if (!form.state) {
       setDistrictOptions([]);
+      setPanchayatOptions([]);
       return;
     }
     setLoadingDistricts(true);
@@ -64,6 +68,18 @@ export default function PanchayatUsersPage() {
       .then(setDistrictOptions)
       .finally(() => setLoadingDistricts(false));
   }, [form.state]);
+
+  // Reload panchayats whenever state or district changes
+  useEffect(() => {
+    if (!form.state || !form.district) {
+      setPanchayatOptions([]);
+      return;
+    }
+    setLoadingPanchayats(true);
+    getLGDPanchayats(form.state, form.district)
+      .then(setPanchayatOptions)
+      .finally(() => setLoadingPanchayats(false));
+  }, [form.state, form.district]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,7 +152,7 @@ export default function PanchayatUsersPage() {
               setShowForm((v) => !v);
               setFormMessage('');
             }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary)]/90 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
           >
             <UserPlus className="size-4" />
             Add Panchayat User
@@ -219,22 +235,18 @@ export default function PanchayatUsersPage() {
               </div>
             </div>
 
-            {/* Panchayat Name */}
+            {/* State */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Panchayat Name
+                State / UT
               </label>
-              <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Rampur Gram Panchayat"
-                  value={form.panchayatName}
-                  onChange={(e) => setForm({ ...form, panchayatName: e.target.value })}
-                  className={`${inputClass} pl-9`}
-                  required
-                />
-              </div>
+              <SearchableSelect
+                options={stateOptions}
+                value={form.state}
+                onChange={(v) => setForm({ ...form, state: v, district: '', panchayatName: '' })}
+                placeholder="Select state…"
+                inputClassName={inputClass}
+              />
             </div>
 
             {/* District */}
@@ -245,7 +257,7 @@ export default function PanchayatUsersPage() {
               <SearchableSelect
                 options={districtOptions}
                 value={form.district}
-                onChange={(v) => setForm({ ...form, district: v })}
+                onChange={(v) => setForm({ ...form, district: v, panchayatName: '' })}
                 placeholder={
                   !form.state
                     ? 'Select state first…'
@@ -258,16 +270,25 @@ export default function PanchayatUsersPage() {
               />
             </div>
 
-            {/* State */}
+            {/* Panchayat Name */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                State / UT
+                Village / Panchayat
               </label>
               <SearchableSelect
-                options={stateOptions}
-                value={form.state}
-                onChange={(v) => setForm({ ...form, state: v, district: '' })}
-                placeholder="Select state…"
+                options={panchayatOptions}
+                value={form.panchayatName}
+                onChange={(v) => setForm({ ...form, panchayatName: v })}
+                placeholder={
+                  !form.state
+                    ? 'Select state first…'
+                    : !form.district
+                      ? 'Select district first…'
+                      : loadingPanchayats
+                        ? 'Loading…'
+                        : 'Select panchayat…'
+                }
+                disabled={!form.state || !form.district || loadingPanchayats}
                 inputClassName={inputClass}
               />
             </div>
@@ -287,7 +308,7 @@ export default function PanchayatUsersPage() {
               <button
                 type="submit"
                 disabled={formBusy}
-                className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary)]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {formBusy ? (
                   <>
