@@ -323,7 +323,9 @@ export class SchemesController {
       }
 
       const allowed = new Set(['viewed', 'clicked', 'saved', 'applied', 'dismissed']);
-      const normalizedAction = String(action || '').trim().toLowerCase();
+      const normalizedAction = String(action || '')
+        .trim()
+        .toLowerCase();
       if (!allowed.has(normalizedAction)) {
         return res.status(400).json({
           error: 'action must be one of viewed, clicked, saved, applied, dismissed',

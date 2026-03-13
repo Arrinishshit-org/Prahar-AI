@@ -533,7 +533,10 @@ class ReActAgent {
   /**
    * Normalize tool result shape to keep the ReAct loop resilient.
    */
-  private normalizeToolResult(toolName: string, result: any): {
+  private normalizeToolResult(
+    toolName: string,
+    result: any
+  ): {
     success: boolean;
     data?: any;
     error?: string;

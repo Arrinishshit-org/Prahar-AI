@@ -119,14 +119,19 @@ function normalizeCandidate(raw: any, hint: string): CandidateScheme {
 
 function buildBaseScore(candidate: CandidateScheme, user: any): number {
   let score = 20;
-  const userState = String(user?.state || '').trim().toLowerCase();
-  const schemeState = String(candidate.state || '').trim().toLowerCase();
+  const userState = String(user?.state || '')
+    .trim()
+    .toLowerCase();
+  const schemeState = String(candidate.state || '')
+    .trim()
+    .toLowerCase();
   if (userState && schemeState && userState === schemeState) score += 20;
   if (!schemeState) score += 6;
 
   const interests = toStringArray(user?.interests).map((i) => i.toLowerCase());
   if (interests.length > 0) {
-    const corpus = `${candidate.name} ${candidate.description} ${candidate.tags.join(' ')} ${candidate.categories.join(' ')}`.toLowerCase();
+    const corpus =
+      `${candidate.name} ${candidate.description} ${candidate.tags.join(' ')} ${candidate.categories.join(' ')}`.toLowerCase();
     let matches = 0;
     for (const interest of interests) {
       if (interest && corpus.includes(interest)) matches += 1;
@@ -142,11 +147,17 @@ function buildBaseScore(candidate: CandidateScheme, user: any): number {
 function createExplanation(candidate: ScoredCandidate, user: any): string {
   const reasons: string[] = [];
   if (candidate.matchedCategories.length > 0) {
-    reasons.push(`matched profile categories (${candidate.matchedCategories.slice(0, 2).join(', ')})`);
+    reasons.push(
+      `matched profile categories (${candidate.matchedCategories.slice(0, 2).join(', ')})`
+    );
   }
 
-  const userState = String(user?.state || '').trim().toLowerCase();
-  const schemeState = String(candidate.state || '').trim().toLowerCase();
+  const userState = String(user?.state || '')
+    .trim()
+    .toLowerCase();
+  const schemeState = String(candidate.state || '')
+    .trim()
+    .toLowerCase();
   if (userState && schemeState && userState === schemeState) {
     reasons.push('available in your state');
   } else if (!schemeState) {
@@ -251,9 +262,15 @@ class RecommendationRankingService {
       const eligibility = await neo4jService.checkGraphEligibility(userId, candidate.schemeId);
       // Hard filter: reject very weak graph matches unless scheme is state-aligned.
       const sameState =
-        String(user?.state || '').trim().toLowerCase() &&
-        String(candidate.state || '').trim().toLowerCase() ===
-          String(user?.state || '').trim().toLowerCase();
+        String(user?.state || '')
+          .trim()
+          .toLowerCase() &&
+        String(candidate.state || '')
+          .trim()
+          .toLowerCase() ===
+          String(user?.state || '')
+            .trim()
+            .toLowerCase();
       if (eligibility.score < 20 && !sameState) continue;
 
       const blended = Math.round(prelimScore * 0.35 + eligibility.score * 0.65);
@@ -321,7 +338,10 @@ class RecommendationRankingService {
     }
 
     const segmentAssignment = await userSegmentationService.assignSegment(userId);
-    const segmentRanked = userSegmentationService.reRankBySegment(enriched, segmentAssignment.segment);
+    const segmentRanked = userSegmentationService.reRankBySegment(
+      enriched,
+      segmentAssignment.segment
+    );
     const diverse = applyDiversityRerank(segmentRanked, count);
 
     for (const item of diverse) {

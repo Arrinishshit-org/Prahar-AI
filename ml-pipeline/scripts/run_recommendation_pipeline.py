@@ -95,9 +95,7 @@ def main() -> None:
     metrics_output.parent.mkdir(parents=True, exist_ok=True)
     candidates_root.mkdir(parents=True, exist_ok=True)
 
-    before_candidates = {
-        str(p.resolve()) for p in candidates_root.glob("ranker-*") if p.is_dir()
-    }
+    before_candidates = {str(p.resolve()) for p in candidates_root.glob("ranker-*") if p.is_dir()}
 
     _run_step(
         [
