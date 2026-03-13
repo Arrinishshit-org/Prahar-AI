@@ -51,6 +51,36 @@ export interface SyncStatus {
   lastSync: string | null;
   nextSync: string | null;
   isSyncing: boolean;
+  recentRuns?: Array<{
+    runId: string;
+    startedAt: string;
+    finishedAt: string;
+    totalSchemes: number;
+    inserted: number;
+    updated: number;
+    unchanged: number;
+    deactivated: number;
+    durationSeconds: number;
+  }>;
+  auditSummary?: {
+    runsTracked: number;
+    lastRun: {
+      runId: string;
+      finishedAt: string;
+      totalSchemes: number;
+      inserted: number;
+      updated: number;
+      unchanged: number;
+      deactivated: number;
+      durationSeconds: number;
+    } | null;
+    recentTotals: {
+      inserted: number;
+      updated: number;
+      unchanged: number;
+      deactivated: number;
+    };
+  };
 }
 
 export interface SystemHealth {

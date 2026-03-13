@@ -29,6 +29,25 @@ interface SyncStatus {
     deactivated: number;
     durationSeconds: number;
   }>;
+  auditSummary?: {
+    runsTracked: number;
+    lastRun: {
+      runId: string;
+      finishedAt: string;
+      totalSchemes: number;
+      inserted: number;
+      updated: number;
+      unchanged: number;
+      deactivated: number;
+      durationSeconds: number;
+    } | null;
+    recentTotals: {
+      inserted: number;
+      updated: number;
+      unchanged: number;
+      deactivated: number;
+    };
+  };
 }
 
 class SchemeSyncAgent {
@@ -195,6 +214,31 @@ class SchemeSyncAgent {
       nextSync,
       isSyncing: this.isSyncing,
       recentRuns,
+      auditSummary: {
+        runsTracked: recentRuns.length,
+        lastRun: recentRuns.length
+          ? {
+              runId: recentRuns[0].runId,
+              finishedAt: recentRuns[0].finishedAt,
+              totalSchemes: recentRuns[0].totalSchemes,
+              inserted: recentRuns[0].inserted,
+              updated: recentRuns[0].updated,
+              unchanged: recentRuns[0].unchanged,
+              deactivated: recentRuns[0].deactivated,
+              durationSeconds: recentRuns[0].durationSeconds,
+            }
+          : null,
+        recentTotals: recentRuns.reduce(
+          (acc, run) => {
+            acc.inserted += run.inserted;
+            acc.updated += run.updated;
+            acc.unchanged += run.unchanged;
+            acc.deactivated += run.deactivated;
+            return acc;
+          },
+          { inserted: 0, updated: 0, unchanged: 0, deactivated: 0 }
+        ),
+      },
     };
   }
 
