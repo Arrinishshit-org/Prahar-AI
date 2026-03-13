@@ -1639,6 +1639,19 @@ class Neo4jDbService {
     return user;
   }
 
+  async updateUserPassword(userId: string, password: string): Promise<boolean> {
+    const rows = await this.connection.executeWrite<any>(
+      `MATCH (u:User { user_id: $userId })
+       SET u.password = $password,
+           u.updated_at = toString(datetime())
+       RETURN u`,
+      { userId, password }
+    );
+
+    await redisService.del(`user:${userId}`);
+    return rows.length > 0;
+  }
+
   async getAllUsers(): Promise<any[]> {
     const rows = await this.connection.executeRead<any>(
       'MATCH (u:User) RETURN u ORDER BY u.created_at DESC'

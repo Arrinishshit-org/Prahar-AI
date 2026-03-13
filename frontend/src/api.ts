@@ -509,6 +509,22 @@ export async function updateProfile(userId: string, data: Record<string, any>) {
   return res.json();
 }
 
+export async function updateCurrentUserPassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}) {
+  const res = await fetch(`${API_BASE}/auth/password`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as any).error || 'Failed to update password');
+  }
+  return body;
+}
+
 export async function deleteProfile(userId: string) {
   const res = await fetch(`${API_BASE}/users/${userId}/profile`, {
     method: 'DELETE',

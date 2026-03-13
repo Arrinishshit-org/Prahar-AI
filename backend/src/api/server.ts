@@ -145,10 +145,11 @@ app.use((req, res, next) => {
 export async function seedAdminUser() {
   const admin = await neo4jService.getUserByEmail('admin@example.com');
   if (!admin) {
+    const adminPasswordHash = await passwordService.hashPassword('password');
     await neo4jService.createUser({
       userId: 'admin123',
       email: 'admin@example.com',
-      password: 'password',
+      password: adminPasswordHash,
       name: 'Admin User',
       isAdmin: true,
     });
@@ -184,6 +185,59 @@ function calculateProfileCompleteness(user: any): number {
   ];
   const filledFields = fields.filter((field) => user[field] != null && user[field] !== '');
   return Math.round((filledFields.length / fields.length) * 100);
+}
+
+function looksLikeBcryptHash(value: string): boolean {
+  return /^\$2[aby]\$\d{2}\$/.test(value);
+}
+
+async function verifyStoredUserPassword(
+  inputPassword: string,
+  storedPassword: string
+): Promise<boolean> {
+  if (looksLikeBcryptHash(storedPassword)) {
+    return passwordService.verifyPassword(inputPassword, storedPassword);
+  }
+  return inputPassword === storedPassword;
+}
+
+async function requireUserAuth(
+  req: express.Request,
+  res: express.Response
+): Promise<string | null> {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+  if (!token) {
+    res.status(401).json({ error: 'Authentication required' });
+    return null;
+  }
+
+  // Primary path: legacy in-app mock access token.
+  let userId = token.replace('mock_access_token_', '').replace('mock_refresh_token_', '').trim();
+
+  // Fallback path: signed JWT (for future compatibility).
+  if (!userId) {
+    try {
+      const payload = jwtService.verifyAccessToken(token);
+      userId = payload.userId;
+    } catch {
+      userId = '';
+    }
+  }
+
+  if (!userId) {
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return null;
+  }
+
+  const user = await neo4jService.getUserById(userId);
+  if (!user) {
+    res.status(401).json({ error: 'User not found for this session' });
+    return null;
+  }
+
+  return userId;
 }
 
 async function isUserCreationAllowed(): Promise<boolean> {
@@ -225,10 +279,16 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const userId = `user_${Date.now()}`;
+    const passwordValidation = passwordService.validatePasswordStrength(String(password));
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ error: passwordValidation.message });
+    }
+
+    const passwordHash = await passwordService.hashPassword(String(password));
     await neo4jService.createUser({
       userId,
       email,
-      password,
+      password: passwordHash,
       name: name || 'User',
       age: age ? Number(age) : undefined,
       income: income || undefined,
@@ -261,7 +321,10 @@ app.post('/api/auth/login', async (req, res) => {
     console.log('Login attempt:', { email });
 
     const user = await neo4jService.getUserByEmail(email);
-    if (!user || user.password !== password) {
+    const validPassword = user
+      ? await verifyStoredUserPassword(String(password), String(user.password || ''))
+      : false;
+    if (!user || !validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -291,6 +354,57 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/logout', (_req, res) => {
   res.json({ message: 'Logged out successfully' });
+});
+
+app.put('/api/auth/password', async (req, res) => {
+  const userId = await requireUserAuth(req, res);
+  if (!userId) return;
+
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new passwords are required' });
+    }
+
+    const user = await neo4jService.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const validCurrent = await verifyStoredUserPassword(
+      String(currentPassword),
+      String(user.password || '')
+    );
+    if (!validCurrent) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    const passwordValidation = passwordService.validatePasswordStrength(String(newPassword));
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ error: passwordValidation.message });
+    }
+
+    const samePassword = await verifyStoredUserPassword(
+      String(newPassword),
+      String(user.password || '')
+    );
+    if (samePassword) {
+      return res
+        .status(400)
+        .json({ error: 'New password must be different from current password' });
+    }
+
+    const newHash = await passwordService.hashPassword(String(newPassword));
+    const updated = await neo4jService.updateUserPassword(userId, newHash);
+    if (!updated) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error: any) {
+    console.error('User password update error:', error);
+    return res.status(500).json({ error: 'Failed to update password', details: error.message });
+  }
 });
 
 // Mock profile endpoints for testing (without database)
@@ -720,9 +834,11 @@ app.post('/api/admin/admins', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
+    const hashedPassword = await passwordService.hashPassword(String(password));
+
     const admin = await neo4jService.createAdminUser({
       email: String(email).trim(),
-      password: String(password),
+      password: hashedPassword,
       name: typeof name === 'string' ? name.trim() : undefined,
     });
 
@@ -1453,11 +1569,12 @@ app.post('/api/panchayat/citizens', async (req, res) => {
     const tempPassword =
       Math.random().toString(36).slice(2, 10) +
       Math.random().toString(36).slice(2, 10).toUpperCase();
+    const tempPasswordHash = await passwordService.hashPassword(tempPassword);
 
     await neo4jService.createUser({
       userId: citizenId,
       email: String(email).trim().toLowerCase(),
-      password: tempPassword,
+      password: tempPasswordHash,
       name: String(name).trim(),
       age: age ? Number(age) : undefined,
       gender: gender || undefined,

@@ -14,10 +14,12 @@ import {
   X,
   LogOut,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useDialog } from './DialogProvider';
-import { deleteProfile, updateProfile } from '../api';
+import { deleteProfile, updateCurrentUserPassword, updateProfile } from '../api';
 import { View } from '../types';
 
 interface UserProfileProps {
@@ -132,8 +134,19 @@ export default function UserProfile({ onNavigate }: UserProfileProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showPassword, setShowPassword] = useState({
+    current: false,
+    next: false,
+    confirm: false,
+  });
 
   const [form, setForm] = useState<EditableProfile>(() =>
     toEditable((user || {}) as Record<string, unknown>)
@@ -384,6 +397,43 @@ export default function UserProfile({ onNavigate }: UserProfileProps) {
     }
   };
 
+  const changePassword = async () => {
+    if (
+      !passwordForm.currentPassword ||
+      !passwordForm.newPassword ||
+      !passwordForm.confirmPassword
+    ) {
+      setError('Please fill in all password fields.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('New password and confirmation do not match.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setError('');
+    setMessage('');
+
+    try {
+      await updateCurrentUserPassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setMessage('Password updated successfully.');
+    } catch (err) {
+      const nextMessage =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Failed to update password. Please try again.';
+      setError(nextMessage);
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
@@ -497,6 +547,127 @@ export default function UserProfile({ onNavigate }: UserProfileProps) {
             />
           </div>
         </div>
+
+        <section className="card p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <h3
+              className="text-lg font-bold"
+              style={{ color: 'var(--color-ink)', fontFamily: 'Lora, serif' }}
+            >
+              Change Password
+            </h3>
+            <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
+              Keep your account secure by rotating passwords regularly.
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <label className="text-sm">
+              <span className="block mb-1.5" style={{ color: 'var(--color-muted)' }}>
+                Current Password
+              </span>
+              <div className="relative">
+                <input
+                  className="input-base pr-10"
+                  type={showPassword.current ? 'text' : 'password'}
+                  value={passwordForm.currentPassword}
+                  onChange={(e) =>
+                    setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))
+                  }
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => ({ ...prev, current: !prev.current }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--color-muted-2)' }}
+                  aria-label={
+                    showPassword.current ? 'Hide current password' : 'Show current password'
+                  }
+                >
+                  {showPassword.current ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+            </label>
+
+            <label className="text-sm">
+              <span className="block mb-1.5" style={{ color: 'var(--color-muted)' }}>
+                New Password
+              </span>
+              <div className="relative">
+                <input
+                  className="input-base pr-10"
+                  type={showPassword.next ? 'text' : 'password'}
+                  value={passwordForm.newPassword}
+                  onChange={(e) =>
+                    setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
+                  }
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => ({ ...prev, next: !prev.next }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--color-muted-2)' }}
+                  aria-label={showPassword.next ? 'Hide new password' : 'Show new password'}
+                >
+                  {showPassword.next ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </label>
+
+            <label className="text-sm">
+              <span className="block mb-1.5" style={{ color: 'var(--color-muted)' }}>
+                Confirm New Password
+              </span>
+              <div className="relative">
+                <input
+                  className="input-base pr-10"
+                  type={showPassword.confirm ? 'text' : 'password'}
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) =>
+                    setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                  }
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--color-muted-2)' }}
+                  aria-label={
+                    showPassword.confirm ? 'Hide confirm password' : 'Show confirm password'
+                  }
+                >
+                  {showPassword.confirm ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+            </label>
+          </div>
+
+          <p className="text-xs mt-2" style={{ color: 'var(--color-muted-2)' }}>
+            Must be at least 8 characters with uppercase, lowercase, number, and special character.
+          </p>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={changePassword}
+              disabled={isChangingPassword || isSaving || isDeleting}
+              className="btn btn-primary"
+            >
+              {isChangingPassword ? 'Updating...' : 'Update Password'}
+            </button>
+          </div>
+        </section>
 
         {error && (
           <div
