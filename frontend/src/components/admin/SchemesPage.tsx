@@ -211,14 +211,14 @@ export default function SchemesPage() {
 
       {/* ── Search + page-size toolbar ─────────────────────────── */}
       <div className="rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 flex items-center gap-3 flex-wrap">
-        <div className="flex-1 min-w-[200px] relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--color-muted)]" />
+        <div className="flex-1 min-w-[200px] field-with-icon">
+          <Search className="field-icon size-4 text-[var(--color-muted)]" />
           <input
             type="text"
             placeholder="Search by name, ID, or description…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-base pl-9 text-sm"
+            className="input-base text-sm"
           />
         </div>
         <div className="flex items-center gap-2 shrink-0">

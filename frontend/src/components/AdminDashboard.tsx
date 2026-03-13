@@ -67,10 +67,10 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-surface)] flex">
+    <div className="admin-clay min-h-screen bg-surface flex">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-200 transition-all duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 clay-panel border-r border-gray-200 transition-all duration-300 ${
           sidebarOpen ? 'w-64' : 'w-20'
         }`}
       >
@@ -81,7 +81,9 @@ export default function AdminDashboard() {
               <LogoMark className="size-8 text-primary" />
               <div>
                 <h1 className="font-bold text-lg text-gray-900">Prahar AI</h1>
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Admin Portal</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-[0.14em]">
+                  Admin Portal
+                </p>
               </div>
             </div>
           ) : (
@@ -98,10 +100,8 @@ export default function AdminDashboard() {
               <button
                 key={item.id}
                 onClick={() => setCurrentView(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-[var(--color-primary)] text-white'
-                    : 'text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]'
+                className={`admin-nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                  isActive ? 'active' : 'text-ink hover:bg-surface-2'
                 }`}
                 title={!sidebarOpen ? item.label : undefined}
               >
@@ -122,18 +122,18 @@ export default function AdminDashboard() {
                 </p>
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>
-              <div className="size-10 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center">
-                <span className="text-sm font-bold text-[var(--color-primary)]">A</span>
+              <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-sm font-bold text-primary">A</span>
               </div>
             </div>
           ) : (
-            <div className="size-10 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mx-auto mb-3">
-              <span className="text-sm font-bold text-[var(--color-primary)]">A</span>
+            <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+              <span className="text-sm font-bold text-primary">A</span>
             </div>
           )}
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl transition-colors"
           >
             <LogOut className="size-4" />
             {sidebarOpen && <span>Logout</span>}
@@ -144,10 +144,10 @@ export default function AdminDashboard() {
       {/* Main content */}
       <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
         {/* Header */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+        <header className="h-16 clay-panel border-b border-gray-200 flex items-center justify-between px-6">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="size-10 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+            className="size-10 flex items-center justify-center rounded-xl clay-pressed hover:bg-gray-100 transition-colors"
             title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             {sidebarOpen ? (
@@ -159,7 +159,9 @@ export default function AdminDashboard() {
 
           <div className="flex items-center gap-4">
             <div className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">Admin Dashboard</span>
+              <span className="font-medium text-gray-900 px-3 py-1 rounded-full bg-white/40 border border-white/60">
+                Admin Dashboard
+              </span>
             </div>
           </div>
         </header>

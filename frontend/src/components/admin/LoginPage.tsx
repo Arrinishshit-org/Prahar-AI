@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Shield, Lock, AlertCircle } from 'lucide-react';
-import { verifyAdminKey, saveAdminKey } from "./adminApi";
+import { verifyAdminKey, saveAdminKey } from './adminApi';
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -52,15 +52,15 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               <label htmlFor="adminKey" className="block text-sm font-medium text-gray-700 mb-2">
                 Admin Key
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
+              <div className="field-with-icon">
+                <Lock className="field-icon size-5 text-gray-400" />
                 <input
                   id="adminKey"
                   type="password"
                   value={adminKey}
                   onChange={(e) => setAdminKey(e.target.value)}
                   placeholder="Enter your admin key"
-                  className="input pl-10"
+                  className="input"
                   required
                 />
               </div>
@@ -100,12 +100,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* Help Text */}
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            Need help? Contact your system administrator
-          </p>
+          <p className="text-sm text-gray-600">Need help? Contact your system administrator</p>
         </div>
       </div>
     </div>
   );
 }
-

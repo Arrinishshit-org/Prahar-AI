@@ -172,17 +172,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               >
                 Email Address
               </label>
-              <div className="relative">
-                <Mail
-                  className="absolute left-3 top-1/2 -translate-y-1/2 size-4"
-                  style={{ color: 'var(--color-muted-2)' }}
-                />
+              <div className="field-with-icon">
+                <Mail className="field-icon size-4" style={{ color: 'var(--color-muted-2)' }} />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="official@panchayat.gov.in"
-                  className="p-input pl-9"
+                  className="p-input"
                   required
                   autoComplete="email"
                 />
@@ -196,17 +193,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               >
                 Password
               </label>
-              <div className="relative">
-                <Lock
-                  className="absolute left-3 top-1/2 -translate-y-1/2 size-4"
-                  style={{ color: 'var(--color-muted-2)' }}
-                />
+              <div className="field-with-icon">
+                <Lock className="field-icon size-4" style={{ color: 'var(--color-muted-2)' }} />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="p-input pl-9"
+                  className="p-input"
                   required
                   autoComplete="current-password"
                 />

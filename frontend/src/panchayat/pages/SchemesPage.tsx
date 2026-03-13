@@ -133,17 +133,14 @@ export default function SchemesPage() {
 
       {/* Search */}
       <div className="p-card p-3">
-        <div className="relative">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 size-4"
-            style={{ color: 'var(--color-muted-2)' }}
-          />
+        <div className="field-with-icon">
+          <Search className="field-icon size-4" style={{ color: 'var(--color-muted-2)' }} />
           <input
             type="text"
             placeholder="Search schemes by name, description, or category…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="p-input pl-9 text-sm"
+            className="p-input text-sm"
           />
         </div>
       </div>

@@ -132,15 +132,10 @@ export default function PanchayatLayout() {
               <Leaf className="size-4" style={{ color: 'var(--color-accent)' }} />
             </div>
             <div className="leading-none">
-              <p
-                className="text-white font-bold text-sm tracking-tight"
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                Gram Sabha
-              </p>
+              <p className="font-bold text-sm tracking-tight text-primary">Gram Sabha</p>
               <p
                 className="text-[9px] font-semibold tracking-widest uppercase"
-                style={{ color: 'rgba(217,122,16,0.6)' }}
+                style={{ color: 'var(--color-accent)' }}
               >
                 PANCHAYAT PORTAL
               </p>
@@ -150,12 +145,12 @@ export default function PanchayatLayout() {
           {/* Right: user info + logout */}
           <div className="flex items-center gap-3">
             <div className="text-right leading-none">
-              <p className="text-xs font-semibold text-white truncate max-w-40">
+              <p className="text-xs font-semibold text-ink truncate max-w-40">
                 {panchayatUser?.name || 'Panchayat'}
               </p>
               <p
                 className="text-[10px] truncate max-w-40 mt-0.5"
-                style={{ color: 'rgba(255,255,255,0.4)' }}
+                style={{ color: 'var(--color-muted)' }}
               >
                 {panchayatUser?.panchayatName || 'Portal'}
               </p>
@@ -170,16 +165,7 @@ export default function PanchayatLayout() {
             </div>
             <button
               onClick={handleLogout}
-              className="p-1.5 rounded-lg transition-all"
-              style={{ color: 'rgba(255,255,255,0.4)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#f85149';
-                e.currentTarget.style.background = 'rgba(248,81,73,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'rgba(255,255,255,0.4)';
-                e.currentTarget.style.background = 'transparent';
-              }}
+              className="p-1.5 rounded-lg transition-all text-muted hover:text-red-600 hover:bg-red-50/80"
               title="Sign out"
             >
               <LogOut className="size-4" />

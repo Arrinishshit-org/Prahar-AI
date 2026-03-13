@@ -94,14 +94,14 @@ export default function UsersPage() {
       {/* Filters */}
       <div className="card p-4">
         <div className="flex items-center gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-[var(--color-muted)]" />
+          <div className="flex-1 field-with-icon">
+            <Search className="field-icon size-5 text-[var(--color-muted)]" />
             <input
               type="text"
               placeholder="Search users by name, email, or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-base pl-10"
+              className="input-base"
             />
           </div>
           <button className="btn btn-secondary">

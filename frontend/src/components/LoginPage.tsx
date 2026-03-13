@@ -63,7 +63,8 @@ interface LoginPageProps {
 export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps) {
   const { t } = useTranslation();
   const location = useLocation();
-  const initialMode = new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login';
+  const initialMode =
+    new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login';
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
@@ -104,7 +105,8 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
   const passwordStrength = mode === 'register' ? getPasswordStrength(form.password) : null;
 
   useEffect(() => {
-    const urlMode = new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login';
+    const urlMode =
+      new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login';
     setMode(urlMode);
     setError('');
     setSuccessMessage('');
@@ -198,10 +200,16 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
         </div>
 
         {/* Logo */}
-        <button onClick={() => onNavigate('home')} className="flex items-center gap-3 relative z-10">
+        <button
+          onClick={() => onNavigate('home')}
+          className="flex items-center gap-3 relative z-10"
+        >
           <div
             className="size-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.2)',
+            }}
           >
             <svg viewBox="0 0 100 100" className="size-6 text-white" fill="none">
               <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="5" />
@@ -259,18 +267,18 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
                 <div key={i} className="flex items-center gap-3">
                   <div
                     className="size-5 rounded-full flex items-center justify-center shrink-0"
-                    style={{ background: 'rgba(200,168,85,0.25)', border: '1px solid rgba(200,168,85,0.4)' }}
+                    style={{
+                      background: 'rgba(200,168,85,0.25)',
+                      border: '1px solid rgba(200,168,85,0.4)',
+                    }}
                   >
-                    <CheckCircle2
-                      className="size-3"
-                      style={{ color: 'var(--color-accent-300)' }}
-                    />
+                    <CheckCircle2 className="size-3" style={{ color: 'var(--color-accent-300)' }} />
                   </div>
                   <span className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
                     {p}
                   </span>
                 </div>
-              ),
+              )
             )}
           </div>
 
@@ -291,7 +299,10 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
                 >
                   {n}
                 </p>
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                <p
+                  className="text-[10px] font-bold uppercase tracking-wider"
+                  style={{ color: 'rgba(255,255,255,0.45)' }}
+                >
                   {label}
                 </p>
               </div>
@@ -339,7 +350,10 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
           {/* Tab Switcher */}
           <div
             className="relative flex gap-1 p-1 rounded-xl mb-6"
-            style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
+            style={{
+              background: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+            }}
           >
             <AnimatePresence mode="wait">
               {(['login', 'register'] as const).map((m) => (
@@ -439,7 +453,7 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
 
                 <div>
                   <Label htmlFor="password">{t('auth.password')}</Label>
-                  <div className="relative">
+                  <div className="field-with-icon has-right-action">
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
@@ -447,12 +461,11 @@ export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps
                       value={form.password}
                       onChange={(e) => update('password', e.target.value)}
                       placeholder={t('auth.password_placeholder')}
-                      className="pr-12!"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((s) => !s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors"
+                      className="field-action text-slate-400 hover:text-primary transition-colors"
                     >
                       {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                     </button>

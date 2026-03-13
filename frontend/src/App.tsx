@@ -65,7 +65,7 @@ function NavBar() {
   return (
     <>
       <header className="sticky top-0 z-50 glass">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[3.75rem] flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-15 flex items-center justify-between gap-4">
           {/* Logo */}
           <button onClick={() => go('/')} className="flex items-center gap-2.5 shrink-0">
             <LogoMark className="size-9 text-primary" />
@@ -101,7 +101,7 @@ function NavBar() {
               >
                 {l.labelKey.startsWith('nav.') ? t(l.labelKey) : l.labelKey}
                 {isActive(l.path) && (
-                  <span className="absolute bottom-0 left-3.5 right-3.5 h-[2px] rounded-full bg-accent" />
+                  <span className="absolute bottom-0 left-3.5 right-3.5 h-0.5 rounded-full bg-accent" />
                 )}
               </button>
             ))}
@@ -167,7 +167,7 @@ function NavBar() {
           {/* Mobile menu toggle */}
           <button
             onClick={() => setMobileOpen((o) => !o)}
-            className="md:hidden size-9 flex items-center justify-center rounded-lg hover:bg-surface-2 text-ink transition-colors"
+            className="md:hidden size-9 flex items-center justify-center rounded-lg clay-panel text-ink transition-colors"
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
@@ -294,7 +294,7 @@ function MobileBottomNav() {
   };
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-parchment border-t border-border safe-area-pb shadow-[0_-1px_8px_rgba(26,18,8,0.06)]">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-parchment border-t border-border safe-area-pb glass">
       <div className="flex">
         {items.map(({ path, label, icon: Icon }) => (
           <button
@@ -482,7 +482,7 @@ function AppContent() {
   const isAdmin = location.pathname.startsWith('/adminstrator');
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
+    <div className="min-h-screen bg-surface flex flex-col grain">
       {!isPanchayat && !isAdmin && <NavBar />}
 
       {/* Onboarding Wizard Overlay */}

@@ -185,14 +185,14 @@ export default function PanchayatUsersPage() {
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                 Full Name
               </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+              <div className="field-with-icon">
+                <User className="field-icon size-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Rajesh Kumar"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={`${inputClass} pl-9`}
+                  className={inputClass}
                   required
                 />
               </div>
@@ -203,14 +203,14 @@ export default function PanchayatUsersPage() {
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                 Email Address
               </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+              <div className="field-with-icon">
+                <Mail className="field-icon size-4 text-gray-400" />
                 <input
                   type="email"
                   placeholder="official@panchayat.gov.in"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className={`${inputClass} pl-9`}
+                  className={inputClass}
                   required
                 />
               </div>
@@ -221,14 +221,14 @@ export default function PanchayatUsersPage() {
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                 Password
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+              <div className="field-with-icon">
+                <Lock className="field-icon size-4 text-gray-400" />
                 <input
                   type="password"
                   placeholder="Min 8 characters"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className={`${inputClass} pl-9`}
+                  className={inputClass}
                   minLength={8}
                   required
                 />
