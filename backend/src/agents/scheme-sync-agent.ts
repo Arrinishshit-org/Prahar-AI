@@ -53,28 +53,43 @@ class SchemeSyncAgent {
     });
   }
 
-  private async getResumeState(): Promise<{ nextIndex: number; totalSchemes: number } | null> {
-    const state = await redisService.get<{ nextIndex?: number; totalSchemes?: number }>(
+  private async getResumeState(): Promise<{
+    nextIndex: number;
+    totalSchemes: number;
+    syncRunId: string;
+  } | null> {
+    const state = await redisService.get<{
+      nextIndex?: number;
+      totalSchemes?: number;
+      syncRunId?: string;
+    }>(
       this.RESUME_KEY
     );
     if (!state) return null;
 
     const nextIndex = Number(state.nextIndex);
     const totalSchemes = Number(state.totalSchemes);
-    if (!Number.isFinite(nextIndex) || !Number.isFinite(totalSchemes)) return null;
+    const syncRunId = String(state.syncRunId || '').trim();
+    if (!Number.isFinite(nextIndex) || !Number.isFinite(totalSchemes) || !syncRunId) return null;
 
     return {
       nextIndex: Math.max(0, Math.floor(nextIndex)),
       totalSchemes: Math.max(0, Math.floor(totalSchemes)),
+      syncRunId,
     };
   }
 
-  private async saveResumeState(nextIndex: number, totalSchemes: number): Promise<void> {
+  private async saveResumeState(
+    nextIndex: number,
+    totalSchemes: number,
+    syncRunId: string
+  ): Promise<void> {
     await redisService.set(
       this.RESUME_KEY,
       {
         nextIndex,
         totalSchemes,
+        syncRunId,
         updatedAt: new Date().toISOString(),
       },
       this.RESUME_STATE_TTL_SECONDS
@@ -222,18 +237,22 @@ class SchemeSyncAgent {
       const shouldResume =
         !!resumeState &&
         resumeState.totalSchemes === totalSchemes &&
+        !!resumeState.syncRunId &&
         resumeState.nextIndex > 0 &&
         resumeState.nextIndex < totalSchemes;
 
       let startIndex = 0;
+      let syncRunId = '';
       if (shouldResume) {
         startIndex = resumeState!.nextIndex;
+        syncRunId = resumeState!.syncRunId;
         console.log(
           `🔁 Resuming incremental sync from index ${startIndex}/${totalSchemes} (remaining ${totalSchemes - startIndex})`
         );
       } else {
         console.log('🔄 Starting new incremental sync run without clearing existing Scheme nodes...');
-        await this.saveResumeState(0, totalSchemes);
+        syncRunId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await this.saveResumeState(0, totalSchemes, syncRunId);
       }
 
       // Enrich each batch and persist immediately, so progress survives interruptions.
@@ -249,10 +268,10 @@ class SchemeSyncAgent {
 
         console.log(`📦 Processing batch ${i + 1}-${batchEnd} of ${totalSchemes}...`);
         const enrichedBatch = await mySchemeStructuredService.enrichSchemes(batch);
-        await neo4jService.upsertSchemesBatch(enrichedBatch);
+        await neo4jService.upsertSchemesBatch(enrichedBatch, syncRunId);
 
         processed = batchEnd;
-        await this.saveResumeState(processed, totalSchemes);
+        await this.saveResumeState(processed, totalSchemes, syncRunId);
 
         const failedInBatch = enrichedBatch.filter((s) => !s.page_scheme_id).length;
         const batchFailureRatio = batch.length > 0 ? failedInBatch / batch.length : 0;
@@ -276,7 +295,7 @@ class SchemeSyncAgent {
       // Finalize graph relationships/meta only after all batches are persisted.
       console.log('🔗 Finalizing graph links and sync metadata...');
       const finalizeStartedAt = Date.now();
-      await neo4jService.finalizeIncrementalSchemeSync(totalSchemes);
+      await neo4jService.finalizeIncrementalSchemeSync(totalSchemes, syncRunId);
       await this.clearResumeState();
       const finalizeDurationSec = ((Date.now() - finalizeStartedAt) / 1000).toFixed(2);
       console.log(`✅ Finalization stage finished in ${finalizeDurationSec}s`);

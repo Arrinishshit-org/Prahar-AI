@@ -759,7 +759,8 @@ class Neo4jDbService {
       page_exclusions_md?: string | null;
       page_scheme_raw_json?: string;
       page_enriched_at?: string | null;
-    }[]
+    }[],
+    syncRunId: string
   ): Promise<void> {
     if (!schemes.length) return;
 
@@ -799,6 +800,7 @@ class Neo4jDbService {
         page_enriched_at: s.page_enriched_at ?? '',
         is_active: true,
         source_hash: computeSchemeSourceHash(s),
+        sync_run_id: syncRunId,
         last_updated: nowIso,
         last_seen_at: nowIso,
       };
@@ -808,7 +810,9 @@ class Neo4jDbService {
       `UNWIND $rows AS row
        MERGE (s:Scheme { scheme_id: row.scheme_id })
        SET s.is_active = row.is_active,
-           s.last_seen_at = row.last_seen_at
+           s.last_seen_at = row.last_seen_at,
+           s.last_seen_run = row.sync_run_id,
+           s.deactivated_at = null
        FOREACH (_ IN CASE WHEN coalesce(s.source_hash, '') <> row.source_hash THEN [1] ELSE [] END |
          SET s.name = row.name,
              s.description = row.description,
@@ -844,7 +848,16 @@ class Neo4jDbService {
   /**
    * Finalize incremental sync by linking groups, updating sync meta and clearing caches.
    */
-  async finalizeIncrementalSchemeSync(totalSchemes: number): Promise<void> {
+  async finalizeIncrementalSchemeSync(totalSchemes: number, syncRunId: string): Promise<void> {
+    const deactivatedAt = new Date().toISOString();
+    await this.connection.executeWrite(
+      `MATCH (s:Scheme)
+       WHERE coalesce(s.last_seen_run, '') <> $syncRunId
+       SET s.is_active = false,
+           s.deactivated_at = $deactivatedAt`,
+      { syncRunId, deactivatedAt }
+    );
+
     await this.autoLinkSchemesToUserGroups();
     await this.updateSyncMeta(totalSchemes);
     await redisService.delPattern('schemes:*');
@@ -949,7 +962,7 @@ class Neo4jDbService {
     if (cached != null) return cached;
 
     const rows = await this.connection.executeRead<{ cnt: number }>(
-      'MATCH (s:Scheme) RETURN count(s) AS cnt'
+      'MATCH (s:Scheme) WHERE coalesce(s.is_active, true) = true RETURN count(s) AS cnt'
     );
     const cnt = Number(rows[0]?.cnt) || 0;
     await redisService.set('schemes:count', cnt, CacheTTL.CATEGORIES);
@@ -962,7 +975,8 @@ class Neo4jDbService {
 
     const rows = await this.connection.executeRead<{ cnt: number }>(
       `MATCH (s:Scheme)
-       WHERE coalesce(s.page_scheme_id, '') <> '' OR coalesce(s.page_enriched_at, '') <> ''
+       WHERE coalesce(s.is_active, true) = true
+         AND (coalesce(s.page_scheme_id, '') <> '' OR coalesce(s.page_enriched_at, '') <> '')
        RETURN count(s) AS cnt`
     );
     const cnt = Number(rows[0]?.cnt) || 0;
@@ -1117,6 +1131,7 @@ class Neo4jDbService {
 
     const rows = await this.connection.executeRead<any>(
       `MATCH (s:Scheme)
+       WHERE coalesce(s.is_active, true) = true
        RETURN s
        ORDER BY toLower(s.name), s.scheme_id
        SKIP toInteger($offset)
@@ -1137,7 +1152,7 @@ class Neo4jDbService {
     if (cached) return cached;
 
     const rows = await this.connection.executeRead<any>(
-      'MATCH (s:Scheme { scheme_id: $schemeId }) RETURN s',
+      'MATCH (s:Scheme { scheme_id: $schemeId }) WHERE coalesce(s.is_active, true) = true RETURN s',
       { schemeId }
     );
     if (rows.length === 0) return undefined;
@@ -1162,6 +1177,7 @@ class Neo4jDbService {
       rows = await this.connection.executeRead<any>(
         `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
          YIELD node AS s, score
+         WHERE coalesce(s.is_active, true) = true
          RETURN s ORDER BY score DESC, toLower(s.name)
          SKIP toInteger($offset)
          LIMIT toInteger($limit)`,
@@ -1172,7 +1188,8 @@ class Neo4jDbService {
       const pattern = `(?i).*${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*`;
       rows = await this.connection.executeRead<any>(
         `MATCH (s:Scheme)
-         WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
+         WHERE coalesce(s.is_active, true) = true
+           AND (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
          RETURN s
          ORDER BY toLower(s.name), s.scheme_id
          SKIP toInteger($offset)
@@ -1199,6 +1216,7 @@ class Neo4jDbService {
       const rows = await this.connection.executeRead<{ cnt: number }>(
         `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
          YIELD node AS s
+         WHERE coalesce(s.is_active, true) = true
          RETURN count(s) AS cnt`,
         { query: `${ftQuery}~` }
       );
@@ -1207,7 +1225,8 @@ class Neo4jDbService {
       const pattern = `(?i).*${normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*`;
       const rows = await this.connection.executeRead<{ cnt: number }>(
         `MATCH (s:Scheme)
-         WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
+         WHERE coalesce(s.is_active, true) = true
+           AND (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
          RETURN count(s) AS cnt`,
         { pattern }
       );
@@ -1236,7 +1255,8 @@ class Neo4jDbService {
         rows = await this.connection.executeRead<any>(
           `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
            YIELD node AS s, score
-           WHERE s.state = $state OR s.state IS NULL OR s.state = ''
+           WHERE coalesce(s.is_active, true) = true
+             AND (s.state = $state OR s.state IS NULL OR s.state = '')
            RETURN s ORDER BY score DESC LIMIT toInteger($limit)`,
           { query: `${ftQuery}~`, state, limit: limitInt }
         );
@@ -1244,6 +1264,7 @@ class Neo4jDbService {
         rows = await this.connection.executeRead<any>(
           `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
            YIELD node AS s, score
+           WHERE coalesce(s.is_active, true) = true
            RETURN s ORDER BY score DESC LIMIT toInteger($limit)`,
           { query: `${ftQuery}~`, limit: limitInt }
         );
@@ -1254,7 +1275,8 @@ class Neo4jDbService {
       if (state) {
         rows = await this.connection.executeRead<any>(
           `MATCH (s:Scheme)
-           WHERE (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
+           WHERE coalesce(s.is_active, true) = true
+             AND (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
              AND (s.state = $state OR s.state IS NULL OR s.state = '')
            RETURN s LIMIT toInteger($limit)`,
           { pattern, state, limit: limitInt }
@@ -1262,7 +1284,8 @@ class Neo4jDbService {
       } else {
         rows = await this.connection.executeRead<any>(
           `MATCH (s:Scheme)
-           WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
+           WHERE coalesce(s.is_active, true) = true
+             AND (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
            RETURN s LIMIT toInteger($limit)`,
           { pattern, limit: limitInt }
         );
@@ -1289,6 +1312,7 @@ class Neo4jDbService {
        MATCH (c:Category)
        WHERE c.type = cat.type AND (c.value = cat.value OR c.value = 'Any')
        MATCH (s:Scheme)-[:HAS_CATEGORY]->(c)
+       WHERE coalesce(s.is_active, true) = true
        WITH s, count(DISTINCT c) AS matchCount
        RETURN s ORDER BY matchCount DESC
        LIMIT toInteger($limit)`,
@@ -1325,7 +1349,9 @@ class Neo4jDbService {
     const rows = await this.connection.executeRead<any>(
       `MATCH (u:User { user_id: $userId })
        OPTIONAL MATCH (u)-[:BELONGS_TO]->(ug:UserGroup)<-[:TARGETS]-(s1:Scheme)
+         WHERE coalesce(s1.is_active, true) = true
        OPTIONAL MATCH (u)-[:HAS_CATEGORY]->(c:Category)<-[:HAS_CATEGORY]-(s2:Scheme)
+         WHERE coalesce(s2.is_active, true) = true
        WITH collect(DISTINCT s1) + collect(DISTINCT s2) AS allSchemes
        UNWIND allSchemes AS s
        WITH s WHERE s IS NOT NULL
