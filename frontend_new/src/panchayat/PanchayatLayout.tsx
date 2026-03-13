@@ -156,9 +156,10 @@ export default function PanchayatLayout() {
                   key={item.path}
                   onClick={() => goTo(item.path)}
                   className={`p-topnav-tab ${isActive(item.path) ? 'active' : ''}`}
+                  title={item.label}
                 >
                   <Icon className="size-3.5" />
-                  <span>{item.label}</span>
+                  <span className="hidden sm:inline">{item.label}</span>
                 </button>
               );
             })}

@@ -94,7 +94,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1
             className="text-xl font-bold tracking-tight"
@@ -108,7 +108,7 @@ export default function AnalyticsPage() {
               'your panchayat'}
           </p>
         </div>
-        <button onClick={loadData} className="p-btn p-btn-secondary gap-1.5">
+        <button onClick={loadData} className="p-btn p-btn-secondary gap-1.5 shrink-0">
           <RefreshCw className="size-3.5" />
           Refresh
         </button>
@@ -245,7 +245,7 @@ export default function AnalyticsPage() {
           >
             Recent Registrations
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             {data.registrationTrend.map((entry) => (
               <div
                 key={entry.day}

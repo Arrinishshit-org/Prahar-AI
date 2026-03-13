@@ -225,13 +225,13 @@ export default function BeneficiariesPage() {
 
   return (
     <>
-      <div className="flex gap-5" style={{ minHeight: 'calc(100vh - 7rem)' }}>
+      <div className="md:flex md:gap-5" style={{ minHeight: 'calc(100vh - 7rem)' }}>
         {/* ── Left: citizen list ──────────────────────────────── */}
         <div
-          className={`flex flex-col gap-4 transition-all duration-300 ${selected ? 'w-3/5 min-w-0' : 'w-full'}`}
+          className={`flex flex-col gap-4 transition-all duration-300 ${selected ? 'hidden md:flex md:w-3/5 md:min-w-0' : 'flex w-full'}`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1
                 className="text-xl font-bold tracking-tight"
@@ -472,7 +472,18 @@ export default function BeneficiariesPage() {
 
         {/* ── Right: AI matching panel ────────────────────────── */}
         {selected && (
-          <div className="w-2/5 min-w-70 flex flex-col gap-4 overflow-y-auto thin-scroll">
+          <div className="w-full flex flex-col gap-4 overflow-y-auto thin-scroll md:w-2/5 md:min-w-70">
+            {/* Mobile back button */}
+            <button
+              onClick={() => {
+                setSelected(null);
+                setRecs([]);
+              }}
+              className="md:hidden p-btn p-btn-secondary gap-2 self-start"
+            >
+              <ChevronLeft className="size-4" />
+              Back to Citizens
+            </button>
             {/* Citizen profile card */}
             <div className="p-card p-5">
               <div className="flex items-start justify-between">
