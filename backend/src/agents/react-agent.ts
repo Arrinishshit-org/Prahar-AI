@@ -27,6 +27,9 @@ import { mlService } from '../services/ml.service';
 
 const MAX_ITERATIONS = 5;
 const MAX_TOOL_FAILURES = 2;
+const MIN_INTENT_CONFIDENCE = 0.6;
+const MIN_HIGH_RISK_INTENT_CONFIDENCE = 0.7;
+const HIGH_RISK_INTENTS = new Set(['eligibility_check', 'recommendation', 'profile_update']);
 
 function createTraceId(): string {
   return `react_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -84,6 +87,23 @@ class ReActAgent {
     };
     thoughts.push(intentThought);
     console.log(`💭 ${intentThought.content}`);
+
+    const clarification = this.getUncertaintyFallback(intent, message);
+    if (clarification) {
+      const uncertaintyThought: AgentThought = {
+        type: 'reasoning',
+        content: `Confidence too low for safe tool execution (${(intent.confidence * 100).toFixed(0)}%). Asking clarifying question instead.`,
+        timestamp: Date.now(),
+      };
+      thoughts.push(uncertaintyThought);
+      return {
+        response: clarification,
+        thinking: thoughts,
+        actionsUsed: actions,
+        observations,
+        confidence: Math.max(0.35, Math.min(0.65, intent.confidence)),
+      };
+    }
 
     // Step 2: Generate plan
     const plan = this.generatePlan(message, userId, intent);
@@ -352,6 +372,44 @@ class ReActAgent {
           },
         ];
     }
+  }
+
+  /**
+   * If intent confidence is too low, avoid speculative tool calls and ask the user to clarify.
+   */
+  private getUncertaintyFallback(
+    intent: { primary: string; confidence: number; secondary: string[] },
+    message: string
+  ): string | null {
+    const threshold = HIGH_RISK_INTENTS.has(intent.primary)
+      ? MIN_HIGH_RISK_INTENT_CONFIDENCE
+      : MIN_INTENT_CONFIDENCE;
+
+    if (intent.confidence >= threshold) return null;
+
+    const msg = (message || '').toLowerCase();
+    const hasStrongKeyword =
+      msg.includes('scheme') ||
+      msg.includes('eligib') ||
+      msg.includes('recommend') ||
+      msg.includes('profile') ||
+      msg.includes('apply');
+
+    if (hasStrongKeyword && intent.confidence >= threshold - 0.1) return null;
+
+    if (intent.primary === 'eligibility_check') {
+      return 'Please share which scheme you want to check eligibility for, or describe your profile (state, age, occupation, income) and I can suggest one first.';
+    }
+
+    if (intent.primary === 'recommendation') {
+      return 'I can help with recommendations. Please tell me your state and one or two priorities (for example: education, agriculture, women, startup, pension).';
+    }
+
+    if (intent.primary === 'profile_update') {
+      return 'Please specify exactly which profile fields you want to update (for example: age, state, education, occupation, income).';
+    }
+
+    return 'Could you clarify what you want to do: search schemes, check eligibility, view your profile, or get recommendations?';
   }
 
   /**
