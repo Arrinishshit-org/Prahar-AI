@@ -43,6 +43,14 @@ export function isAuthenticated(): boolean {
   return !!getAdminKey();
 }
 
+export interface AdminSystemSettings {
+  syncIntervalHours: number;
+  maxUsers: number;
+  maintenanceMode: boolean;
+  analyticsEnabled: boolean;
+  updatedAt: string;
+}
+
 // ─── Dashboard Stats ─────────────────────────────────────────────────────────
 
 export async function getDashboardStats() {
@@ -51,6 +59,37 @@ export async function getDashboardStats() {
   });
   if (!res.ok) throw new Error('Failed to fetch dashboard stats');
   return res.json();
+}
+
+// ─── Admin Settings ──────────────────────────────────────────────────────────
+
+export async function getAdminSettings(): Promise<AdminSystemSettings> {
+  const res = await fetch(`${API_BASE}/admin/settings`, {
+    headers: { ...adminHeaders() },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as any).error || 'Failed to fetch admin settings');
+  }
+  return (body as any).settings as AdminSystemSettings;
+}
+
+export async function updateAdminSettings(input: {
+  syncIntervalHours?: number;
+  maxUsers?: number;
+  maintenanceMode?: boolean;
+  analyticsEnabled?: boolean;
+}): Promise<AdminSystemSettings> {
+  const res = await fetch(`${API_BASE}/admin/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+    body: JSON.stringify(input),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as any).error || 'Failed to update admin settings');
+  }
+  return (body as any).settings as AdminSystemSettings;
 }
 
 // ─── Users ───────────────────────────────────────────────────────────────────

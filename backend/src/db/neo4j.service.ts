@@ -1879,6 +1879,65 @@ class Neo4jDbService {
     return Promise.all(rows.map((r: any) => this.nodeToUser(r.u)));
   }
 
+  async getAdminSettings(): Promise<{
+    syncIntervalHours: number;
+    maxUsers: number;
+    maintenanceMode: boolean;
+    analyticsEnabled: boolean;
+    updatedAt: string;
+  }> {
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (s:SystemSettings { id: 'global' })
+       RETURN s
+       LIMIT 1`
+    );
+
+    const node = rows[0]?.s?.properties ?? rows[0]?.s;
+    return {
+      syncIntervalHours: Math.max(1, Number(node?.sync_interval_hours) || 24),
+      maxUsers: Math.max(1, Number(node?.max_users) || 100000),
+      maintenanceMode: Boolean(node?.maintenance_mode),
+      analyticsEnabled:
+        typeof node?.analytics_enabled === 'boolean' ? Boolean(node.analytics_enabled) : true,
+      updatedAt: String(node?.updated_at || new Date().toISOString()),
+    };
+  }
+
+  async updateAdminSettings(input: {
+    syncIntervalHours?: number;
+    maxUsers?: number;
+    maintenanceMode?: boolean;
+    analyticsEnabled?: boolean;
+  }): Promise<{
+    syncIntervalHours: number;
+    maxUsers: number;
+    maintenanceMode: boolean;
+    analyticsEnabled: boolean;
+    updatedAt: string;
+  }> {
+    await this.connection.executeWrite(
+      `MERGE (s:SystemSettings { id: 'global' })
+       SET s.sync_interval_hours = coalesce($syncIntervalHours, s.sync_interval_hours, 24),
+           s.max_users = coalesce($maxUsers, s.max_users, 100000),
+           s.maintenance_mode = coalesce($maintenanceMode, s.maintenance_mode, false),
+           s.analytics_enabled = coalesce($analyticsEnabled, s.analytics_enabled, true),
+           s.updated_at = toString(datetime())`,
+      {
+        syncIntervalHours:
+          typeof input.syncIntervalHours === 'number'
+            ? Math.max(1, Math.round(input.syncIntervalHours))
+            : null,
+        maxUsers:
+          typeof input.maxUsers === 'number' ? Math.max(1, Math.round(input.maxUsers)) : null,
+        maintenanceMode: typeof input.maintenanceMode === 'boolean' ? input.maintenanceMode : null,
+        analyticsEnabled:
+          typeof input.analyticsEnabled === 'boolean' ? input.analyticsEnabled : null,
+      }
+    );
+
+    return this.getAdminSettings();
+  }
+
   async createAdminUser(input: { email: string; password: string; name?: string }): Promise<any> {
     const existing = await this.getUserByEmail(input.email);
     if (existing) {

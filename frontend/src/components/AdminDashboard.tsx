@@ -48,7 +48,7 @@ export default function AdminDashboard() {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <DashboardPage />;
+        return <DashboardPage onQuickNavigate={(target) => setCurrentView(target)} />;
       case 'users':
         return <UsersPage />;
       case 'panchayats':

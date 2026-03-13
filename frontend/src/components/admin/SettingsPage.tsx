@@ -1,221 +1,292 @@
-import { useState } from 'react';
-import { Save, RefreshCw, Database, Key, Bell, Shield } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Save, RefreshCw, Shield, Users, LineChart, Clock3 } from 'lucide-react';
+import { AdminSystemSettings, getAdminSettings, updateAdminSettings } from './adminApi';
 import { useDialog } from '../DialogProvider';
 
 export default function SettingsPage() {
   const { toast } = useDialog();
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState({
-    syncInterval: '24',
-    cacheExpiry: '300',
-    maxUsers: '10000',
-    enableNotifications: true,
-    enableAnalytics: true,
+  const [settings, setSettings] = useState<AdminSystemSettings | null>(null);
+  const [form, setForm] = useState({
+    syncIntervalHours: '24',
+    maxUsers: '100000',
     maintenanceMode: false,
+    analyticsEnabled: true,
   });
 
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        const current = await getAdminSettings();
+        if (!mounted) return;
+        setSettings(current);
+        setForm({
+          syncIntervalHours: String(current.syncIntervalHours),
+          maxUsers: String(current.maxUsers),
+          maintenanceMode: current.maintenanceMode,
+          analyticsEnabled: current.analyticsEnabled,
+        });
+      } catch (error) {
+        if (!mounted) return;
+        toast({
+          message: error instanceof Error ? error.message : 'Failed to load admin settings',
+          variant: 'error',
+        });
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [toast]);
+
+  const isDirty = useMemo(() => {
+    if (!settings) return false;
+    return (
+      Number(form.syncIntervalHours) !== settings.syncIntervalHours ||
+      Number(form.maxUsers) !== settings.maxUsers ||
+      form.maintenanceMode !== settings.maintenanceMode ||
+      form.analyticsEnabled !== settings.analyticsEnabled
+    );
+  }, [form, settings]);
+
+  const reload = async () => {
+    try {
+      setLoading(true);
+      const current = await getAdminSettings();
+      setSettings(current);
+      setForm({
+        syncIntervalHours: String(current.syncIntervalHours),
+        maxUsers: String(current.maxUsers),
+        maintenanceMode: current.maintenanceMode,
+        analyticsEnabled: current.analyticsEnabled,
+      });
+    } catch (error) {
+      toast({
+        message: error instanceof Error ? error.message : 'Failed to refresh settings',
+        variant: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSave = async () => {
+    const syncIntervalHours = Number(form.syncIntervalHours);
+    const maxUsers = Number(form.maxUsers);
+
+    if (!Number.isFinite(syncIntervalHours) || syncIntervalHours < 1 || syncIntervalHours > 168) {
+      toast({ message: 'Sync interval must be between 1 and 168 hours.', variant: 'error' });
+      return;
+    }
+
+    if (!Number.isFinite(maxUsers) || maxUsers < 1) {
+      toast({ message: 'Max users must be at least 1.', variant: 'error' });
+      return;
+    }
+
     setSaving(true);
-    // Simulate save
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSaving(false);
-    toast({ message: 'Settings saved successfully', variant: 'success' });
+    try {
+      const updated = await updateAdminSettings({
+        syncIntervalHours: Math.round(syncIntervalHours),
+        maxUsers: Math.round(maxUsers),
+        maintenanceMode: form.maintenanceMode,
+        analyticsEnabled: form.analyticsEnabled,
+      });
+      setSettings(updated);
+      setForm({
+        syncIntervalHours: String(updated.syncIntervalHours),
+        maxUsers: String(updated.maxUsers),
+        maintenanceMode: updated.maintenanceMode,
+        analyticsEnabled: updated.analyticsEnabled,
+      });
+      toast({ message: 'Settings updated and applied successfully.', variant: 'success' });
+    } catch (error) {
+      toast({
+        message: error instanceof Error ? error.message : 'Failed to save settings',
+        variant: 'error',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-1">Configure system settings and preferences</p>
+          <p className="text-gray-600 mt-1">
+            Configure applied runtime controls for the admin system
+          </p>
         </div>
-        <button onClick={handleSave} disabled={saving} className="btn btn-primary">
-          <Save className="size-4" />
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={reload} disabled={loading || saving} className="btn btn-secondary">
+            <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={loading || saving || !isDirty}
+            className="btn btn-primary"
+          >
+            <Save className="size-4" />
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </div>
 
-      {/* Sync Settings */}
       <div className="card p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="size-10 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
-            <RefreshCw className="size-5 text-[var(--color-primary)]" />
+            <Clock3 className="size-5 text-[var(--color-primary)]" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Sync Settings</h2>
-            <p className="text-sm text-gray-600">Configure scheme synchronization</p>
+            <h2 className="text-lg font-semibold text-gray-900">Synchronization</h2>
+            <p className="text-sm text-gray-600">
+              Controls how frequently scheduled scheme sync runs
+            </p>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Sync Interval (hours)
             </label>
             <input
               type="number"
-              value={settings.syncInterval}
-              onChange={(e) => setSettings({ ...settings, syncInterval: e.target.value })}
+              min={1}
+              max={168}
+              value={form.syncIntervalHours}
+              onChange={(e) => setForm((prev) => ({ ...prev, syncIntervalHours: e.target.value }))}
               className="input-base max-w-xs"
+              disabled={loading || saving}
             />
             <p className="text-xs text-[var(--color-muted)] mt-1">
-              How often to sync schemes from India.gov.in
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Cache Expiry (seconds)
-            </label>
-            <input
-              type="number"
-              value={settings.cacheExpiry}
-              onChange={(e) => setSettings({ ...settings, cacheExpiry: e.target.value })}
-              className="input-base max-w-xs"
-            />
-            <p className="text-xs text-[var(--color-muted)] mt-1">
-              How long to cache scheme data in Redis
+              Applies immediately to the background schedule and next-sync calculation.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Database Settings */}
       <div className="card p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="size-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-            <Database className="size-5 text-emerald-600" />
+            <Users className="size-5 text-emerald-600" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Database Settings</h2>
-            <p className="text-sm text-gray-600">Configure database connections</p>
+            <h2 className="text-lg font-semibold text-gray-900">Capacity Controls</h2>
+            <p className="text-sm text-gray-600">Set registration cap for citizen user accounts</p>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Max Users</label>
             <input
               type="number"
-              value={settings.maxUsers}
-              onChange={(e) => setSettings({ ...settings, maxUsers: e.target.value })}
+              min={1}
+              value={form.maxUsers}
+              onChange={(e) => setForm((prev) => ({ ...prev, maxUsers: e.target.value }))}
               className="input-base max-w-xs"
+              disabled={loading || saving}
             />
             <p className="text-xs text-[var(--color-muted)] mt-1">
-              Maximum number of users allowed in the system
+              New registrations are blocked when this limit is reached.
             </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="maintenanceMode"
-              checked={settings.maintenanceMode}
-              onChange={(e) => setSettings({ ...settings, maintenanceMode: e.target.checked })}
-              className="size-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-accent)]/30"
-            />
-            <label htmlFor="maintenanceMode" className="text-sm font-medium text-gray-700">
-              Enable Maintenance Mode
-            </label>
           </div>
         </div>
       </div>
 
-      {/* Security Settings */}
       <div className="card p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="size-10 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center">
             <Shield className="size-5 text-[var(--color-accent)]" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Security Settings</h2>
-            <p className="text-sm text-gray-600">Configure security and access control</p>
+            <h2 className="text-lg font-semibold text-gray-900">Runtime Controls</h2>
+            <p className="text-sm text-gray-600">Toggle live behavior flags for the platform</p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Admin Key</label>
-            <div className="flex items-center gap-3">
-              <input
-                type="password"
-                value="••••••••••••••••"
-                readOnly
-                className="input-base max-w-xs"
-              />
-              <button className="btn btn-secondary gap-2">
-                <Key className="size-4" />
-                Regenerate
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Admin key for API authentication</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="maintenanceMode"
+              checked={form.maintenanceMode}
+              onChange={(e) => setForm((prev) => ({ ...prev, maintenanceMode: e.target.checked }))}
+              disabled={loading || saving}
+              className="size-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-accent)]/30"
+            />
+            <label htmlFor="maintenanceMode" className="text-sm font-medium text-gray-700">
+              Maintenance Mode (blocks non-admin write operations)
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="analyticsEnabled"
+              checked={form.analyticsEnabled}
+              onChange={(e) => setForm((prev) => ({ ...prev, analyticsEnabled: e.target.checked }))}
+              disabled={loading || saving}
+              className="size-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-accent)]/30"
+            />
+            <label htmlFor="analyticsEnabled" className="text-sm font-medium text-gray-700">
+              Analytics Enabled (admin + panchayat analytics endpoints)
+            </label>
           </div>
         </div>
       </div>
 
-      {/* Notification Settings */}
       <div className="card p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="size-10 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
-            <Bell className="size-5 text-[var(--color-primary)]" />
+            <LineChart className="size-5 text-[var(--color-primary)]" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Notification Settings</h2>
-            <p className="text-sm text-gray-600">Configure system notifications</p>
+            <h2 className="text-lg font-semibold text-gray-900">Settings Status</h2>
+            <p className="text-sm text-gray-600">Current applied values from backend</p>
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="enableNotifications"
-              checked={settings.enableNotifications}
-              onChange={(e) => setSettings({ ...settings, enableNotifications: e.target.checked })}
-              className="size-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-accent)]/30"
-            />
-            <label htmlFor="enableNotifications" className="text-sm font-medium text-gray-700">
-              Enable Email Notifications
-            </label>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="enableAnalytics"
-              checked={settings.enableAnalytics}
-              onChange={(e) => setSettings({ ...settings, enableAnalytics: e.target.checked })}
-              className="size-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-accent)]/30"
-            />
-            <label htmlFor="enableAnalytics" className="text-sm font-medium text-gray-700">
-              Enable Analytics Tracking
-            </label>
-          </div>
-        </div>
-      </div>
-
-      {/* System Information */}
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">System Information</h2>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-gray-600">Version</p>
-            <p className="font-medium text-gray-900">1.0.0</p>
+            <p className="text-gray-600">Sync Interval</p>
+            <p className="font-medium text-gray-900">
+              {settings?.syncIntervalHours ?? '...'} hours
+            </p>
           </div>
           <div>
-            <p className="text-gray-600">Environment</p>
-            <p className="font-medium text-gray-900">Production</p>
+            <p className="text-gray-600">Max Users</p>
+            <p className="font-medium text-gray-900">{settings?.maxUsers ?? '...'}</p>
           </div>
           <div>
-            <p className="text-gray-600">Node Version</p>
-            <p className="font-medium text-gray-900">18.0.0</p>
+            <p className="text-gray-600">Maintenance Mode</p>
+            <p className="font-medium text-gray-900">
+              {settings?.maintenanceMode ? 'Enabled' : 'Disabled'}
+            </p>
           </div>
           <div>
-            <p className="text-gray-600">Database</p>
-            <p className="font-medium text-gray-900">Neo4j 5.0</p>
+            <p className="text-gray-600">Analytics</p>
+            <p className="font-medium text-gray-900">
+              {settings?.analyticsEnabled ? 'Enabled' : 'Disabled'}
+            </p>
           </div>
         </div>
+        <p className="text-xs text-[var(--color-muted)] mt-4">
+          Last updated:{' '}
+          {settings?.updatedAt ? new Date(settings.updatedAt).toLocaleString() : 'Not available'}
+        </p>
       </div>
     </div>
   );

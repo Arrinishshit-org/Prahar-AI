@@ -12,7 +12,13 @@ import {
 import { getDashboardStats, getSyncStatus, getSystemHealth, getActivityLogs } from './adminApi';
 import type { DashboardStats, SyncStatus, SystemHealth, ActivityLog } from './adminTypes';
 
-export default function DashboardPage() {
+type AdminQuickTarget = 'users' | 'schemes' | 'activity';
+
+interface DashboardPageProps {
+  onQuickNavigate?: (target: AdminQuickTarget) => void;
+}
+
+export default function DashboardPage({ onQuickNavigate }: DashboardPageProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [health, setHealth] = useState<SystemHealth | null>(null);
@@ -221,15 +227,24 @@ export default function DashboardPage() {
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="btn btn-primary justify-start">
+          <button
+            className="btn btn-primary justify-start"
+            onClick={() => onQuickNavigate?.('users')}
+          >
             <Users className="size-5" />
             View All Users
           </button>
-          <button className="btn btn-primary justify-start">
+          <button
+            className="btn btn-primary justify-start"
+            onClick={() => onQuickNavigate?.('schemes')}
+          >
             <FileText className="size-5" />
             Manage Schemes
           </button>
-          <button className="btn btn-primary justify-start">
+          <button
+            className="btn btn-primary justify-start"
+            onClick={() => onQuickNavigate?.('activity')}
+          >
             <Activity className="size-5" />
             View Activity Logs
           </button>

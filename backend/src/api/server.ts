@@ -49,6 +49,48 @@ const ADMIN_KEY = process.env.ADMIN_KEY || '';
 const jwtService = new JWTService();
 const passwordService = new PasswordService();
 
+interface AdminSystemSettings {
+  syncIntervalHours: number;
+  maxUsers: number;
+  maintenanceMode: boolean;
+  analyticsEnabled: boolean;
+  updatedAt: string;
+}
+
+const DEFAULT_ADMIN_SETTINGS: AdminSystemSettings = {
+  syncIntervalHours: 24,
+  maxUsers: 100000,
+  maintenanceMode: false,
+  analyticsEnabled: true,
+  updatedAt: new Date().toISOString(),
+};
+
+let adminSettingsCache: AdminSystemSettings = { ...DEFAULT_ADMIN_SETTINGS };
+let adminSettingsCacheAt = 0;
+
+async function getAdminSystemSettings(forceRefresh = false): Promise<AdminSystemSettings> {
+  if (!forceRefresh && Date.now() - adminSettingsCacheAt < 5000) {
+    return adminSettingsCache;
+  }
+
+  try {
+    const dbSettings = await neo4jService.getAdminSettings();
+    adminSettingsCache = {
+      syncIntervalHours: Math.max(1, Math.min(168, Number(dbSettings.syncIntervalHours) || 24)),
+      maxUsers: Math.max(1, Number(dbSettings.maxUsers) || 100000),
+      maintenanceMode: Boolean(dbSettings.maintenanceMode),
+      analyticsEnabled: Boolean(dbSettings.analyticsEnabled),
+      updatedAt: dbSettings.updatedAt || new Date().toISOString(),
+    };
+    schemeSyncAgent.setSyncIntervalHours(adminSettingsCache.syncIntervalHours);
+    adminSettingsCacheAt = Date.now();
+  } catch {
+    // Keep serving defaults/cached settings if DB lookup fails.
+  }
+
+  return adminSettingsCache;
+}
+
 const defaultOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
 const configuredOrigins = String(process.env.CORS_ORIGINS || '')
   .split(',')
@@ -70,6 +112,34 @@ app.use(
 );
 app.use(express.json());
 app.use(ts.translationMiddleware());
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  getAdminSystemSettings()
+    .then((settings) => {
+      if (req.path.startsWith('/api/admin')) {
+        return next();
+      }
+
+      const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method.toUpperCase());
+      const allowDuringMaintenance =
+        req.path === '/api/auth/login' || req.path === '/api/panchayat/login';
+
+      if (settings.maintenanceMode && isWrite && !allowDuringMaintenance) {
+        return res.status(503).json({
+          error: 'Service is in maintenance mode. Please try again later.',
+        });
+      }
+
+      return next();
+    })
+    .catch((error: any) => {
+      console.error('Maintenance gate error:', error);
+      return res.status(500).json({ error: 'Failed to evaluate maintenance mode' });
+    });
+});
 
 // ─── Seed admin user (called after neo4jService.init()) ──────────────────────
 export async function seedAdminUser() {
@@ -116,6 +186,12 @@ function calculateProfileCompleteness(user: any): number {
   return Math.round((filledFields.length / fields.length) * 100);
 }
 
+async function isUserCreationAllowed(): Promise<boolean> {
+  const settings = await getAdminSystemSettings();
+  const metrics = await neo4jService.getAdminMetrics();
+  return metrics.users.total < settings.maxUsers;
+}
+
 // Mock authentication routes
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -132,6 +208,13 @@ app.post('/api/auth/register', async (req, res) => {
 
     if (typeof email !== 'string' || !email.includes('@')) {
       return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    const userCreationAllowed = await isUserCreationAllowed();
+    if (!userCreationAllowed) {
+      return res
+        .status(403)
+        .json({ error: 'User registration limit reached. Contact administrator.' });
     }
 
     // Check if user already exists
@@ -470,6 +553,90 @@ app.get('/api/admin/sync/status', async (req, res) => {
   }
 });
 
+app.get('/api/admin/settings', async (req, res) => {
+  if (!(await requireAdminAccess(req, res))) return;
+
+  try {
+    const settings = await getAdminSystemSettings(true);
+    return res.json({
+      success: true,
+      settings,
+    });
+  } catch (error: any) {
+    console.error('Admin settings fetch error:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to fetch admin settings', details: error.message });
+  }
+});
+
+app.put('/api/admin/settings', async (req, res) => {
+  if (!(await requireAdminAccess(req, res))) return;
+
+  try {
+    const payload = req.body || {};
+    const updates: {
+      syncIntervalHours?: number;
+      maxUsers?: number;
+      maintenanceMode?: boolean;
+      analyticsEnabled?: boolean;
+    } = {};
+
+    if (typeof payload.syncIntervalHours !== 'undefined') {
+      const value = Number(payload.syncIntervalHours);
+      if (!Number.isFinite(value) || value < 1 || value > 168) {
+        return res.status(400).json({ error: 'syncIntervalHours must be between 1 and 168' });
+      }
+      updates.syncIntervalHours = Math.round(value);
+    }
+
+    if (typeof payload.maxUsers !== 'undefined') {
+      const value = Number(payload.maxUsers);
+      if (!Number.isFinite(value) || value < 1 || value > 50000000) {
+        return res.status(400).json({ error: 'maxUsers must be between 1 and 50000000' });
+      }
+      updates.maxUsers = Math.round(value);
+    }
+
+    if (typeof payload.maintenanceMode !== 'undefined') {
+      updates.maintenanceMode = Boolean(payload.maintenanceMode);
+    }
+
+    if (typeof payload.analyticsEnabled !== 'undefined') {
+      updates.analyticsEnabled = Boolean(payload.analyticsEnabled);
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: 'No valid settings fields provided' });
+    }
+
+    const saved = await neo4jService.updateAdminSettings(updates);
+    if (typeof updates.syncIntervalHours === 'number') {
+      schemeSyncAgent.setSyncIntervalHours(updates.syncIntervalHours);
+    }
+
+    adminSettingsCache = {
+      syncIntervalHours: saved.syncIntervalHours,
+      maxUsers: saved.maxUsers,
+      maintenanceMode: saved.maintenanceMode,
+      analyticsEnabled: saved.analyticsEnabled,
+      updatedAt: saved.updatedAt,
+    };
+    adminSettingsCacheAt = Date.now();
+
+    return res.json({
+      success: true,
+      message: 'Admin settings updated successfully',
+      settings: adminSettingsCache,
+    });
+  } catch (error: any) {
+    console.error('Admin settings update error:', error);
+    return res
+      .status(500)
+      .json({ error: 'Failed to update admin settings', details: error.message });
+  }
+});
+
 app.get('/api/admin/metrics', async (req, res) => {
   if (!(await requireAdminAccess(req, res))) return;
 
@@ -661,6 +828,11 @@ app.delete('/api/admin/users/:userId', async (req, res) => {
 app.get('/api/admin/analytics', async (req, res) => {
   if (!(await requireAdminAccess(req, res))) return;
   try {
+    const settings = await getAdminSystemSettings();
+    if (!settings.analyticsEnabled) {
+      return res.status(403).json({ error: 'Analytics is disabled by administrator settings' });
+    }
+
     const [metrics, users] = await Promise.all([
       neo4jService.getAdminMetrics(),
       neo4jService.getAllUsers(),
@@ -987,6 +1159,11 @@ app.get('/api/panchayat/analytics', async (req, res) => {
   const userId = await requirePanchayatAuth(req, res);
   if (!userId) return;
   try {
+    const settings = await getAdminSystemSettings();
+    if (!settings.analyticsEnabled) {
+      return res.status(403).json({ error: 'Analytics is currently disabled by administrator' });
+    }
+
     const panchayatUser = await neo4jService.getPanchayatUserById(userId);
     if (!panchayatUser) return res.status(404).json({ error: 'Panchayat user not found' });
 
@@ -1257,6 +1434,13 @@ app.post('/api/panchayat/citizens', async (req, res) => {
     }
     if (typeof email !== 'string' || !email.includes('@')) {
       return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    const userCreationAllowed = await isUserCreationAllowed();
+    if (!userCreationAllowed) {
+      return res
+        .status(403)
+        .json({ error: 'Citizen registration limit reached. Contact administrator.' });
     }
 
     const existing = await neo4jService.getUserByEmail(String(email).trim().toLowerCase());

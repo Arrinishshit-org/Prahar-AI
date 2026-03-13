@@ -51,7 +51,7 @@ interface SyncStatus {
 }
 
 class SchemeSyncAgent {
-  private readonly SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+  private syncIntervalMs = 24 * 60 * 60 * 1000; // 24 hours
   private readonly RESUME_KEY = 'scheme_sync_resume_state';
   private readonly RESUME_STATE_TTL_SECONDS = 24 * 60 * 60; // 24h
   private readonly RESUME_DELAY_MS = Math.max(
@@ -164,7 +164,7 @@ class SchemeSyncAgent {
     }
 
     // Check if we already have fresh data
-    if (await neo4jService.isFresh(this.SYNC_INTERVAL_MS)) {
+    if (await neo4jService.isFresh(this.syncIntervalMs)) {
       const meta = await neo4jService.getSyncMeta();
       console.log(
         `✅ Neo4j has ${meta.total_schemes} schemes (synced ${meta.last_sync}). Skipping API fetch.`
@@ -205,7 +205,7 @@ class SchemeSyncAgent {
     const nextSync = meta.last_sync
       ? new Date(
           new Date(meta.last_sync + (meta.last_sync.includes('Z') ? '' : 'Z')).getTime() +
-            this.SYNC_INTERVAL_MS
+            this.syncIntervalMs
         ).toISOString()
       : null;
     return {
@@ -251,10 +251,24 @@ class SchemeSyncAgent {
     this.syncTimer = setTimeout(async () => {
       await this.syncSchemes();
       this.scheduleNextSync();
-    }, this.SYNC_INTERVAL_MS);
+    }, this.syncIntervalMs);
 
-    const nextSyncTime = new Date(Date.now() + this.SYNC_INTERVAL_MS);
+    const nextSyncTime = new Date(Date.now() + this.syncIntervalMs);
     console.log(`⏰ Next sync scheduled for: ${nextSyncTime.toISOString()}`);
+  }
+
+  getSyncIntervalHours(): number {
+    return Math.max(1, Math.round(this.syncIntervalMs / (60 * 60 * 1000)));
+  }
+
+  setSyncIntervalHours(hours: number): void {
+    const normalized = Math.min(168, Math.max(1, Math.round(hours)));
+    this.syncIntervalMs = normalized * 60 * 60 * 1000;
+
+    // If the scheduler is already running, re-schedule with the new interval immediately.
+    if (this.syncTimer) {
+      this.scheduleNextSync();
+    }
   }
 
   /**
