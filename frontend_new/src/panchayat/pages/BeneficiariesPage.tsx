@@ -166,7 +166,9 @@ export default function BeneficiariesPage() {
         income: form.income || undefined,
         education: form.education || undefined,
       });
-      setRegisterSuccess(`${form.name} registered successfully.`);
+      setRegisterSuccess(
+        `${form.name} registered successfully. They can complete onboarding later.`
+      );
       setForm({
         name: '',
         email: '',
@@ -267,7 +269,7 @@ export default function BeneficiariesPage() {
                 value: total,
                 color: 'var(--color-primary-600)',
               },
-              { label: 'Active', value: onboarded, color: '#059669' },
+              { label: 'Onboarded', value: onboarded, color: '#059669' },
               {
                 label: 'Visible on page',
                 value: beneficiaries.length,
@@ -322,7 +324,7 @@ export default function BeneficiariesPage() {
                 }}
               >
                 <option value="all">All statuses</option>
-                <option value="complete">Active only</option>
+                <option value="complete">Onboarded only</option>
                 <option value="pending">Registered only</option>
               </select>
               {searchTerm && (
@@ -415,7 +417,7 @@ export default function BeneficiariesPage() {
                           <span
                             className={`p-badge ${u.onboardingComplete ? 'p-badge-success' : 'p-badge-info'}`}
                           >
-                            {u.onboardingComplete ? 'Active' : 'Registered'}
+                            {u.onboardingComplete ? 'Onboarded' : 'Registered'}
                           </span>
                         </td>
                         <td>

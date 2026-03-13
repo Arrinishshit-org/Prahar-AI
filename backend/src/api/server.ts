@@ -1525,15 +1525,15 @@ app.post('/api/panchayat/citizens', async (req, res) => {
       state: panchayatUser.state,
     });
 
-    // Set extra profile fields and panchayat association
-    // Mark onboarding as complete since the panchayat operator has filled in the citizen's details
+    // Set extra profile fields and panchayat association.
+    // Citizens registered by an operator still need to complete their own onboarding journey.
     await neo4jService.updateUserProfile(citizenId, {
       employment: employment || '',
       education: education || '',
       district: panchayatUser.district,
       panchayat_name: panchayatUser.panchayatName,
       registered_by_panchayat: userId,
-      onboarding_complete: true,
+      onboarding_complete: false,
     });
 
     return res.status(201).json({
