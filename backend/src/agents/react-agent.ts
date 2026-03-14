@@ -24,6 +24,7 @@ import {
   AgentResponse,
 } from './tools';
 import { mlService } from '../services/ml.service';
+import { intentService } from '../services/intent_service';
 
 const MAX_ITERATIONS = 5;
 const MAX_TOOL_FAILURES = 2;
@@ -281,7 +282,17 @@ class ReActAgent {
       return { primary: 'profile_query', confidence: 0.9, secondary: [] };
     }
 
-    // Try ML classification
+    // Try dedicated intent inference microservice first
+    const fastIntent = await intentService.predictIntent(message);
+    if (fastIntent.intent !== 'unknown_intent' && fastIntent.confidence >= 0.7) {
+      return {
+        primary: fastIntent.intent,
+        confidence: fastIntent.confidence,
+        secondary: [],
+      };
+    }
+
+    // Fallback to existing ML classification endpoint
     const classification = await mlService.classify(message, userId);
     if (classification && classification.confidence >= 0.7) {
       return {

@@ -96,6 +96,7 @@ INTENT_LABELS = [
     "profile_update",
     "general_question",
     "nudge_preferences",
+    "unknown_intent",
 ]
 
 
@@ -272,7 +273,7 @@ def main() -> int:
         choices=["auto", "cuda", "cpu"],
         help=(
             "Training device policy (default: auto). "
-            "In development auto prefers CUDA; in production CPU is forced."
+            "In development auto requires CUDA by default; in production auto uses GPU if available, else CPU."
         ),
     )
     # Quality-gate arguments
@@ -325,11 +326,15 @@ def main() -> int:
 
     # ── Class-weighted loss ──────────────────────────────────────────────
     train_label_ids = [INTENT_LABELS.index(d["intent"]) for d in train_data]
-    raw_weights = compute_class_weight(
+    present_classes = np.array(sorted(set(train_label_ids)))
+    raw_present_weights = compute_class_weight(
         class_weight="balanced",
-        classes=np.arange(len(INTENT_LABELS)),
+        classes=present_classes,
         y=train_label_ids,
     )
+    raw_weights = np.ones(len(INTENT_LABELS), dtype=np.float32)
+    for class_idx, class_weight in zip(present_classes, raw_present_weights):
+        raw_weights[int(class_idx)] = float(class_weight)
     weight_tensor = torch.tensor(raw_weights, dtype=torch.float32).to(device)
     criterion = torch.nn.CrossEntropyLoss(weight=weight_tensor)
     weight_summary = ", ".join(f"{lbl}={w:.2f}" for lbl, w in zip(INTENT_LABELS, raw_weights))
@@ -421,6 +426,11 @@ def main() -> int:
     # Save label mapping
     label_map = {idx: label for idx, label in enumerate(INTENT_LABELS)}
     with open(os.path.join(out, "label_map.json"), "w") as f:
+        json.dump(label_map, f, indent=2)
+
+    # Production inference artifact expected by the inference microservice.
+    labels_path = os.path.join(out, "labels.json")
+    with open(labels_path, "w") as f:
         json.dump(label_map, f, indent=2)
 
     # Save training history

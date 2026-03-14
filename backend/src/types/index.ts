@@ -24,7 +24,13 @@ export interface UserProfile {
   district: string;
   pincode: string;
   ruralUrban: 'rural' | 'urban' | 'semi_urban';
-  educationLevel: 'no_formal' | 'primary' | 'secondary' | 'higher_secondary' | 'graduate' | 'postgraduate';
+  educationLevel:
+    | 'no_formal'
+    | 'primary'
+    | 'secondary'
+    | 'higher_secondary'
+    | 'graduate'
+    | 'postgraduate';
   caste: 'general' | 'obc' | 'sc' | 'st' | 'other';
   religion?: string;
   disability: boolean;
@@ -203,7 +209,8 @@ export type Intent =
   | 'deadline_query'
   | 'profile_update'
   | 'general_question'
-  | 'nudge_preferences';
+  | 'nudge_preferences'
+  | 'unknown_intent';
 
 export interface Entity {
   type: 'location' | 'income' | 'occupation' | 'age' | 'scheme_name';

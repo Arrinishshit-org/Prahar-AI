@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { intentService } from './services/intent_service';
 
 const execAsync = promisify(exec);
 
@@ -29,6 +30,48 @@ function loadEnv(): void {
 loadEnv();
 
 const PORT = process.env.PORT || 3000;
+
+const INTENT_STARTUP_CHECK_RETRIES = Math.max(
+  1,
+  Number(process.env.INTENT_STARTUP_CHECK_RETRIES || 5)
+);
+const INTENT_STARTUP_CHECK_DELAY_MS = Math.max(
+  100,
+  Number(process.env.INTENT_STARTUP_CHECK_DELAY_MS || 1200)
+);
+const INTENT_STARTUP_REQUIRED =
+  String(process.env.INTENT_STARTUP_REQUIRED || 'false').toLowerCase() === 'true';
+
+async function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensureIntentServiceReady(): Promise<void> {
+  for (let attempt = 1; attempt <= INTENT_STARTUP_CHECK_RETRIES; attempt++) {
+    const healthy = await intentService.isHealthy();
+    if (healthy) {
+      console.log(`✅ Intent service ready (attempt ${attempt}/${INTENT_STARTUP_CHECK_RETRIES})`);
+      return;
+    }
+
+    if (attempt < INTENT_STARTUP_CHECK_RETRIES) {
+      console.warn(
+        `⚠️ Intent service not ready (attempt ${attempt}/${INTENT_STARTUP_CHECK_RETRIES}). Retrying...`
+      );
+      await delay(INTENT_STARTUP_CHECK_DELAY_MS);
+    }
+  }
+
+  const message =
+    `Intent service unavailable after ${INTENT_STARTUP_CHECK_RETRIES} checks. ` +
+    'Backend will use unknown_intent fallback path.';
+
+  if (INTENT_STARTUP_REQUIRED) {
+    throw new Error(message);
+  }
+
+  console.warn(`⚠️ ${message}`);
+}
 
 async function ensureGramPanchayatData(): Promise<void> {
   const autoSeedEnabled =
@@ -86,6 +129,13 @@ async function bootstrap(): Promise<void> {
     console.log(`📊 Health check: http://localhost:${PORT}/health`);
     console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
     console.log(`👤 Users API: http://localhost:${PORT}/api/users`);
+
+    try {
+      await ensureIntentServiceReady();
+    } catch (error) {
+      console.error('❌ Intent readiness check failed:', error);
+      process.exit(1);
+    }
 
     // Start scheme sync agent (initialises Neo4j + Redis + syncs from API if stale)
     console.log('\n🤖 Starting Scheme Sync Agent...');

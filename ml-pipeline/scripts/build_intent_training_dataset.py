@@ -8,7 +8,8 @@ Sources merged (in priority order — later sources win on deduplication):
   1. data/training/intent_train.json   — original synthetic training samples
   2. data/training/intent_val.json     — original synthetic validation samples
     3. data/training/intent_augmented.json — template-augmented training samples
-    4. data/training/intent_review_queue.jsonl — live samples captured from low-
+    4. data/training/intent_unknown_seed.json — seed out-of-domain examples
+    5. data/training/intent_review_queue.jsonl — live samples captured from low-
                                                                                              confidence API classifications
 
 Output:
@@ -27,6 +28,7 @@ Options:
   --train-data   PATH   Synthetic train JSON             (default: see above)
   --val-data     PATH   Synthetic val JSON               (default: see above)
     --augmented-data PATH Optional augmented JSON          (default: see above)
+    --unknown-data PATH Optional unknown-intent JSON       (default: see above)
   --review-queue PATH   Live review JSONL                (default: see above)
   --out-dir      DIR    Output directory                 (default: data/training)
   --val-fraction FLOAT  Val fraction for re-split        (default: 0.15)
@@ -62,6 +64,7 @@ _DATA_DIR = _ML_ROOT / "data" / "training"
 DEFAULT_TRAIN = str(_DATA_DIR / "intent_train.json")
 DEFAULT_VAL = str(_DATA_DIR / "intent_val.json")
 DEFAULT_AUGMENTED = str(_DATA_DIR / "intent_augmented.json")
+DEFAULT_UNKNOWN = str(_DATA_DIR / "intent_unknown_seed.json")
 DEFAULT_QUEUE = str(_DATA_DIR / "intent_review_queue.jsonl")
 DEFAULT_OUT_DIR = str(_DATA_DIR)
 
@@ -100,6 +103,7 @@ def main() -> int:
     parser.add_argument("--train-data", default=DEFAULT_TRAIN)
     parser.add_argument("--val-data", default=DEFAULT_VAL)
     parser.add_argument("--augmented-data", default=DEFAULT_AUGMENTED)
+    parser.add_argument("--unknown-data", default=DEFAULT_UNKNOWN)
     parser.add_argument("--review-queue", default=DEFAULT_QUEUE)
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     parser.add_argument("--val-fraction", type=float, default=0.15)
@@ -118,11 +122,13 @@ def main() -> int:
     train_synthetic = _load_json_list(args.train_data)
     val_synthetic = _load_json_list(args.val_data)
     augmented = _load_json_list(args.augmented_data)
+    unknown_seed = _load_json_list(args.unknown_data)
     queue_raw = load_jsonl(args.review_queue)
 
     print(f"  Synthetic train : {len(train_synthetic):>5}")
     print(f"  Synthetic val   : {len(val_synthetic):>5}")
     print(f"  Augmented data  : {len(augmented):>5}")
+    print(f"  Unknown seed    : {len(unknown_seed):>5}")
     print(f"  Review queue    : {len(queue_raw):>5} (raw)")
 
     # ── 2. Filter queue ──────────────────────────────────────────────────────
@@ -134,7 +140,7 @@ def main() -> int:
 
     # ── 3. Combine & validate ────────────────────────────────────────────────
     # Combine all sources; synthetic data first so live data wins on dedup
-    combined = train_synthetic + val_synthetic + augmented + queue_filtered
+    combined = train_synthetic + val_synthetic + augmented + unknown_seed + queue_filtered
 
     valid: list = []
     skipped = 0
@@ -183,6 +189,8 @@ def main() -> int:
     source_files = [args.train_data, args.val_data]
     if Path(args.augmented_data).exists():
         source_files.append(args.augmented_data)
+    if Path(args.unknown_data).exists():
+        source_files.append(args.unknown_data)
     if Path(args.review_queue).exists():
         source_files.append(args.review_queue)
 

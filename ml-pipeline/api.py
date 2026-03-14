@@ -19,7 +19,9 @@ import logging
 import os
 import sys
 import json
+from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from dotenv import load_dotenv
 
 # Add src to path for local imports
@@ -105,6 +107,15 @@ class ChatResponse(BaseModel):
     grounding_meta: Optional[Dict[str, Any]] = None
 
 
+class PredictIntentRequest(BaseModel):
+    text: str
+
+
+class PredictIntentResponse(BaseModel):
+    intent: str
+    confidence: float
+
+
 # ─── App ─────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
@@ -134,14 +145,17 @@ def load_models():
     """Load all ML models at startup so /health reports true immediately."""
     logger.info("Loading ML models...")
     get_intent_classifier()
+    get_intent_predictor()
     get_eligibility_engine()
     get_recommendation_engine()
     logger.info("ML models loaded")
 
 
 _intent_classifier = None
+_intent_predictor = None
 _eligibility_engine = None
 _recommendation_engine = None
+_intent_log_lock = Lock()
 
 
 def _resolve_recommendation_model_path() -> Optional[str]:
@@ -195,6 +209,41 @@ def get_eligibility_engine():
     return _eligibility_engine
 
 
+def get_intent_predictor():
+    global _intent_predictor
+    if _intent_predictor is None:
+        try:
+            from inference.intent_predictor import IntentPredictor
+
+            model_dir = os.getenv(
+                "INTENT_MODEL_DIR",
+                str(Path(__file__).resolve().parent / "models" / "intent_classifier"),
+            )
+            threshold = float(os.getenv("INTENT_CONFIDENCE_THRESHOLD", "0.60"))
+            _intent_predictor = IntentPredictor(
+                model_dir=model_dir,
+                confidence_threshold=threshold,
+            )
+            logger.info("IntentPredictor loaded from %s", model_dir)
+        except Exception as e:
+            logger.warning("IntentPredictor not available: %s", e)
+    return _intent_predictor
+
+
+def _append_intent_prediction_log(entry: Dict[str, Any]) -> None:
+    log_path = Path(
+        os.getenv(
+            "INTENT_PREDICTION_LOG_PATH",
+            str(Path(__file__).resolve().parent / "logs" / "intent_predictions.log"),
+        )
+    )
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(entry, ensure_ascii=False)
+    with _intent_log_lock:
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+
+
 def get_recommendation_engine():
     global _recommendation_engine
     if _recommendation_engine is None:
@@ -224,13 +273,62 @@ def health():
     """Service health and model availability check."""
     return {
         "status": "ok",
+        "model_loaded": _intent_predictor is not None,
         "models": {
             "intent_classifier": _intent_classifier is not None,
+            "intent_predictor": _intent_predictor is not None,
             "eligibility_engine": _eligibility_engine is not None,
             "recommendation_engine": _recommendation_engine is not None,
         },
         "version": "1.0.0",
     }
+
+
+@app.post("/predict_intent", response_model=PredictIntentResponse)
+def predict_intent(req: PredictIntentRequest):
+    text = req.text.strip()
+    if not text:
+        return PredictIntentResponse(intent="unknown_intent", confidence=0.0)
+
+    predictor = get_intent_predictor()
+    if not predictor:
+        fallback = {"intent": "unknown_intent", "confidence": 0.0}
+        _append_intent_prediction_log(
+            {
+                "text": text,
+                "intent": fallback["intent"],
+                "confidence": fallback["confidence"],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "error": "intent_predictor_unavailable",
+            }
+        )
+        return PredictIntentResponse(**fallback)
+
+    try:
+        result = predictor.predict(text)
+        _append_intent_prediction_log(
+            {
+                "text": text,
+                "intent": result["intent"],
+                "confidence": result["confidence"],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        return PredictIntentResponse(
+            intent=str(result["intent"]), confidence=float(result["confidence"])
+        )
+    except Exception as e:
+        fallback = {"intent": "unknown_intent", "confidence": 0.0}
+        _append_intent_prediction_log(
+            {
+                "text": text,
+                "intent": fallback["intent"],
+                "confidence": fallback["confidence"],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "error": str(e),
+            }
+        )
+        return PredictIntentResponse(**fallback)
 
 
 # Confidence threshold below which a sample is queued for human review.

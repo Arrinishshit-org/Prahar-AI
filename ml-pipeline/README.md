@@ -60,6 +60,29 @@ python src/main.py
 
 The service will start on `http://localhost:8000`
 
+### Unified Intent Endpoint (Port 8000)
+
+Intent inference is served by the main ML service on the same port (`8000`).
+
+Endpoint:
+
+- `POST /predict_intent` with `{ "text": "..." }`
+- response: `{ "intent": "...", "confidence": 0.xx }`
+
+Predictions are appended to `ml-pipeline/logs/intent_predictions.log`.
+
+### Latency Benchmark
+
+Benchmark direct model latency (and optional HTTP endpoint latency):
+
+```bash
+python scripts/benchmark_intent_inference.py --runs 300 --warmup 30
+python scripts/benchmark_intent_inference.py --http-url http://127.0.0.1:8000/predict_intent
+```
+
+The benchmark prints mean, p50, p95, p99 and checks against the default target
+`p95 <= 100ms`.
+
 ### Training Device Policy (Development vs Production)
 
 The intent trainer enforces environment-aware device selection:

@@ -3,6 +3,7 @@ import { neo4jService } from '../db/neo4j.service';
 import { redisService } from '../db/redis.service';
 import { getTranslationService } from './translation.service';
 import { mlService } from './ml.service';
+import { intentService } from './intent_service';
 import { chatIntelligenceService, ChatTurn } from './chat-intelligence.service';
 import { ProfileExtractor } from '../utils/profile-extractor';
 import { initializeTools, reactAgent } from '../agents';
@@ -590,6 +591,14 @@ class ChatOrchestrationService {
     }
 
     try {
+      const fastIntent = await intentService.predictIntent(message);
+      if (fastIntent.intent && fastIntent.intent !== 'unknown_intent') {
+        return {
+          primary: fastIntent.intent,
+          confidence: fastIntent.confidence || 0.6,
+        };
+      }
+
       const classification = await mlService.classify(message, userId);
       if (classification?.primary_intent) {
         return {

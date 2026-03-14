@@ -30,6 +30,7 @@ VALID_INTENTS = frozenset(
         "profile_update",
         "general_question",
         "nudge_preferences",
+        "unknown_intent",
     ]
 )
 
