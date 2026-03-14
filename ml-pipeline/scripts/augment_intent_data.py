@@ -213,27 +213,26 @@ _t(
     "Application procedure for {occupation} schemes in {state}",
 )
 
-# ── document_requirements ─────────────────────────────────────────────────────
+# ── deadline_query ────────────────────────────────────────────────────────────
 _t(
-    "document_requirements",
-    "What documents are needed for {scheme_name}?",
-    "Which documents should I submit for {category} scheme?",
-    "Is {document_type} required for {scheme_name}?",
-    "Documents needed to apply for {occupation} schemes",
-    "List of required documents for {scheme_name} application",
-    "Do I need {document_type} for {scheme_name}?",
-    "What proof of income is required for {category} schemes?",
-    "Documents required for {category} scheme in {state}",
-    "Certificates needed for {scheme_name} application",
-    "Is {document_type} mandatory for {category} yojana?",
-    "What paperwork is required for {occupation} to apply for {scheme_name}?",
-    "Kaun kaun se documents chahiye {scheme_name} ke liye?",
-    "Important documents for {scheme_name} eligibility",
+    "deadline_query",
+    "What is the last date to apply for {scheme_name}?",
+    "When is the deadline for {scheme_name} application?",
+    "Application deadline for {category} scheme in {state}",
+    "By when should I submit documents for {scheme_name}?",
+    "Last date for {occupation} to apply for {scheme_name}",
+    "Deadline of {scheme_name} this year",
+    "Can I still apply for {scheme_name} now?",
+    "What is the closing date of {category} yojana?",
+    "Submission last date for {scheme_name}",
+    "When does registration close for {scheme_name}?",
+    "Deadline check for {category} government scheme",
+    "Is the application window for {scheme_name} still open?",
 )
 
-# ── benefit_details ───────────────────────────────────────────────────────────
+# ── general_question ──────────────────────────────────────────────────────────
 _t(
-    "benefit_details",
+    "general_question",
     "What benefits does {scheme_name} provide?",
     "How much {benefit} can I get from {scheme_name}?",
     "What is the {benefit} amount under {scheme_name}?",
@@ -249,25 +248,43 @@ _t(
     "Annual benefit from {scheme_name} for {occupation}",
 )
 
-# ── status_inquiry ────────────────────────────────────────────────────────────
+# ── profile_update ────────────────────────────────────────────────────────────
 _t(
-    "status_inquiry",
-    "What is the status of my {scheme_name} application?",
-    "How do I track my {category} scheme application?",
-    "Check status of {scheme_name} application",
-    "My {scheme_name} application is pending, what should I do?",
-    "Application status inquiry for {scheme_name}",
-    "How long does approval for {scheme_name} take?",
-    "I applied for {scheme_name}, when will I hear back?",
-    "Kya mera {scheme_name} ka application approve hua?",
-    "Track {scheme_name} application using reference number",
-    "When will {scheme_name} benefit be credited?",
-    "Status check for {category} scheme application in {state}",
+    "profile_update",
+    "Update my age to {age}",
+    "My income is now {income}, please update profile",
+    "Change my state to {state}",
+    "Set my occupation to {occupation}",
+    "Please update my profile details",
+    "I moved to {state}, update my account",
+    "Correct my annual income to {income}",
+    "Edit my profile information",
+    "Update my family and income details",
+    "Profile update: I am a {occupation} from {state}",
+    "Modify my user profile for better scheme matching",
+    "Mera profile update kar do",
 )
 
-# ── general_inquiry ───────────────────────────────────────────────────────────
+# ── nudge_preferences ─────────────────────────────────────────────────────────
 _t(
-    "general_inquiry",
+    "nudge_preferences",
+    "Send me reminders for scheme deadlines",
+    "Do not send me frequent notifications",
+    "Enable SMS alerts for new schemes",
+    "Turn off scheme recommendation nudges",
+    "Notify me only for {category} schemes",
+    "Set reminder preference to weekly",
+    "I want updates only when new {category} schemes launch",
+    "Mute notification alerts for now",
+    "Send me important alerts only",
+    "Enable application deadline notifications",
+    "Preference update: notifications in the evening",
+    "Change my nudge settings",
+)
+
+# ── general_question (non-task-specific) ─────────────────────────────────────
+_t(
+    "general_question",
     "Hello, I need help",
     "Hi there",
     "What can you help me with?",
@@ -439,6 +456,12 @@ def main() -> int:
     print(f"[augment] Generated {len(samples)} samples → {out_path}")
     for intent, count in sorted(by_intent.items()):
         print(f"  {intent:<30s} {count:>4d}")
+
+    missing_intents = sorted([intent for intent in VALID_INTENTS if by_intent.get(intent, 0) == 0])
+    if missing_intents:
+        print("[augment] WARNING: Missing classes:", ", ".join(missing_intents))
+    else:
+        print("[augment] Coverage OK: all VALID_INTENTS represented")
 
     return 0
 

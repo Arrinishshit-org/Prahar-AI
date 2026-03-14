@@ -60,6 +60,31 @@ python src/main.py
 
 The service will start on `http://localhost:8000`
 
+### Training Device Policy (Development vs Production)
+
+The intent trainer enforces environment-aware device selection:
+
+- `ENVIRONMENT=development` (default): requires GPU (`cuda`) in `auto` mode. Fails fast if
+  CUDA is unavailable, preventing silent slow CPU training runs.
+- `ENVIRONMENT=production`: auto-selects GPU if available on the host; falls back to CPU
+  gracefully when no GPU is present.
+
+To temporarily allow CPU training in development (e.g. on a machine without a GPU), set
+`TRAIN_REQUIRE_GPU_IN_DEV=false`.
+
+Examples:
+
+```bash
+# Development (default): requires CUDA
+python training/intent_trainer.py --device auto
+
+# Development on a CPU-only machine (opt out of GPU requirement)
+TRAIN_REQUIRE_GPU_IN_DEV=false python training/intent_trainer.py --device auto
+
+# Production: uses GPU if available, otherwise CPU
+ENVIRONMENT=production python training/intent_trainer.py --device auto
+```
+
 - **Health Check**: http://localhost:8000/health
 - **API Docs**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc

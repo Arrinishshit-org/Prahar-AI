@@ -1,6 +1,7 @@
 import { neo4jService } from '../db/neo4j.service';
 import { mlService } from './ml.service';
 import { userSegmentationService } from '../classification/user-segmentation';
+import { interactionService } from './interaction.service';
 
 type CandidateScheme = {
   schemeId: string;
@@ -13,6 +14,7 @@ type CandidateScheme = {
   categoryLabel: string;
   schemeUrl: string | null;
   sourceHints: string[];
+  popularity: number;
 };
 
 type ScoredCandidate = CandidateScheme & {
@@ -114,6 +116,7 @@ function normalizeCandidate(raw: any, hint: string): CandidateScheme {
     categoryLabel: primaryCategory(categories),
     schemeUrl: raw?.scheme_url || raw?.schemeUrl || null,
     sourceHints: [hint],
+    popularity: 0.5,
   };
 }
 
@@ -257,6 +260,20 @@ class RecommendationRankingService {
       .sort((a, b) => b.prelimScore - a.prelimScore)
       .slice(0, Math.max(count * 4, 20));
 
+    // Interaction-derived popularity signal, normalised to [0, 1].
+    // Fail-open to neutral prior (0.5) so recommendation generation never blocks.
+    const popularityRows = await Promise.all(
+      prelim.map(async ({ candidate }) => {
+        try {
+          const score = await interactionService.getSchemePopularityScore(candidate.schemeId);
+          return [candidate.schemeId, score] as const;
+        } catch {
+          return [candidate.schemeId, 0.5] as const;
+        }
+      })
+    );
+    const popularityMap = new Map<string, number>(popularityRows);
+
     const enriched: ScoredCandidate[] = [];
     for (const { candidate, prelimScore } of prelim) {
       const eligibility = await neo4jService.checkGraphEligibility(userId, candidate.schemeId);
@@ -273,9 +290,13 @@ class RecommendationRankingService {
             .toLowerCase();
       if (eligibility.score < 20 && !sameState) continue;
 
-      const blended = Math.round(prelimScore * 0.35 + eligibility.score * 0.65);
+      const popularity = popularityMap.get(candidate.schemeId) ?? 0.5;
+      const blended = Math.round(
+        prelimScore * 0.3 + eligibility.score * 0.6 + popularity * 100 * 0.1
+      );
       enriched.push({
         ...candidate,
+        popularity,
         graphScore: eligibility.score,
         matchedCategories: eligibility.matchedCategories,
         relevanceScore: blended,
@@ -287,6 +308,7 @@ class RecommendationRankingService {
       enriched.push(
         ...prelim.slice(0, count).map(({ candidate, prelimScore }) => ({
           ...candidate,
+          popularity: popularityMap.get(candidate.schemeId) ?? 0.5,
           graphScore: 0,
           matchedCategories: [],
           relevanceScore: prelimScore,
@@ -312,8 +334,10 @@ class RecommendationRankingService {
         id: item.schemeId,
         name: item.name,
         description: item.description,
+        category: item.categoryLabel,
         state: item.state,
         tags: item.tags,
+        popularity: item.popularity,
       })),
       Math.max(count * 2, 10)
     );

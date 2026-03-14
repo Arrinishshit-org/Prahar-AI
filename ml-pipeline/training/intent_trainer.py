@@ -9,6 +9,7 @@ to ml-pipeline/models/.
 import sys
 import os
 import json
+import shutil
 import argparse
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
@@ -27,6 +28,63 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
     classification_report,
 )
+from sklearn.utils.class_weight import compute_class_weight
+
+
+def resolve_training_device(requested_device: str) -> torch.device:
+    """Resolve training device from CLI/env with dev/prod policy.
+
+    Policy:
+      - Production (`ENVIRONMENT=production`) auto-selects: GPU if available, otherwise CPU.
+      - Development (`ENVIRONMENT=development`) requires GPU by default; fails fast if CUDA
+        is unavailable unless TRAIN_REQUIRE_GPU_IN_DEV=false is set.
+
+    Controls:
+      - --device {auto,cuda,cpu}
+      - ENVIRONMENT (default: development)
+      - TRAIN_REQUIRE_GPU_IN_DEV (default: true)  — only applies in development
+    """
+    environment = str(os.getenv("ENVIRONMENT", "development")).strip().lower()
+    in_production = environment in {"production", "prod"}
+    require_gpu_in_dev = str(os.getenv("TRAIN_REQUIRE_GPU_IN_DEV", "true")).lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+    device_choice = requested_device.strip().lower()
+    if device_choice not in {"auto", "cuda", "cpu"}:
+        raise ValueError(f"Unsupported device '{requested_device}'. Choose one of: auto, cuda, cpu")
+
+    # Explicit device override always honoured in both environments
+    if device_choice == "cpu":
+        return torch.device("cpu")
+
+    if device_choice == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "--device=cuda requested but CUDA is not available. "
+                "Install a CUDA-enabled PyTorch build or use --device=cpu."
+            )
+        return torch.device("cuda")
+
+    # auto mode — policy differs by environment
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+
+    if in_production:
+        # Production: gracefully fall back to CPU when no GPU is present
+        print("ENVIRONMENT=production, no GPU detected -> falling back to CPU")
+        return torch.device("cpu")
+
+    # Development: require GPU unless explicitly opted out
+    if require_gpu_in_dev:
+        raise RuntimeError(
+            "ENVIRONMENT=development requires GPU training, but CUDA is not available. "
+            "Set TRAIN_REQUIRE_GPU_IN_DEV=false to allow CPU fallback for local debugging."
+        )
+    return torch.device("cpu")
+
 
 # Intent labels — defined inline to avoid importing intent_classifier.py
 # which pulls in heavy onnxruntime / torch at module level.
@@ -89,7 +147,17 @@ def train_epoch(
     optimizer,
     scheduler,
     device: torch.device,
+    criterion=None,
 ) -> float:
+    """Run one training epoch.
+
+    Parameters
+    ----------
+    criterion:
+        Optional weighted ``CrossEntropyLoss``. When provided the loss is
+        computed from logits so all classes receive balanced gradient signal.
+        When ``None`` the model's built-in (unweighted) loss is used.
+    """
     model.train()
     total_loss = 0.0
     for batch in loader:
@@ -98,12 +166,17 @@ def train_epoch(
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
 
-        outputs = model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            labels=labels,
-        )
-        loss = outputs.loss
+        if criterion is not None:
+            # Don't pass labels to the model; compute loss manually with weights.
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            loss = criterion(outputs.logits, labels)
+        else:
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labels=labels,
+            )
+            loss = outputs.loss
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
@@ -182,11 +255,26 @@ def main() -> int:
         default="models/intent_classifier",
         help="Directory to save trained model (default: models/intent_classifier)",
     )
-    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=3,
+        help="Early-stopping patience: stop if val F1 does not improve for this many epochs (0 = disabled)",
+    )
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--max-length", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--device",
+        default="auto",
+        choices=["auto", "cuda", "cpu"],
+        help=(
+            "Training device policy (default: auto). "
+            "In development auto prefers CUDA; in production CPU is forced."
+        ),
+    )
     # Quality-gate arguments
     parser.add_argument(
         "--output-metrics",
@@ -212,7 +300,7 @@ def main() -> int:
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = resolve_training_device(args.device)
     print(f"\nDevice: {device}")
 
     # ── Load data ────────────────────────────────────────────────────────
@@ -235,6 +323,18 @@ def main() -> int:
         num_labels=len(INTENT_LABELS),
     ).to(device)
 
+    # ── Class-weighted loss ──────────────────────────────────────────────
+    train_label_ids = [INTENT_LABELS.index(d["intent"]) for d in train_data]
+    raw_weights = compute_class_weight(
+        class_weight="balanced",
+        classes=np.arange(len(INTENT_LABELS)),
+        y=train_label_ids,
+    )
+    weight_tensor = torch.tensor(raw_weights, dtype=torch.float32).to(device)
+    criterion = torch.nn.CrossEntropyLoss(weight=weight_tensor)
+    weight_summary = ", ".join(f"{lbl}={w:.2f}" for lbl, w in zip(INTENT_LABELS, raw_weights))
+    print(f"  Class weights: {weight_summary}")
+
     # ── Datasets & loaders ───────────────────────────────────────────────
     train_ds = IntentDataset(train_data, tokenizer, args.max_length)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
@@ -253,29 +353,47 @@ def main() -> int:
         num_training_steps=total_steps,
     )
 
+    # Best-checkpoint directory (written next to output-dir)
+    best_ckpt_dir = str(Path(args.output_dir).parent / "_intent_best_ckpt")
+
     # ── Training ─────────────────────────────────────────────────────────
-    print(f"\nTraining for {args.epochs} epochs ...")
+    print(f"\nTraining for up to {args.epochs} epochs (early-stop patience={args.patience}) ...")
     print("-" * 60)
 
     best_f1 = 0.0
+    epochs_without_improvement = 0
     history: List[Dict[str, Any]] = []
 
     for epoch in range(1, args.epochs + 1):
-        train_loss = train_epoch(model, train_loader, optimizer, scheduler, device)
+        train_loss = train_epoch(model, train_loader, optimizer, scheduler, device, criterion)
         row: Dict[str, Any] = {"epoch": epoch, "train_loss": train_loss}
 
         if val_loader:
             val_metrics = evaluate(model, val_loader, device)
             row.update({f"val_{k}": v for k, v in val_metrics.items()})
+
+            improved = val_metrics["f1"] > best_f1
+            marker = " ✓ best" if improved else ""
             print(
                 f"  Epoch {epoch}/{args.epochs}  "
                 f"train_loss={train_loss:.4f}  "
                 f"val_loss={val_metrics['loss']:.4f}  "
                 f"val_acc={val_metrics['accuracy']:.4f}  "
-                f"val_f1={val_metrics['f1']:.4f}"
+                f"val_f1={val_metrics['f1']:.4f}{marker}"
             )
-            if val_metrics["f1"] > best_f1:
+
+            if improved:
                 best_f1 = val_metrics["f1"]
+                epochs_without_improvement = 0
+                # Save best weights to a temporary checkpoint
+                Path(best_ckpt_dir).mkdir(parents=True, exist_ok=True)
+                model.save_pretrained(best_ckpt_dir)
+                tokenizer.save_pretrained(best_ckpt_dir)
+            else:
+                epochs_without_improvement += 1
+                if args.patience > 0 and epochs_without_improvement >= args.patience:
+                    print(f"  Early stopping: no improvement for {args.patience} epochs.")
+                    break
         else:
             print(f"  Epoch {epoch}/{args.epochs}  train_loss={train_loss:.4f}")
 
@@ -283,11 +401,20 @@ def main() -> int:
 
     print("-" * 60)
 
-    # ── Save model ───────────────────────────────────────────────────────
+    # ── Save model (restore best checkpoint when available) ──────────────
     out = args.output_dir
     Path(out).mkdir(parents=True, exist_ok=True)
 
-    print(f"\nSaving model to {out}/ ...")
+    if val_loader and Path(best_ckpt_dir).exists():
+        print(f"\nRestoring best checkpoint (val_f1={best_f1:.4f}) ...")
+        model = AutoModelForSequenceClassification.from_pretrained(
+            best_ckpt_dir,
+            num_labels=len(INTENT_LABELS),
+        ).to(device)
+        # Clean up temp checkpoint
+        shutil.rmtree(best_ckpt_dir, ignore_errors=True)
+
+    print(f"Saving model to {out}/ ...")
     model.save_pretrained(out)
     tokenizer.save_pretrained(out)
 
