@@ -720,11 +720,19 @@ async def process_chat(
         conversation_history: Optional list of {role, content} dicts.
 
     Returns:
-        Dict with 'response' (str) and 'suggestions' (list[str]).
+        Dict with 'response' (str), 'suggestions' (list[str]), and
+        'grounding_meta' (dict) containing a lightweight audit trail.
     """
     # 1. Quick response check
     quick = _quick_response(message, user_profile)
     if quick:
+        quick["grounding_meta"] = {
+            "path": "quick_response",
+            "tool_used": None,
+            "tool_returned_data": False,
+            "react_steps": 0,
+            "wrapper_generated": False,
+        }
         return quick
 
     # 2. Build conversation snippet for LLM context
@@ -739,8 +747,10 @@ async def process_chat(
     # 3. ReAct loop
     tool_name = ""
     tool_data: Any = None
+    react_steps = 0
 
     for _step in range(MAX_REASONING_STEPS):
+        react_steps += 1
         agent_step = await _get_agent_step(message, user_profile, snippet)
         tool = agent_step.get("tool")
 
@@ -764,17 +774,26 @@ async def process_chat(
     factual_block = _build_template_response(tool_name, tool_data, user_profile)
 
     # 5. Add guarded conversational framing (no facts allowed in generated text).
+    wrapper_generated = False
     if tool_data:
         known_names = _extract_known_scheme_names(tool_name, tool_data)
         wrapper = await _get_conversational_wrapper(message, user_profile, tool_name, known_names)
         response_text = f"{wrapper['intro']}\n\n{factual_block}\n\n{wrapper['outro']}"
+        wrapper_generated = True
     else:
         response_text = factual_block
 
-    # 6. Return response
+    # 6. Return response with grounding audit
     return {
         "response": response_text,
         "suggestions": _build_suggestions(tool_name),
+        "grounding_meta": {
+            "path": "react_loop",
+            "tool_used": tool_name or None,
+            "tool_returned_data": tool_data is not None,
+            "react_steps": react_steps,
+            "wrapper_generated": wrapper_generated,
+        },
     }
 
 

@@ -24,6 +24,7 @@ import { getTranslationService } from '../services/translation.service';
 import { schemeSyncAgent } from '../agents/scheme-sync-agent';
 import { mlService } from '../services/ml.service';
 import { chatOrchestrationService } from '../services/chat-orchestration.service';
+import { interactionService, isValidInteractionAction } from '../services/interaction.service';
 import { JWTService } from '../auth/jwt.service';
 import { PasswordService } from '../auth/password.service';
 
@@ -562,6 +563,37 @@ app.get('/api/users/:userId/nudges', (_req, res) => {
       dismissed: false,
     },
   ]);
+});
+
+// Interaction tracking endpoint
+// POST /api/interactions — record a user → scheme interaction
+app.post('/api/interactions', async (req, res) => {
+  const { userId, schemeId, action, sessionId } = req.body ?? {};
+
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+  if (!schemeId || typeof schemeId !== 'string') {
+    return res.status(400).json({ error: 'schemeId is required' });
+  }
+  if (!isValidInteractionAction(action)) {
+    return res.status(400).json({
+      error: `action must be one of: view, apply, bookmark, share, dismiss`,
+    });
+  }
+
+  try {
+    await interactionService.trackInteraction({
+      userId,
+      schemeId,
+      action,
+      sessionId: typeof sessionId === 'string' ? sessionId : undefined,
+    });
+    return res.status(201).json({ success: true });
+  } catch (err) {
+    console.error('[interactions] trackInteraction error:', err);
+    return res.status(500).json({ error: 'Failed to record interaction' });
+  }
 });
 
 // Chat endpoint — proxies to FastAPI ML service

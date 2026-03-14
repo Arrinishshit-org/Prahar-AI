@@ -228,7 +228,7 @@ class RecommendationEngine:
         groups: List[int],
     ) -> List[float]:
         """
-        Build a 12-feature vector for learning-to-rank models.
+        Build a 16-feature vector for learning-to-rank models.
 
         Features (in order):
          0  eligibility_score        — ML eligibility percentage [0,1]
@@ -243,6 +243,10 @@ class RecommendationEngine:
          9  description_length_score — longer description ≈ richer scheme info [0,1]
         10  tag_overlap              — fraction of scheme tags matching profile keywords
         11  is_central_scheme        — 1 if national/central scheme (broader reach)
+        12  gender_targeted          — 1 if female-targeted scheme and user identifies as female
+        13  social_category_match    — 1 if scheme targets user's social category (SC/ST/OBC/EWS)
+        14  disability_match         — 1 if disability scheme and user is disabled
+        15  rural_urban_match        — 1 if scheme rural/urban targeting matches user
         """
         elig_score = eligibility.get("score", eligibility.get("percentage", 50) / 100.0)
         met = eligibility.get("met_criteria", [])
@@ -317,6 +321,63 @@ class RecommendationEngine:
             else 0.0
         )
 
+        # ── Profile-specific match features (12-15) ───────────────────────────
+        # Build a combined text blob for keyword lookups over scheme content
+        tags_list = scheme.get("tags") or []
+        if isinstance(tags_list, str):
+            tags_list = [tags_list]
+        combined = (
+            scheme_cat.lower() + " " + " ".join(t.lower() for t in tags_list) + " " + desc.lower()
+        )
+
+        # [12] gender_targeted: 1 if scheme targets women and user is female
+        gender = (profile.get("gender") or "").lower()
+        gender_targeted = (
+            1.0
+            if (
+                gender == "female"
+                and any(kw in combined for kw in ("women", "female", "woman", "girl", "mahila"))
+            )
+            else 0.0
+        )
+
+        # [13] social_category_match: scheme explicitly mentions user's social category
+        social_cat = (profile.get("social_category") or profile.get("caste") or "").lower()
+        _SC_ALIASES = {
+            "sc": ["scheduled caste", " sc ", "dalit"],
+            "st": ["scheduled tribe", " st ", "tribal", "adivasi"],
+            "obc": ["other backward", "obc"],
+            "ews": ["economically weaker", "ews"],
+        }
+        social_category_match = 0.0
+        if social_cat:
+            aliases = _SC_ALIASES.get(social_cat, [social_cat])
+            if any(alias in combined for alias in aliases):
+                social_category_match = 1.0
+
+        # [14] disability_match: disability scheme and user is disabled
+        is_disabled = bool(profile.get("disability") or profile.get("is_disabled"))
+        disability_match = (
+            1.0
+            if (
+                is_disabled
+                and any(kw in combined for kw in ("disab", "divyang", "handicap", "differently"))
+            )
+            else 0.0
+        )
+
+        # [15] rural_urban_match: scheme targets same residential type as user
+        rural_urban = (profile.get("rural_urban") or "").lower().strip()
+        rural_urban_match = (
+            1.0
+            if (
+                rural_urban
+                and rural_urban in ("rural", "urban", "semi-urban", "semi_urban")
+                and rural_urban in combined
+            )
+            else 0.0
+        )
+
         return [
             float(elig_score),
             float(len(met)) / float(total_criteria),
@@ -330,6 +391,10 @@ class RecommendationEngine:
             desc_score,
             float(tag_overlap),
             is_central,
+            gender_targeted,
+            social_category_match,
+            disability_match,
+            rural_urban_match,
         ]
 
     def _rank_with_ltr(
@@ -359,9 +424,23 @@ class RecommendationEngine:
             lgb_scores = np.array(self.lgb_ranker.predict(arr), dtype=np.float32)
             weights = (0.5, 0.5) if weights[0] > 0 else (0.0, 1.0)
 
-        # Fall back to heuristic weighted sum if no trained model is available
+        # Fall back to heuristic weighted sum if no trained model is available.
+        # Index mapping: [0]=eligibility,[2]=state_match,[4]=category,[5]=group,
+        #                [6]=popularity,[7]=age_in_range,[12]=gender,[13]=social_cat
         if weights == (0.0, 0.0):
-            heuristic = np.array([f[0] * 0.6 + f[5] * 0.4 for f in feature_matrix])
+            heuristic = np.array(
+                [
+                    f[0] * 0.35
+                    + f[2] * 0.10
+                    + f[4] * 0.10
+                    + f[5] * 0.15
+                    + f[6] * 0.10
+                    + f[7] * 0.05
+                    + f[12] * 0.05
+                    + f[13] * 0.10
+                    for f in feature_matrix
+                ]
+            )
             final_scores = heuristic
         else:
             final_scores = weights[0] * xgb_scores + weights[1] * lgb_scores

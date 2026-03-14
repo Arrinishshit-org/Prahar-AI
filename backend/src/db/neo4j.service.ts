@@ -2438,6 +2438,71 @@ class Neo4jDbService {
     return rows.map((r: any) => r.props);
   }
 
+  // ─── Interaction tracking ───────────────────────────────────────────────────
+
+  /**
+   * Create a (User)-[:INTERACTED]->(Scheme) relationship.
+   * Uses CREATE (not MERGE) so every interaction event is preserved with its
+   * own timestamp, giving a full audit trail of user behaviour.
+   */
+  async recordInteraction(
+    userId: string,
+    schemeId: string,
+    action: string,
+    timestamp: string,
+    sessionId: string | null
+  ): Promise<void> {
+    await this.connection.executeWrite(
+      `MATCH (u:User {user_id: $userId})
+       MATCH (s:Scheme {scheme_id: $schemeId})
+       CREATE (u)-[:INTERACTED {
+         action:    $action,
+         timestamp: $timestamp,
+         sessionId: $sessionId
+       }]->(s)`,
+      { userId, schemeId, action, timestamp, sessionId }
+    );
+  }
+
+  /**
+   * Return interaction counts per action type for a given scheme.
+   */
+  async getSchemeInteractionCounts(
+    schemeId: string
+  ): Promise<Array<{ action: string; count: number }>> {
+    const rows = await this.connection.executeRead<{ action: string; count: number }>(
+      `MATCH (:User)-[r:INTERACTED]->(s:Scheme {scheme_id: $schemeId})
+       RETURN r.action AS action, count(r) AS count`,
+      { schemeId }
+    );
+    return rows.map((r) => ({ action: String(r.action), count: Number(r.count) }));
+  }
+
+  /**
+   * Return the last 100 interaction events for a user → scheme pair.
+   */
+  async getUserSchemeInteractions(
+    userId: string,
+    schemeId: string
+  ): Promise<Array<{ action: string; timestamp: string; sessionId: string | null }>> {
+    const rows = await this.connection.executeRead<{
+      action: string;
+      timestamp: string;
+      sessionId: string | null;
+    }>(
+      `MATCH (u:User {user_id: $userId})-[r:INTERACTED]->(s:Scheme {scheme_id: $schemeId})
+       RETURN r.action AS action, r.timestamp AS timestamp, r.sessionId AS sessionId
+       ORDER BY r.timestamp DESC
+       LIMIT 100`,
+      { userId, schemeId }
+    );
+    return rows.map((r) => ({
+      action: String(r.action),
+      timestamp: String(r.timestamp),
+      sessionId: r.sessionId ? String(r.sessionId) : null,
+    }));
+  }
+
   // ─── Graceful close ─────────────────────────────────────────────────────────
 
   async close(): Promise<void> {

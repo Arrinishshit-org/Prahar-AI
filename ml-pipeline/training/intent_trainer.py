@@ -187,6 +187,24 @@ def main() -> int:
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--max-length", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
+    # Quality-gate arguments
+    parser.add_argument(
+        "--output-metrics",
+        default=None,
+        help="Path to write final validation metrics JSON (optional)",
+    )
+    parser.add_argument(
+        "--min-accuracy",
+        type=float,
+        default=0.0,
+        help="Minimum required validation accuracy (0.0 = disabled, default)",
+    )
+    parser.add_argument(
+        "--min-f1",
+        type=float,
+        default=0.0,
+        help="Minimum required weighted F1 on validation set (0.0 = disabled, default)",
+    )
 
     args = parser.parse_args()
 
@@ -283,8 +301,12 @@ def main() -> int:
         json.dump(history, f, indent=2)
 
     # ── Final report ─────────────────────────────────────────────────────
+    final_metrics: Dict[str, Any] = {}
+    gate_passed = True
+
     if val_loader:
         final = evaluate(model, val_loader, device)
+        final_metrics = final
         print(f"\nFinal Validation  acc={final['accuracy']:.4f}  f1={final['f1']:.4f}")
 
         # Detailed per-class report
@@ -309,8 +331,40 @@ def main() -> int:
             )
         )
 
+        # ── Quality gates ─────────────────────────────────────────────
+        failures: List[str] = []
+        if args.min_accuracy > 0.0 and final["accuracy"] < args.min_accuracy:
+            failures.append(f"accuracy {final['accuracy']:.4f} < required {args.min_accuracy:.4f}")
+        if args.min_f1 > 0.0 and final["f1"] < args.min_f1:
+            failures.append(f"f1 {final['f1']:.4f} < required {args.min_f1:.4f}")
+
+        if failures:
+            gate_passed = False
+            print("\n[QUALITY GATE FAILED]")
+            for msg in failures:
+                print(f"  ✗ {msg}")
+        else:
+            if args.min_accuracy > 0.0 or args.min_f1 > 0.0:
+                print("\n[QUALITY GATE PASSED]")
+
+    # ── Write metrics JSON ────────────────────────────────────────────
+    if args.output_metrics:
+        metrics_payload: Dict[str, Any] = {
+            **final_metrics,
+            "gate_passed": gate_passed,
+            "min_accuracy_required": args.min_accuracy,
+            "min_f1_required": args.min_f1,
+            "output_dir": args.output_dir,
+            "epochs": args.epochs,
+        }
+        metrics_path = Path(args.output_metrics)
+        metrics_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metrics_path, "w") as mf:
+            json.dump(metrics_payload, mf, indent=2)
+        print(f"\nMetrics written to {metrics_path}")
+
     print("Done.\n")
-    return 0
+    return 0 if gate_passed else 1
 
 
 if __name__ == "__main__":

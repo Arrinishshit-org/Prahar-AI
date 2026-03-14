@@ -61,6 +61,7 @@ class ClassifyResponse(BaseModel):
     confidence: float
     entities: Dict[str, Any]
     secondary_intents: List[str] = []
+    review_queued: bool = False
 
 
 class RecommendRequest(BaseModel):
@@ -101,6 +102,7 @@ class ChatResponse(BaseModel):
     response: str
     suggestions: List[str] = []
     extracted_entities: Dict[str, Any] = {}
+    grounding_meta: Optional[Dict[str, Any]] = None
 
 
 # ─── App ─────────────────────────────────────────────────────────────────────
@@ -231,21 +233,61 @@ def health():
     }
 
 
+# Confidence threshold below which a sample is queued for human review.
+_REVIEW_CONFIDENCE_THRESHOLD = float(os.getenv("REVIEW_CONFIDENCE_THRESHOLD", "0.60"))
+# Path for the low-confidence review queue (relative to the ml-pipeline root).
+_REVIEW_QUEUE_PATH = os.getenv(
+    "INTENT_REVIEW_QUEUE_PATH",
+    str(Path(__file__).resolve().parent / "data" / "training" / "intent_review_queue.jsonl"),
+)
+
+
 @app.post("/classify", response_model=ClassifyResponse)
 def classify(req: ClassifyRequest):
     """
     Classify user message intent and extract entities.
     Falls back to rule-based classification if ML model unavailable.
+    Low-confidence results (< REVIEW_CONFIDENCE_THRESHOLD) are queued
+    for later human review and model improvement.
     """
     try:
         classifier = get_intent_classifier()
         if classifier:
             result = classifier.classify(req.message)
+            confidence = getattr(result, "confidence", 0.8)
+            primary_intent = result.primary_intent.value
+
+            review_queued = False
+            if confidence < _REVIEW_CONFIDENCE_THRESHOLD:
+                try:
+                    from training_data import append_jsonl
+
+                    append_jsonl(
+                        _REVIEW_QUEUE_PATH,
+                        {
+                            "query": req.message,
+                            "intent": primary_intent,
+                            "confidence": round(confidence, 4),
+                            "user_id": req.user_id,
+                            "source": "live_low_confidence",
+                        },
+                    )
+                    review_queued = True
+                    logger.debug(
+                        "Low-confidence classification queued for review: "
+                        "intent=%s confidence=%.3f",
+                        primary_intent,
+                        confidence,
+                    )
+                except Exception as queue_err:
+                    logger.warning("Failed to queue low-confidence sample: %s", queue_err)
+
             return ClassifyResponse(
-                primary_intent=result.primary_intent.value,
-                confidence=getattr(result, "confidence", 0.8),
+                primary_intent=primary_intent,
+                confidence=confidence,
                 entities={e.type: e.value for e in getattr(result, "entities", [])},
                 secondary_intents=[i.value for i in getattr(result, "secondary_intents", [])],
+                review_queued=review_queued,
             )
     except Exception as e:
         logger.warning(f"ML classify failed, using rule-based fallback: {e}")
@@ -338,6 +380,7 @@ async def chat(req: ChatRequest):
             response=result.get("response", "I couldn't process that request."),
             suggestions=result.get("suggestions", []),
             extracted_entities=extracted,
+            grounding_meta=result.get("grounding_meta"),
         )
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)

@@ -26,6 +26,7 @@ export class ClassificationService {
   private modelPath: string;
   private pythonPath: string;
   private classifierScriptPath: string;
+  private classifierTimeoutMs: number;
 
   constructor(driver: Driver) {
     this.driver = driver;
@@ -36,6 +37,7 @@ export class ClassificationService {
       path.join(__dirname, '../../../ml-pipeline/models/user_classifier.pkl');
     this.pythonPath = process.env.PYTHON_PATH || 'python';
     this.classifierScriptPath = path.join(__dirname, '../../../ml-pipeline/src/classify_user.py');
+    this.classifierTimeoutMs = Math.max(1000, Number(process.env.CLASSIFIER_TIMEOUT_MS || 10000));
   }
 
   /**
@@ -263,9 +265,9 @@ export class ClassificationService {
       const timeoutHandle = setTimeout(() => {
         if (settled) return;
         settled = true;
-        python.kill();
-        reject(new Error('Classification timeout (5 seconds exceeded)'));
-      }, 5000);
+        python.kill('SIGKILL');
+        reject(new Error(`Classification timeout (${this.classifierTimeoutMs}ms exceeded)`));
+      }, this.classifierTimeoutMs);
 
       python.stdout.on('data', (data) => {
         stdout += data.toString();
