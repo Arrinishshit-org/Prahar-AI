@@ -110,6 +110,42 @@ export interface SyncMeta {
   total_schemes: number;
 }
 
+export interface SchemeUpsertSummary {
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  changedSchemeIds: string[];
+}
+
+export interface SyncRunRecord {
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  totalSchemes: number;
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  deactivated: number;
+  durationSeconds: number;
+}
+
+export interface SyncRunSummary extends SyncRunRecord {}
+
+export interface RecommendationFeedbackRecord {
+  userId: string;
+  schemeId: string;
+  action: string;
+  source?: string;
+  rank?: number;
+  score?: number;
+}
+
+export interface InteractionEventRecord {
+  action: string;
+  timestamp: string;
+  sessionId: string | null;
+}
+
 // ─── Category extraction (single source of truth) ───────────────────────────
 
 const CATEGORY_RULES: Record<string, Record<string, string[]>> = {
@@ -496,6 +532,58 @@ class Neo4jDbService {
     await redisService.del('sync_meta');
   }
 
+  async getRecentSyncRuns(limit = 5): Promise<SyncRunSummary[]> {
+    const limitInt = Math.max(1, Math.floor(Number(limit) || 5));
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (r:SyncRun)
+       RETURN r
+       ORDER BY coalesce(r.finished_at, r.started_at) DESC, r.run_id DESC
+       LIMIT toInteger($limit)`,
+      { limit: limitInt }
+    );
+
+    return rows.map((row: any) => {
+      const node = row.r.properties ?? row.r;
+      return {
+        runId: String(node.run_id ?? ''),
+        startedAt: String(node.started_at ?? ''),
+        finishedAt: String(node.finished_at ?? ''),
+        totalSchemes: Number(node.total_schemes) || 0,
+        inserted: Number(node.inserted) || 0,
+        updated: Number(node.updated) || 0,
+        unchanged: Number(node.unchanged) || 0,
+        deactivated: Number(node.deactivated) || 0,
+        durationSeconds: Number(node.duration_seconds) || 0,
+      };
+    });
+  }
+
+  async recordSyncRun(record: SyncRunRecord): Promise<void> {
+    await this.connection.executeWrite(
+      `MERGE (r:SyncRun { run_id: $runId })
+       SET r.started_at = $startedAt,
+           r.finished_at = $finishedAt,
+           r.total_schemes = $totalSchemes,
+           r.inserted = $inserted,
+           r.updated = $updated,
+           r.unchanged = $unchanged,
+           r.deactivated = $deactivated,
+           r.duration_seconds = $durationSeconds,
+           r.updated_at = toString(datetime())`,
+      {
+        runId: record.runId,
+        startedAt: record.startedAt,
+        finishedAt: record.finishedAt,
+        totalSchemes: record.totalSchemes,
+        inserted: record.inserted,
+        updated: record.updated,
+        unchanged: record.unchanged,
+        deactivated: record.deactivated,
+        durationSeconds: record.durationSeconds,
+      }
+    );
+  }
+
   async isFresh(maxAgeMs: number): Promise<boolean> {
     const meta = await this.getSyncMeta();
     if (!meta.last_sync || meta.total_schemes === 0) return false;
@@ -709,9 +797,12 @@ class Neo4jDbService {
       page_exclusions_md?: string | null;
       page_scheme_raw_json?: string;
       page_enriched_at?: string | null;
-    }[]
-  ): Promise<void> {
-    if (!schemes.length) return;
+    }[],
+    syncRunId?: string
+  ): Promise<SchemeUpsertSummary> {
+    if (!schemes.length) {
+      return { inserted: 0, updated: 0, unchanged: 0, changedSchemeIds: [] };
+    }
 
     const seen = new Set<string>();
     const uniqueSchemes = schemes.filter((s) => {
@@ -719,6 +810,87 @@ class Neo4jDbService {
       seen.add(s.schemeId);
       return true;
     });
+
+    const existingRows = await this.connection.executeRead<any>(
+      `MATCH (s:Scheme)
+       WHERE s.scheme_id IN $schemeIds
+       RETURN s`,
+      { schemeIds: uniqueSchemes.map((s) => s.schemeId) }
+    );
+    const existingById = new Map<string, any>();
+    for (const row of existingRows) {
+      const node = row.s.properties ?? row.s;
+      if (node?.scheme_id) {
+        existingById.set(String(node.scheme_id), node);
+      }
+    }
+
+    const changedSchemeIds = new Set<string>();
+    let inserted = 0;
+    let updated = 0;
+    let unchanged = 0;
+
+    for (const scheme of uniqueSchemes) {
+      const existing = existingById.get(scheme.schemeId);
+      if (!existing) {
+        inserted += 1;
+        changedSchemeIds.add(scheme.schemeId);
+        continue;
+      }
+
+      const next = {
+        name: scheme.name,
+        description: scheme.description,
+        category: JSON.stringify(scheme.category),
+        ministry: scheme.ministry ?? '',
+        tags: JSON.stringify(scheme.tags),
+        state: scheme.state ?? '',
+        scheme_url: scheme.schemeUrl ?? `https://www.myscheme.gov.in/schemes/${scheme.schemeId}`,
+        page_scheme_id: scheme.page_scheme_id ?? '',
+        page_title: scheme.page_title ?? '',
+        page_ministry: scheme.page_ministry ?? '',
+        page_description: scheme.page_description ?? '',
+        page_eligibility_json: scheme.page_eligibility_json ?? '[]',
+        page_benefits_json: scheme.page_benefits_json ?? '[]',
+        page_references_json: scheme.page_references_json ?? '[]',
+        page_application_process_json: scheme.page_application_process_json ?? '[]',
+        page_eligibility_md: scheme.page_eligibility_md ?? '',
+        page_benefits_md: scheme.page_benefits_md ?? '',
+        page_description_md: scheme.page_description_md ?? '',
+        page_exclusions_md: scheme.page_exclusions_md ?? '',
+        page_scheme_raw_json: scheme.page_scheme_raw_json ?? '{}',
+        page_enriched_at: scheme.page_enriched_at ?? '',
+      };
+      const changed =
+        existing.name !== next.name ||
+        existing.description !== next.description ||
+        existing.category !== next.category ||
+        existing.ministry !== next.ministry ||
+        existing.tags !== next.tags ||
+        existing.state !== next.state ||
+        existing.scheme_url !== next.scheme_url ||
+        existing.page_scheme_id !== next.page_scheme_id ||
+        existing.page_title !== next.page_title ||
+        existing.page_ministry !== next.page_ministry ||
+        existing.page_description !== next.page_description ||
+        existing.page_eligibility_json !== next.page_eligibility_json ||
+        existing.page_benefits_json !== next.page_benefits_json ||
+        existing.page_references_json !== next.page_references_json ||
+        existing.page_application_process_json !== next.page_application_process_json ||
+        existing.page_eligibility_md !== next.page_eligibility_md ||
+        existing.page_benefits_md !== next.page_benefits_md ||
+        existing.page_description_md !== next.page_description_md ||
+        existing.page_exclusions_md !== next.page_exclusions_md ||
+        existing.page_scheme_raw_json !== next.page_scheme_raw_json ||
+        existing.page_enriched_at !== next.page_enriched_at;
+
+      if (changed) {
+        updated += 1;
+        changedSchemeIds.add(scheme.schemeId);
+      } else {
+        unchanged += 1;
+      }
+    }
 
     const rows = uniqueSchemes.map((s) => {
       const cats = extractCategories(s.name, s.description, s.tags);
@@ -746,6 +918,7 @@ class Neo4jDbService {
         page_exclusions_md: s.page_exclusions_md ?? '',
         page_scheme_raw_json: s.page_scheme_raw_json ?? '{}',
         page_enriched_at: s.page_enriched_at ?? '',
+        sync_run_id: syncRunId ?? '',
         is_active: true,
         last_updated: new Date().toISOString(),
       };
@@ -776,23 +949,36 @@ class Neo4jDbService {
            s.page_exclusions_md = row.page_exclusions_md,
            s.page_scheme_raw_json = row.page_scheme_raw_json,
            s.page_enriched_at = row.page_enriched_at,
+           s.sync_run_id = row.sync_run_id,
            s.is_active = row.is_active,
            s.last_updated = row.last_updated`,
       { rows }
     );
 
     await this.createCategoryRelationships(uniqueSchemes);
+
+    return {
+      inserted,
+      updated,
+      unchanged,
+      changedSchemeIds: Array.from(changedSchemeIds),
+    };
   }
 
   /**
    * Finalize incremental sync by linking groups, updating sync meta and clearing caches.
    */
-  async finalizeIncrementalSchemeSync(totalSchemes: number): Promise<void> {
+  async finalizeIncrementalSchemeSync(
+    totalSchemes: number,
+    _syncRunId?: string,
+    _changedSchemeIds: string[] = []
+  ): Promise<{ deactivatedCount: number }> {
     await this.autoLinkSchemesToUserGroups();
     await this.updateSyncMeta(totalSchemes);
     await redisService.delPattern('schemes:*');
     await redisService.delPattern('categories:*');
     console.log(`✅ Finalized incremental sync metadata for ${totalSchemes} schemes`);
+    return { deactivatedCount: 0 };
   }
 
   /** Create Category nodes and HAS_CATEGORY relationships from JS side */
@@ -1793,6 +1979,13 @@ class Neo4jDbService {
     return rows.map((r: any) => r.name).filter(Boolean);
   }
 
+  async getGramPanchayatCount(): Promise<number> {
+    const rows = await this.connection.executeRead<{ cnt: number }>(
+      'MATCH (g:GramPanchayat) RETURN count(g) AS cnt'
+    );
+    return Number(rows[0]?.cnt) || 0;
+  }
+
   /**
    * Idempotent bulk upsert of GramPanchayat (village) nodes from LGD data.
    */
@@ -1821,6 +2014,83 @@ class Neo4jDbService {
            g.state_lgd_code    = v.state_lgd_code,
            g.pincode           = v.pincode`,
       { batch }
+    );
+  }
+
+  async recordInteraction(
+    userId: string,
+    schemeId: string,
+    action: string,
+    timestamp: string,
+    sessionId: string | null
+  ): Promise<void> {
+    await this.connection.executeWrite(
+      `MATCH (u:User { user_id: $userId }), (s:Scheme { scheme_id: $schemeId })
+       CREATE (u)-[:INTERACTED {
+         action: $action,
+         timestamp: $timestamp,
+         session_id: $sessionId
+       }]->(s)`,
+      { userId, schemeId, action, timestamp, sessionId }
+    );
+  }
+
+  async getSchemeInteractionCounts(
+    schemeId: string
+  ): Promise<Array<{ action: string; count: number }>> {
+    const rows = await this.connection.executeRead<any>(
+      `MATCH ()-[r:INTERACTED]->(s:Scheme { scheme_id: $schemeId })
+       RETURN r.action AS action, count(r) AS count
+       ORDER BY action`,
+      { schemeId }
+    );
+    return rows.map((row: any) => ({
+      action: String(row.action ?? ''),
+      count: Number(row.count) || 0,
+    }));
+  }
+
+  async getUserSchemeInteractions(
+    userId: string,
+    schemeId: string
+  ): Promise<InteractionEventRecord[]> {
+    const rows = await this.connection.executeRead<any>(
+      `MATCH (u:User { user_id: $userId })-[r:INTERACTED]->(s:Scheme { scheme_id: $schemeId })
+       RETURN r.action AS action, r.timestamp AS timestamp, r.session_id AS sessionId
+       ORDER BY r.timestamp DESC`,
+      { userId, schemeId }
+    );
+
+    return rows.map((row: any) => ({
+      action: String(row.action ?? ''),
+      timestamp: String(row.timestamp ?? ''),
+      sessionId: row.sessionId != null ? String(row.sessionId) : null,
+    }));
+  }
+
+  async recordRecommendationFeedback(record: RecommendationFeedbackRecord): Promise<void> {
+    await this.connection.executeWrite(
+      `MATCH (u:User { user_id: $userId }), (s:Scheme { scheme_id: $schemeId })
+       CREATE (f:RecommendationFeedback {
+         feedback_id: randomUUID(),
+         user_id: $userId,
+         scheme_id: $schemeId,
+         action: $action,
+         source: $source,
+         rank: $rank,
+         score: $score,
+         created_at: toString(datetime())
+       })
+       CREATE (u)-[:SUBMITTED_RECOMMENDATION_FEEDBACK]->(f)
+       CREATE (f)-[:ABOUT]->(s)`,
+      {
+        userId: record.userId,
+        schemeId: record.schemeId,
+        action: record.action,
+        source: record.source ?? '',
+        rank: record.rank ?? null,
+        score: record.score ?? null,
+      }
     );
   }
 
