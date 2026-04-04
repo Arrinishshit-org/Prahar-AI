@@ -40,56 +40,6 @@ function emailHash(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
 }
 
-function computeSchemeSourceHash(scheme: {
-  name: string;
-  description: string;
-  category: string[];
-  ministry: string | null;
-  tags: string[];
-  state: string | null;
-  schemeUrl?: string | null;
-  page_scheme_id?: string | null;
-  page_title?: string | null;
-  page_ministry?: string | null;
-  page_description?: string | null;
-  page_eligibility_json?: string;
-  page_benefits_json?: string;
-  page_references_json?: string;
-  page_application_process_json?: string;
-  page_eligibility_md?: string | null;
-  page_benefits_md?: string | null;
-  page_description_md?: string | null;
-  page_exclusions_md?: string | null;
-  page_scheme_raw_json?: string;
-  page_enriched_at?: string | null;
-}): string {
-  const normalized = {
-    name: scheme.name || '',
-    description: scheme.description || '',
-    category: [...(scheme.category || [])].map(String).sort(),
-    ministry: scheme.ministry || '',
-    tags: [...(scheme.tags || [])].map(String).sort(),
-    state: scheme.state || '',
-    schemeUrl: scheme.schemeUrl || '',
-    page_scheme_id: scheme.page_scheme_id || '',
-    page_title: scheme.page_title || '',
-    page_ministry: scheme.page_ministry || '',
-    page_description: scheme.page_description || '',
-    page_eligibility_json: scheme.page_eligibility_json || '[]',
-    page_benefits_json: scheme.page_benefits_json || '[]',
-    page_references_json: scheme.page_references_json || '[]',
-    page_application_process_json: scheme.page_application_process_json || '[]',
-    page_eligibility_md: scheme.page_eligibility_md || '',
-    page_benefits_md: scheme.page_benefits_md || '',
-    page_description_md: scheme.page_description_md || '',
-    page_exclusions_md: scheme.page_exclusions_md || '',
-    page_scheme_raw_json: scheme.page_scheme_raw_json || '{}',
-    page_enriched_at: scheme.page_enriched_at || '',
-  };
-
-  return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
-}
-
 async function encryptPII(fields: { email: string; name: string }): Promise<{
   email: string;
   name: string;
@@ -158,18 +108,6 @@ export interface CategoryMapping {
 export interface SyncMeta {
   last_sync: string | null;
   total_schemes: number;
-}
-
-export interface SyncRunAudit {
-  runId: string;
-  startedAt: string;
-  finishedAt: string;
-  totalSchemes: number;
-  inserted: number;
-  updated: number;
-  unchanged: number;
-  deactivated: number;
-  durationSeconds: number;
 }
 
 // ─── Category extraction (single source of truth) ───────────────────────────
@@ -461,7 +399,6 @@ class Neo4jDbService {
       'CREATE CONSTRAINT category_key IF NOT EXISTS FOR (c:Category) REQUIRE (c.type, c.value) IS UNIQUE',
       'CREATE CONSTRAINT usergroup_name IF NOT EXISTS FOR (ug:UserGroup) REQUIRE ug.name IS UNIQUE',
       'CREATE CONSTRAINT syncmeta_id IF NOT EXISTS FOR (sm:SyncMeta) REQUIRE sm.meta_id IS UNIQUE',
-      'CREATE CONSTRAINT syncrun_id IF NOT EXISTS FOR (sr:SyncRun) REQUIRE sr.run_id IS UNIQUE',
     ];
     for (const c of constraints) {
       try {
@@ -557,63 +494,6 @@ class Neo4jDbService {
       { now, total }
     );
     await redisService.del('sync_meta');
-  }
-
-  async recordSyncRun(run: SyncRunAudit): Promise<void> {
-    await this.connection.executeWrite(
-      `MERGE (sr:SyncRun { run_id: $runId })
-       SET sr.started_at = $startedAt,
-           sr.finished_at = $finishedAt,
-           sr.total_schemes = $totalSchemes,
-           sr.inserted = $inserted,
-           sr.updated = $updated,
-           sr.unchanged = $unchanged,
-           sr.deactivated = $deactivated,
-           sr.duration_seconds = $durationSeconds`,
-      run
-    );
-  }
-
-  async getRecentSyncRuns(limit = 5): Promise<SyncRunAudit[]> {
-    const safeLimit = Math.max(1, Math.min(20, Math.floor(limit)));
-    const rows = await this.connection.executeRead<{
-      runId: string;
-      startedAt: string;
-      finishedAt: string;
-      totalSchemes: number;
-      inserted: number;
-      updated: number;
-      unchanged: number;
-      deactivated: number;
-      durationSeconds: number;
-    }>(
-      `MATCH (sr:SyncRun)
-       RETURN
-         sr.run_id AS runId,
-         sr.started_at AS startedAt,
-         sr.finished_at AS finishedAt,
-         sr.total_schemes AS totalSchemes,
-         sr.inserted AS inserted,
-         sr.updated AS updated,
-         sr.unchanged AS unchanged,
-         sr.deactivated AS deactivated,
-         sr.duration_seconds AS durationSeconds
-       ORDER BY sr.finished_at DESC
-       LIMIT toInteger($limit)`,
-      { limit: safeLimit }
-    );
-
-    return rows.map((row) => ({
-      runId: String(row.runId || ''),
-      startedAt: String(row.startedAt || ''),
-      finishedAt: String(row.finishedAt || ''),
-      totalSchemes: Number(row.totalSchemes) || 0,
-      inserted: Number(row.inserted) || 0,
-      updated: Number(row.updated) || 0,
-      unchanged: Number(row.unchanged) || 0,
-      deactivated: Number(row.deactivated) || 0,
-      durationSeconds: Number(row.durationSeconds) || 0,
-    }));
   }
 
   async isFresh(maxAgeMs: number): Promise<boolean> {
@@ -829,12 +709,9 @@ class Neo4jDbService {
       page_exclusions_md?: string | null;
       page_scheme_raw_json?: string;
       page_enriched_at?: string | null;
-    }[],
-    syncRunId: string
-  ): Promise<{ inserted: number; updated: number; unchanged: number; changedSchemeIds: string[] }> {
-    if (!schemes.length) {
-      return { inserted: 0, updated: 0, unchanged: 0, changedSchemeIds: [] };
-    }
+    }[]
+  ): Promise<void> {
+    if (!schemes.length) return;
 
     const seen = new Set<string>();
     const uniqueSchemes = schemes.filter((s) => {
@@ -843,7 +720,6 @@ class Neo4jDbService {
       return true;
     });
 
-    const nowIso = new Date().toISOString();
     const rows = uniqueSchemes.map((s) => {
       const cats = extractCategories(s.name, s.description, s.tags);
       return {
@@ -871,128 +747,52 @@ class Neo4jDbService {
         page_scheme_raw_json: s.page_scheme_raw_json ?? '{}',
         page_enriched_at: s.page_enriched_at ?? '',
         is_active: true,
-        source_hash: computeSchemeSourceHash(s),
-        sync_run_id: syncRunId,
-        last_updated: nowIso,
-        last_seen_at: nowIso,
+        last_updated: new Date().toISOString(),
       };
     });
 
-    const summaryRows = await this.connection.executeWrite<{
-      inserted: number;
-      updated: number;
-      unchanged: number;
-      changedSchemeIds: string[];
-    }>(
+    await this.connection.executeWrite(
       `UNWIND $rows AS row
        MERGE (s:Scheme { scheme_id: row.scheme_id })
-       WITH s, row, coalesce(s.source_hash, '') AS prev_hash
-       SET s.is_active = row.is_active,
-           s.last_seen_at = row.last_seen_at,
-           s.last_seen_run = row.sync_run_id,
-           s.deactivated_at = null
-       FOREACH (_ IN CASE WHEN prev_hash <> row.source_hash THEN [1] ELSE [] END |
-         SET s.name = row.name,
-             s.description = row.description,
-             s.category = row.category,
-             s.ministry = row.ministry,
-             s.tags = row.tags,
-             s.state = row.state,
-             s.categories_json = row.categories_json,
-             s.scheme_url = row.scheme_url,
-             s.page_scheme_id = row.page_scheme_id,
-             s.page_title = row.page_title,
-             s.page_ministry = row.page_ministry,
-             s.page_description = row.page_description,
-             s.page_eligibility_json = row.page_eligibility_json,
-             s.page_benefits_json = row.page_benefits_json,
-             s.page_references_json = row.page_references_json,
-             s.page_application_process_json = row.page_application_process_json,
-             s.page_eligibility_md = row.page_eligibility_md,
-             s.page_benefits_md = row.page_benefits_md,
-             s.page_description_md = row.page_description_md,
-             s.page_exclusions_md = row.page_exclusions_md,
-             s.page_scheme_raw_json = row.page_scheme_raw_json,
-             s.page_enriched_at = row.page_enriched_at,
-             s.source_hash = row.source_hash,
-             s.last_updated = row.last_updated
-       )
-       RETURN
-         sum(CASE WHEN prev_hash = '' THEN 1 ELSE 0 END) AS inserted,
-         sum(CASE WHEN prev_hash <> '' AND prev_hash <> row.source_hash THEN 1 ELSE 0 END) AS updated,
-         sum(CASE WHEN prev_hash <> '' AND prev_hash = row.source_hash THEN 1 ELSE 0 END) AS unchanged,
-         [sid IN collect(CASE WHEN prev_hash = '' OR prev_hash <> row.source_hash THEN row.scheme_id ELSE NULL END) WHERE sid IS NOT NULL] AS changedSchemeIds`,
+       SET s.name = row.name,
+           s.description = row.description,
+           s.category = row.category,
+           s.ministry = row.ministry,
+           s.tags = row.tags,
+           s.state = row.state,
+           s.categories_json = row.categories_json,
+           s.scheme_url = row.scheme_url,
+           s.page_scheme_id = row.page_scheme_id,
+           s.page_title = row.page_title,
+           s.page_ministry = row.page_ministry,
+           s.page_description = row.page_description,
+           s.page_eligibility_json = row.page_eligibility_json,
+           s.page_benefits_json = row.page_benefits_json,
+           s.page_references_json = row.page_references_json,
+           s.page_application_process_json = row.page_application_process_json,
+           s.page_eligibility_md = row.page_eligibility_md,
+           s.page_benefits_md = row.page_benefits_md,
+           s.page_description_md = row.page_description_md,
+           s.page_exclusions_md = row.page_exclusions_md,
+           s.page_scheme_raw_json = row.page_scheme_raw_json,
+           s.page_enriched_at = row.page_enriched_at,
+           s.is_active = row.is_active,
+           s.last_updated = row.last_updated`,
       { rows }
     );
 
     await this.createCategoryRelationships(uniqueSchemes);
-
-    const summary = summaryRows[0] || { inserted: 0, updated: 0, unchanged: 0 };
-    return {
-      inserted: Number(summary.inserted) || 0,
-      updated: Number(summary.updated) || 0,
-      unchanged: Number(summary.unchanged) || 0,
-      changedSchemeIds: Array.isArray(summary.changedSchemeIds)
-        ? summary.changedSchemeIds.map((sid) => String(sid)).filter((sid) => sid.length > 0)
-        : [],
-    };
   }
 
   /**
    * Finalize incremental sync by linking groups, updating sync meta and clearing caches.
    */
-  private async invalidateSchemeCaches(
-    changedSchemeIds: string[],
-    deactivatedSchemeIds: string[]
-  ): Promise<void> {
-    const impacted = Array.from(
-      new Set([...changedSchemeIds, ...deactivatedSchemeIds].map((sid) => String(sid).trim()))
-    ).filter((sid) => sid.length > 0);
-
-    for (const schemeId of impacted) {
-      await redisService.del(`schemes:id:${schemeId}`);
-    }
-
-    await redisService.del('schemes:count');
-    await redisService.del('schemes:count:enriched');
-    await redisService.del('categories:all');
-
-    if (impacted.length > 0) {
-      await redisService.delPattern('schemes:all:*');
-      await redisService.delPattern('schemes:search:*');
-      await redisService.delPattern('schemes:search_count:*');
-      await redisService.delPattern('schemes:cats:*');
-      await redisService.delPattern('schemes:user:*');
-    }
-  }
-
-  async finalizeIncrementalSchemeSync(
-    totalSchemes: number,
-    syncRunId: string,
-    changedSchemeIds: string[]
-  ): Promise<{ deactivatedCount: number }> {
-    const deactivatedAt = new Date().toISOString();
-    const staleRows = await this.connection.executeWrite<{ deactivatedSchemeIds: string[] }>(
-      `MATCH (s:Scheme)
-       WHERE coalesce(s.last_seen_run, '') <> $syncRunId
-         AND coalesce(s.is_active, true) = true
-       WITH collect(s) AS stale, collect(s.scheme_id) AS staleIds
-       FOREACH (n IN stale |
-         SET n.is_active = false,
-             n.deactivated_at = $deactivatedAt)
-       RETURN [sid IN staleIds WHERE sid IS NOT NULL] AS deactivatedSchemeIds`,
-      { syncRunId, deactivatedAt }
-    );
-
-    const deactivatedSchemeIds = Array.isArray(staleRows[0]?.deactivatedSchemeIds)
-      ? staleRows[0].deactivatedSchemeIds.map((sid) => String(sid))
-      : [];
-
+  async finalizeIncrementalSchemeSync(totalSchemes: number): Promise<void> {
     await this.autoLinkSchemesToUserGroups();
     await this.updateSyncMeta(totalSchemes);
-    await this.invalidateSchemeCaches(changedSchemeIds, deactivatedSchemeIds);
+    await redisService.delPattern('schemes:*');
+    await redisService.delPattern('categories:*');
     console.log(`✅ Finalized incremental sync metadata for ${totalSchemes} schemes`);
-    return { deactivatedCount: deactivatedSchemeIds.length };
   }
 
   /** Create Category nodes and HAS_CATEGORY relationships from JS side */
@@ -1092,7 +892,7 @@ class Neo4jDbService {
     if (cached != null) return cached;
 
     const rows = await this.connection.executeRead<{ cnt: number }>(
-      'MATCH (s:Scheme) WHERE coalesce(s.is_active, true) = true RETURN count(s) AS cnt'
+      'MATCH (s:Scheme) RETURN count(s) AS cnt'
     );
     const cnt = Number(rows[0]?.cnt) || 0;
     await redisService.set('schemes:count', cnt, CacheTTL.CATEGORIES);
@@ -1105,20 +905,12 @@ class Neo4jDbService {
 
     const rows = await this.connection.executeRead<{ cnt: number }>(
       `MATCH (s:Scheme)
-       WHERE coalesce(s.is_active, true) = true
-         AND (coalesce(s.page_scheme_id, '') <> '' OR coalesce(s.page_enriched_at, '') <> '')
+       WHERE coalesce(s.page_scheme_id, '') <> '' OR coalesce(s.page_enriched_at, '') <> ''
        RETURN count(s) AS cnt`
     );
     const cnt = Number(rows[0]?.cnt) || 0;
     await redisService.set('schemes:count:enriched', cnt, CacheTTL.CATEGORIES);
     return cnt;
-  }
-
-  async getGramPanchayatCount(): Promise<number> {
-    const rows = await this.connection.executeRead<{ cnt: number }>(
-      'MATCH (g:GramPanchayat) RETURN count(g) AS cnt'
-    );
-    return Number(rows[0]?.cnt) || 0;
   }
 
   async getAdminMetrics(): Promise<{
@@ -1261,7 +1053,6 @@ class Neo4jDbService {
 
     const rows = await this.connection.executeRead<any>(
       `MATCH (s:Scheme)
-       WHERE coalesce(s.is_active, true) = true
        RETURN s
        ORDER BY toLower(s.name), s.scheme_id
        SKIP toInteger($offset)
@@ -1282,7 +1073,7 @@ class Neo4jDbService {
     if (cached) return cached;
 
     const rows = await this.connection.executeRead<any>(
-      'MATCH (s:Scheme { scheme_id: $schemeId }) WHERE coalesce(s.is_active, true) = true RETURN s',
+      'MATCH (s:Scheme { scheme_id: $schemeId }) RETURN s',
       { schemeId }
     );
     if (rows.length === 0) return undefined;
@@ -1307,7 +1098,6 @@ class Neo4jDbService {
       rows = await this.connection.executeRead<any>(
         `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
          YIELD node AS s, score
-         WHERE coalesce(s.is_active, true) = true
          RETURN s ORDER BY score DESC, toLower(s.name)
          SKIP toInteger($offset)
          LIMIT toInteger($limit)`,
@@ -1318,8 +1108,7 @@ class Neo4jDbService {
       const pattern = `(?i).*${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*`;
       rows = await this.connection.executeRead<any>(
         `MATCH (s:Scheme)
-         WHERE coalesce(s.is_active, true) = true
-           AND (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
+         WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
          RETURN s
          ORDER BY toLower(s.name), s.scheme_id
          SKIP toInteger($offset)
@@ -1346,7 +1135,6 @@ class Neo4jDbService {
       const rows = await this.connection.executeRead<{ cnt: number }>(
         `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
          YIELD node AS s
-         WHERE coalesce(s.is_active, true) = true
          RETURN count(s) AS cnt`,
         { query: `${ftQuery}~` }
       );
@@ -1355,8 +1143,7 @@ class Neo4jDbService {
       const pattern = `(?i).*${normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*`;
       const rows = await this.connection.executeRead<{ cnt: number }>(
         `MATCH (s:Scheme)
-         WHERE coalesce(s.is_active, true) = true
-           AND (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
+         WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
          RETURN count(s) AS cnt`,
         { pattern }
       );
@@ -1385,8 +1172,7 @@ class Neo4jDbService {
         rows = await this.connection.executeRead<any>(
           `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
            YIELD node AS s, score
-           WHERE coalesce(s.is_active, true) = true
-             AND (s.state = $state OR s.state IS NULL OR s.state = '')
+           WHERE s.state = $state OR s.state IS NULL OR s.state = ''
            RETURN s ORDER BY score DESC LIMIT toInteger($limit)`,
           { query: `${ftQuery}~`, state, limit: limitInt }
         );
@@ -1394,7 +1180,6 @@ class Neo4jDbService {
         rows = await this.connection.executeRead<any>(
           `CALL db.index.fulltext.queryNodes('scheme_fulltext', $query)
            YIELD node AS s, score
-           WHERE coalesce(s.is_active, true) = true
            RETURN s ORDER BY score DESC LIMIT toInteger($limit)`,
           { query: `${ftQuery}~`, limit: limitInt }
         );
@@ -1405,8 +1190,7 @@ class Neo4jDbService {
       if (state) {
         rows = await this.connection.executeRead<any>(
           `MATCH (s:Scheme)
-           WHERE coalesce(s.is_active, true) = true
-             AND (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
+           WHERE (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
              AND (s.state = $state OR s.state IS NULL OR s.state = '')
            RETURN s LIMIT toInteger($limit)`,
           { pattern, state, limit: limitInt }
@@ -1414,8 +1198,7 @@ class Neo4jDbService {
       } else {
         rows = await this.connection.executeRead<any>(
           `MATCH (s:Scheme)
-           WHERE coalesce(s.is_active, true) = true
-             AND (s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern)
+           WHERE s.name =~ $pattern OR s.description =~ $pattern OR s.tags =~ $pattern
            RETURN s LIMIT toInteger($limit)`,
           { pattern, limit: limitInt }
         );
@@ -1442,7 +1225,6 @@ class Neo4jDbService {
        MATCH (c:Category)
        WHERE c.type = cat.type AND (c.value = cat.value OR c.value = 'Any')
        MATCH (s:Scheme)-[:HAS_CATEGORY]->(c)
-       WHERE coalesce(s.is_active, true) = true
        WITH s, count(DISTINCT c) AS matchCount
        RETURN s ORDER BY matchCount DESC
        LIMIT toInteger($limit)`,
@@ -1479,9 +1261,7 @@ class Neo4jDbService {
     const rows = await this.connection.executeRead<any>(
       `MATCH (u:User { user_id: $userId })
        OPTIONAL MATCH (u)-[:BELONGS_TO]->(ug:UserGroup)<-[:TARGETS]-(s1:Scheme)
-         WHERE coalesce(s1.is_active, true) = true
        OPTIONAL MATCH (u)-[:HAS_CATEGORY]->(c:Category)<-[:HAS_CATEGORY]-(s2:Scheme)
-         WHERE coalesce(s2.is_active, true) = true
        WITH collect(DISTINCT s1) + collect(DISTINCT s2) AS allSchemes
        UNWIND allSchemes AS s
        WITH s WHERE s IS NOT NULL
@@ -1637,19 +1417,6 @@ class Neo4jDbService {
     const user = await this.nodeToUser(rows[0].u);
     await redisService.set(cacheKey, user, CacheTTL.USER_PROFILE);
     return user;
-  }
-
-  async updateUserPassword(userId: string, password: string): Promise<boolean> {
-    const rows = await this.connection.executeWrite<any>(
-      `MATCH (u:User { user_id: $userId })
-       SET u.password = $password,
-           u.updated_at = toString(datetime())
-       RETURN u`,
-      { userId, password }
-    );
-
-    await redisService.del(`user:${userId}`);
-    return rows.length > 0;
   }
 
   async getAllUsers(): Promise<any[]> {
@@ -1844,7 +1611,6 @@ class Neo4jDbService {
 
   private async nodeToUser(node: any): Promise<any> {
     const p = node.properties ?? node;
-    const normalizedPanchayatName = p.panchayat_name || p.panchayatName || p.village || null;
     const raw = {
       user_id: p.user_id,
       email: p.email,
@@ -1869,9 +1635,6 @@ class Neo4jDbService {
       ration_card: p.ration_card || null,
       land_ownership: p.land_ownership || null,
       district: p.district || null,
-      village: p.village || normalizedPanchayatName,
-      panchayat_name: normalizedPanchayatName,
-      panchayatName: normalizedPanchayatName,
       disability_type: p.disability_type || null,
       minority_community: p.minority_community || null,
       is_admin: Boolean(p.is_admin),
@@ -1890,65 +1653,6 @@ class Neo4jDbService {
        ORDER BY u.created_at DESC`
     );
     return Promise.all(rows.map((r: any) => this.nodeToUser(r.u)));
-  }
-
-  async getAdminSettings(): Promise<{
-    syncIntervalHours: number;
-    maxUsers: number;
-    maintenanceMode: boolean;
-    analyticsEnabled: boolean;
-    updatedAt: string;
-  }> {
-    const rows = await this.connection.executeRead<any>(
-      `MATCH (s:SystemSettings { id: 'global' })
-       RETURN s
-       LIMIT 1`
-    );
-
-    const node = rows[0]?.s?.properties ?? rows[0]?.s;
-    return {
-      syncIntervalHours: Math.max(1, Number(node?.sync_interval_hours) || 24),
-      maxUsers: Math.max(1, Number(node?.max_users) || 100000),
-      maintenanceMode: Boolean(node?.maintenance_mode),
-      analyticsEnabled:
-        typeof node?.analytics_enabled === 'boolean' ? Boolean(node.analytics_enabled) : true,
-      updatedAt: String(node?.updated_at || new Date().toISOString()),
-    };
-  }
-
-  async updateAdminSettings(input: {
-    syncIntervalHours?: number;
-    maxUsers?: number;
-    maintenanceMode?: boolean;
-    analyticsEnabled?: boolean;
-  }): Promise<{
-    syncIntervalHours: number;
-    maxUsers: number;
-    maintenanceMode: boolean;
-    analyticsEnabled: boolean;
-    updatedAt: string;
-  }> {
-    await this.connection.executeWrite(
-      `MERGE (s:SystemSettings { id: 'global' })
-       SET s.sync_interval_hours = coalesce($syncIntervalHours, s.sync_interval_hours, 24),
-           s.max_users = coalesce($maxUsers, s.max_users, 100000),
-           s.maintenance_mode = coalesce($maintenanceMode, s.maintenance_mode, false),
-           s.analytics_enabled = coalesce($analyticsEnabled, s.analytics_enabled, true),
-           s.updated_at = toString(datetime())`,
-      {
-        syncIntervalHours:
-          typeof input.syncIntervalHours === 'number'
-            ? Math.max(1, Math.round(input.syncIntervalHours))
-            : null,
-        maxUsers:
-          typeof input.maxUsers === 'number' ? Math.max(1, Math.round(input.maxUsers)) : null,
-        maintenanceMode: typeof input.maintenanceMode === 'boolean' ? input.maintenanceMode : null,
-        analyticsEnabled:
-          typeof input.analyticsEnabled === 'boolean' ? input.analyticsEnabled : null,
-      }
-    );
-
-    return this.getAdminSettings();
   }
 
   async createAdminUser(input: { email: string; password: string; name?: string }): Promise<any> {
@@ -2182,69 +1886,6 @@ class Neo4jDbService {
     };
   }
 
-  async getPanchayatUserAuthById(userId: string): Promise<any | undefined> {
-    const rows = await this.connection.executeRead<any>(
-      'MATCH (p:PanchayatUser { user_id: $userId }) RETURN p',
-      { userId }
-    );
-    if (rows.length === 0) return undefined;
-    const n = rows[0].p.properties ?? rows[0].p;
-    return {
-      userId: n.user_id,
-      email: n.email,
-      passwordHash: n.password_hash,
-      name: n.name,
-      panchayatName: n.panchayat_name,
-      district: n.district,
-      state: n.state,
-      createdAt: n.created_at ?? null,
-    };
-  }
-
-  async updatePanchayatUserProfile(
-    userId: string,
-    updates: {
-      name?: string;
-      panchayatName?: string;
-    }
-  ): Promise<any | undefined> {
-    const setParts: string[] = [];
-    const params: Record<string, any> = { userId };
-
-    if (typeof updates.name === 'string') {
-      setParts.push('p.name = $name');
-      params.name = updates.name;
-    }
-    if (typeof updates.panchayatName === 'string') {
-      setParts.push('p.panchayat_name = $panchayatName');
-      params.panchayatName = updates.panchayatName;
-    }
-
-    if (setParts.length === 0) {
-      return this.getPanchayatUserById(userId);
-    }
-
-    await this.connection.executeWrite(
-      `MATCH (p:PanchayatUser { user_id: $userId })
-       SET ${setParts.join(', ')}
-       RETURN p`,
-      params
-    );
-
-    return this.getPanchayatUserById(userId);
-  }
-
-  async updatePanchayatUserPassword(userId: string, passwordHash: string): Promise<boolean> {
-    const rows = await this.connection.executeWrite<any>(
-      `MATCH (p:PanchayatUser { user_id: $userId })
-       SET p.password_hash = $passwordHash
-       RETURN p`,
-      { userId, passwordHash }
-    );
-
-    return rows.length > 0;
-  }
-
   async deletePanchayatUser(userId: string): Promise<boolean> {
     const rows = await this.connection.executeRead<any>(
       'MATCH (p:PanchayatUser { user_id: $userId }) RETURN p LIMIT 1',
@@ -2302,38 +1943,6 @@ class Neo4jDbService {
     const ugMatches = Number(rows[0]?.ugMatches) || 0;
     const score = Math.min(100, matched.length * 15 + ugMatches * 20);
     return { eligible: score > 30, matchedCategories: matched, score };
-  }
-
-  async recordRecommendationFeedback(input: {
-    userId: string;
-    schemeId: string;
-    action: string;
-    source?: string;
-    rank?: number;
-    score?: number;
-  }): Promise<void> {
-    await this.connection.executeWrite(
-      `MATCH (u:User { user_id: $userId })
-       MATCH (s:Scheme { scheme_id: $schemeId })
-       CREATE (f:RecommendationFeedback {
-         feedback_id: randomUUID(),
-         action: $action,
-         source: $source,
-         rank: $rank,
-         score: $score,
-         created_at: toString(datetime())
-       })
-       MERGE (u)-[:GAVE_FEEDBACK]->(f)
-       MERGE (f)-[:ABOUT_SCHEME]->(s)`,
-      {
-        userId: input.userId,
-        schemeId: input.schemeId,
-        action: input.action,
-        source: input.source ?? null,
-        rank: Number.isFinite(Number(input.rank)) ? Number(input.rank) : null,
-        score: Number.isFinite(Number(input.score)) ? Number(input.score) : null,
-      }
-    );
   }
 
   // ─── Nudge helpers (stubs — to be fully implemented with Nudge node model) ──
@@ -2436,71 +2045,6 @@ class Neo4jDbService {
       { today, futureDate }
     );
     return rows.map((r: any) => r.props);
-  }
-
-  // ─── Interaction tracking ───────────────────────────────────────────────────
-
-  /**
-   * Create a (User)-[:INTERACTED]->(Scheme) relationship.
-   * Uses CREATE (not MERGE) so every interaction event is preserved with its
-   * own timestamp, giving a full audit trail of user behaviour.
-   */
-  async recordInteraction(
-    userId: string,
-    schemeId: string,
-    action: string,
-    timestamp: string,
-    sessionId: string | null
-  ): Promise<void> {
-    await this.connection.executeWrite(
-      `MATCH (u:User {user_id: $userId})
-       MATCH (s:Scheme {scheme_id: $schemeId})
-       CREATE (u)-[:INTERACTED {
-         action:    $action,
-         timestamp: $timestamp,
-         sessionId: $sessionId
-       }]->(s)`,
-      { userId, schemeId, action, timestamp, sessionId }
-    );
-  }
-
-  /**
-   * Return interaction counts per action type for a given scheme.
-   */
-  async getSchemeInteractionCounts(
-    schemeId: string
-  ): Promise<Array<{ action: string; count: number }>> {
-    const rows = await this.connection.executeRead<{ action: string; count: number }>(
-      `MATCH (:User)-[r:INTERACTED]->(s:Scheme {scheme_id: $schemeId})
-       RETURN r.action AS action, count(r) AS count`,
-      { schemeId }
-    );
-    return rows.map((r) => ({ action: String(r.action), count: Number(r.count) }));
-  }
-
-  /**
-   * Return the last 100 interaction events for a user → scheme pair.
-   */
-  async getUserSchemeInteractions(
-    userId: string,
-    schemeId: string
-  ): Promise<Array<{ action: string; timestamp: string; sessionId: string | null }>> {
-    const rows = await this.connection.executeRead<{
-      action: string;
-      timestamp: string;
-      sessionId: string | null;
-    }>(
-      `MATCH (u:User {user_id: $userId})-[r:INTERACTED]->(s:Scheme {scheme_id: $schemeId})
-       RETURN r.action AS action, r.timestamp AS timestamp, r.sessionId AS sessionId
-       ORDER BY r.timestamp DESC
-       LIMIT 100`,
-      { userId, schemeId }
-    );
-    return rows.map((r) => ({
-      action: String(r.action),
-      timestamp: String(r.timestamp),
-      sessionId: r.sessionId ? String(r.sessionId) : null,
-    }));
   }
 
   // ─── Graceful close ─────────────────────────────────────────────────────────

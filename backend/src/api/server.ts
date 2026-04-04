@@ -16,15 +16,16 @@
 
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ProfileExtractor } from '../utils/profile-extractor';
 import { neo4jService } from '../db/neo4j.service';
 import { redisService } from '../db/redis.service';
 import { getTranslationService } from '../services/translation.service';
 import { schemeSyncAgent } from '../agents/scheme-sync-agent';
 import { mlService } from '../services/ml.service';
-import { chatOrchestrationService } from '../services/chat-orchestration.service';
-import { interactionService, isValidInteractionAction } from '../services/interaction.service';
+import { chatIntelligenceService, ChatTurn } from '../services/chat-intelligence.service';
 import { JWTService } from '../auth/jwt.service';
 import { PasswordService } from '../auth/password.service';
 
@@ -47,49 +48,63 @@ try {
 
 const app = express();
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
+const CHAT_INPUT_TOKEN_LIMIT = Number(process.env.CHAT_INPUT_TOKEN_LIMIT || 500);
+const CHAT_RESPONSE_TIMEOUT_MS = Number(process.env.CHAT_RESPONSE_TIMEOUT_MS || 12000);
 const jwtService = new JWTService();
 const passwordService = new PasswordService();
 
-interface AdminSystemSettings {
-  syncIntervalHours: number;
-  maxUsers: number;
-  maintenanceMode: boolean;
-  analyticsEnabled: boolean;
-  updatedAt: string;
+function estimateTokens(text: string): number {
+  return Math.ceil((text || '').length / 4);
 }
 
-const DEFAULT_ADMIN_SETTINGS: AdminSystemSettings = {
-  syncIntervalHours: 24,
-  maxUsers: 100000,
-  maintenanceMode: false,
-  analyticsEnabled: true,
-  updatedAt: new Date().toISOString(),
-};
+function detectLanguageHeuristic(text: string): string {
+  if (!text) return 'en';
+  if (/[\u0900-\u097F]/.test(text)) return 'hi';
+  if (/[\u0980-\u09FF]/.test(text)) return 'bn';
+  if (/[\u0A00-\u0A7F]/.test(text)) return 'pa';
+  if (/[\u0A80-\u0AFF]/.test(text)) return 'gu';
+  if (/[\u0B00-\u0B7F]/.test(text)) return 'or';
+  if (/[\u0B80-\u0BFF]/.test(text)) return 'ta';
+  if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
+  if (/[\u0C80-\u0CFF]/.test(text)) return 'kn';
+  if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';
+  if (/[\u0600-\u06FF]/.test(text)) return 'ur';
+  return 'en';
+}
 
-let adminSettingsCache: AdminSystemSettings = { ...DEFAULT_ADMIN_SETTINGS };
-let adminSettingsCacheAt = 0;
+function isLikelyEnglish(text: string): boolean {
+  if (!text) return true;
+  const latin = (text.match(/[A-Za-z]/g) || []).length;
+  const devanagari = (text.match(/[\u0900-\u097F]/g) || []).length;
+  return latin > 20 && devanagari === 0;
+}
 
-async function getAdminSystemSettings(forceRefresh = false): Promise<AdminSystemSettings> {
-  if (!forceRefresh && Date.now() - adminSettingsCacheAt < 5000) {
-    return adminSettingsCache;
+function localizeSummary(lang: string, schemeCount: number): string {
+  if (lang === 'hi') {
+    return `मैंने आपकी रिक्वेस्ट के अनुसार योजनाएं खोज ली हैं। नीचे ${schemeCount} मिलती-जुलती योजनाएं दिख रही हैं।`;
   }
+  return `I found ${schemeCount} matching schemes for your request.`;
+}
 
-  try {
-    const dbSettings = await neo4jService.getAdminSettings();
-    adminSettingsCache = {
-      syncIntervalHours: Math.max(1, Math.min(168, Number(dbSettings.syncIntervalHours) || 24)),
-      maxUsers: Math.max(1, Number(dbSettings.maxUsers) || 100000),
-      maintenanceMode: Boolean(dbSettings.maintenanceMode),
-      analyticsEnabled: Boolean(dbSettings.analyticsEnabled),
-      updatedAt: dbSettings.updatedAt || new Date().toISOString(),
-    };
-    schemeSyncAgent.setSyncIntervalHours(adminSettingsCache.syncIntervalHours);
-    adminSettingsCacheAt = Date.now();
-  } catch {
-    // Keep serving defaults/cached settings if DB lookup fails.
+function localizeActions(lang: string): string[] {
+  if (lang === 'hi') {
+    return ['मेरी पात्रता जांचें', 'और योजनाएं दिखाएं', 'आवेदन कैसे करें?'];
   }
+  return ['Check my eligibility', 'Show matching schemes', 'How to apply?'];
+}
 
-  return adminSettingsCache;
+function localizeUpdatePrefix(prefix: string, lang: string): string {
+  if (lang !== 'hi') return prefix;
+  return prefix
+    .replace(/Updated your state to/gi, 'आपका राज्य अपडेट किया गया:')
+    .replace(/Updated your employment status to/gi, 'रोज़गार स्थिति अपडेट की गई:')
+    .replace(/Updated your education to/gi, 'शिक्षा अपडेट की गई:')
+    .replace(/Updated your income to/gi, 'आय अपडेट की गई:')
+    .replace(/Updated your age to/gi, 'आयु अपडेट की गई:');
+}
+
+function hashText(text: string): string {
+  return crypto.createHash('sha1').update(text).digest('hex');
 }
 
 const defaultOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
@@ -113,44 +128,15 @@ app.use(
 );
 app.use(express.json());
 app.use(ts.translationMiddleware());
-app.use((req, res, next) => {
-  if (!req.path.startsWith('/api/')) {
-    return next();
-  }
-
-  getAdminSystemSettings()
-    .then((settings) => {
-      if (req.path.startsWith('/api/admin')) {
-        return next();
-      }
-
-      const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method.toUpperCase());
-      const allowDuringMaintenance =
-        req.path === '/api/auth/login' || req.path === '/api/panchayat/login';
-
-      if (settings.maintenanceMode && isWrite && !allowDuringMaintenance) {
-        return res.status(503).json({
-          error: 'Service is in maintenance mode. Please try again later.',
-        });
-      }
-
-      return next();
-    })
-    .catch((error: any) => {
-      console.error('Maintenance gate error:', error);
-      return res.status(500).json({ error: 'Failed to evaluate maintenance mode' });
-    });
-});
 
 // ─── Seed admin user (called after neo4jService.init()) ──────────────────────
 export async function seedAdminUser() {
   const admin = await neo4jService.getUserByEmail('admin@example.com');
   if (!admin) {
-    const adminPasswordHash = await passwordService.hashPassword('password');
     await neo4jService.createUser({
       userId: 'admin123',
       email: 'admin@example.com',
-      password: adminPasswordHash,
+      password: 'password',
       name: 'Admin User',
       isAdmin: true,
     });
@@ -188,65 +174,6 @@ function calculateProfileCompleteness(user: any): number {
   return Math.round((filledFields.length / fields.length) * 100);
 }
 
-function looksLikeBcryptHash(value: string): boolean {
-  return /^\$2[aby]\$\d{2}\$/.test(value);
-}
-
-async function verifyStoredUserPassword(
-  inputPassword: string,
-  storedPassword: string
-): Promise<boolean> {
-  if (looksLikeBcryptHash(storedPassword)) {
-    return passwordService.verifyPassword(inputPassword, storedPassword);
-  }
-  return inputPassword === storedPassword;
-}
-
-async function requireUserAuth(
-  req: express.Request,
-  res: express.Response
-): Promise<string | null> {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
-
-  if (!token) {
-    res.status(401).json({ error: 'Authentication required' });
-    return null;
-  }
-
-  // Primary path: legacy in-app mock access token.
-  let userId = token.replace('mock_access_token_', '').replace('mock_refresh_token_', '').trim();
-
-  // Fallback path: signed JWT (for future compatibility).
-  if (!userId) {
-    try {
-      const payload = jwtService.verifyAccessToken(token);
-      userId = payload.userId;
-    } catch {
-      userId = '';
-    }
-  }
-
-  if (!userId) {
-    res.status(401).json({ error: 'Invalid or expired token' });
-    return null;
-  }
-
-  const user = await neo4jService.getUserById(userId);
-  if (!user) {
-    res.status(401).json({ error: 'User not found for this session' });
-    return null;
-  }
-
-  return userId;
-}
-
-async function isUserCreationAllowed(): Promise<boolean> {
-  const settings = await getAdminSystemSettings();
-  const metrics = await neo4jService.getAdminMetrics();
-  return metrics.users.total < settings.maxUsers;
-}
-
 // Mock authentication routes
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -265,13 +192,6 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    const userCreationAllowed = await isUserCreationAllowed();
-    if (!userCreationAllowed) {
-      return res
-        .status(403)
-        .json({ error: 'User registration limit reached. Contact administrator.' });
-    }
-
     // Check if user already exists
     const existingUser = await neo4jService.getUserByEmail(email);
     if (existingUser) {
@@ -280,16 +200,10 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const userId = `user_${Date.now()}`;
-    const passwordValidation = passwordService.validatePasswordStrength(String(password));
-    if (!passwordValidation.valid) {
-      return res.status(400).json({ error: passwordValidation.message });
-    }
-
-    const passwordHash = await passwordService.hashPassword(String(password));
     await neo4jService.createUser({
       userId,
       email,
-      password: passwordHash,
+      password,
       name: name || 'User',
       age: age ? Number(age) : undefined,
       income: income || undefined,
@@ -322,10 +236,7 @@ app.post('/api/auth/login', async (req, res) => {
     console.log('Login attempt:', { email });
 
     const user = await neo4jService.getUserByEmail(email);
-    const validPassword = user
-      ? await verifyStoredUserPassword(String(password), String(user.password || ''))
-      : false;
-    if (!user || !validPassword) {
+    if (!user || user.password !== password) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -355,61 +266,6 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/logout', (_req, res) => {
   res.json({ message: 'Logged out successfully' });
-});
-
-app.put('/api/auth/password', async (req, res) => {
-  const userId = await requireUserAuth(req, res);
-  if (!userId) return;
-
-  try {
-    const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current and new passwords are required' });
-    }
-
-    const user = await neo4jService.getUserById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const validCurrent = await verifyStoredUserPassword(
-      String(currentPassword),
-      String(user.password || '')
-    );
-    if (!validCurrent) {
-      return res.status(400).json({ error: 'Current password is incorrect' });
-    }
-
-    const passwordValidation = passwordService.validatePasswordStrength(String(newPassword));
-    if (!passwordValidation.valid) {
-      return res.status(400).json({ error: passwordValidation.message });
-    }
-
-    const samePassword = await verifyStoredUserPassword(
-      String(newPassword),
-      String(user.password || '')
-    );
-    if (samePassword) {
-      return res
-        .status(400)
-        .json({ error: 'New password must be different from current password' });
-    }
-
-    const newHash = await passwordService.hashPassword(String(newPassword));
-    const updated = await neo4jService.updateUserPassword(userId, newHash);
-    if (!updated) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    return res.json({
-      success: true,
-      message: 'Password updated successfully',
-      reauthRequired: true,
-    });
-  } catch (error: any) {
-    console.error('User password update error:', error);
-    return res.status(500).json({ error: 'Failed to update password', details: error.message });
-  }
 });
 
 // Mock profile endpoints for testing (without database)
@@ -546,9 +402,6 @@ app.get('/api/schemes/:schemeId', (req, res) => schemesController.getSchemeById(
 app.get('/api/users/:userId/recommendations', (req, res) =>
   schemesController.getRecommendations(req, res)
 );
-app.post('/api/users/:userId/recommendations/feedback', (req, res) =>
-  schemesController.postRecommendationFeedback(req, res)
-);
 
 // Mock nudges endpoint
 app.get('/api/users/:userId/nudges', (_req, res) => {
@@ -565,46 +418,254 @@ app.get('/api/users/:userId/nudges', (_req, res) => {
   ]);
 });
 
-// Interaction tracking endpoint
-// POST /api/interactions — record a user → scheme interaction
-app.post('/api/interactions', async (req, res) => {
-  const { userId, schemeId, action, sessionId } = req.body ?? {};
-
-  if (!userId || typeof userId !== 'string') {
-    return res.status(400).json({ error: 'userId is required' });
-  }
-  if (!schemeId || typeof schemeId !== 'string') {
-    return res.status(400).json({ error: 'schemeId is required' });
-  }
-  if (!isValidInteractionAction(action)) {
-    return res.status(400).json({
-      error: `action must be one of: view, apply, bookmark, share, dismiss`,
-    });
-  }
-
-  try {
-    await interactionService.trackInteraction({
-      userId,
-      schemeId,
-      action,
-      sessionId: typeof sessionId === 'string' ? sessionId : undefined,
-    });
-    return res.status(201).json({ success: true });
-  } catch (err) {
-    console.error('[interactions] trackInteraction error:', err);
-    return res.status(500).json({ error: 'Failed to record interaction' });
-  }
-});
-
 // Chat endpoint — proxies to FastAPI ML service
 app.post('/api/chat', async (req, res) => {
-  const result = await chatOrchestrationService.process({
-    message: req.body?.message,
-    conversationHistory: req.body?.conversationHistory,
-    preferredLanguage: req.body?.preferredLanguage,
-    authorization: req.headers.authorization,
-  });
-  return res.status(result.statusCode).json(result.body);
+  const startedAt = Date.now();
+  const traceId = crypto.randomUUID();
+
+  try {
+    const { message, conversationHistory = [], preferredLanguage } = req.body || {};
+    const sanitizedMessage = String(message || '').trim();
+
+    if (!sanitizedMessage) {
+      return res.status(400).json({ error: 'Message is required', traceId });
+    }
+
+    if (estimateTokens(sanitizedMessage) > CHAT_INPUT_TOKEN_LIMIT) {
+      return res.status(400).json({
+        error: `Message exceeds token limit (${CHAT_INPUT_TOKEN_LIMIT}). Please shorten your query.`,
+        traceId,
+      });
+    }
+
+    const detectedLang = ((await ts.detectLanguage(sanitizedMessage)) || 'en').toLowerCase();
+    const heuristicLang = detectLanguageHeuristic(sanitizedMessage);
+    const requestedLang =
+      typeof preferredLanguage === 'string' ? preferredLanguage.toLowerCase() : '';
+    const replyLanguage = requestedLang || (detectedLang === 'en' ? heuristicLang : detectedLang);
+    const languageAwareMessage =
+      replyLanguage === 'en'
+        ? sanitizedMessage
+        : `Reply strictly in language code "${replyLanguage}". Keep answer concise and practical. User message: ${sanitizedMessage}`;
+
+    console.log('Chat message received:', message);
+
+    // Get user info from token; allow guest chat when token/user is unavailable.
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const tokenUserId = token
+      ? token.replace('mock_access_token_', '').replace('mock_refresh_token_', '')
+      : null;
+    const user = tokenUserId ? await neo4jService.getUserById(tokenUserId) : null;
+    const effectiveUserId = user?.user_id || tokenUserId || 'guest';
+
+    // Extract profile data from message and update DB
+    const extraction = ProfileExtractor.extract(sanitizedMessage);
+    const updates = extraction.updates;
+    const updateMessages = extraction.messages;
+
+    const dbUpdates: Record<string, any> = {};
+    const appliedUpdates: string[] = [];
+
+    if (updates.age !== undefined) {
+      dbUpdates['age'] = updates.age;
+      appliedUpdates.push(updateMessages.find((m) => m.includes('age')) || '');
+    }
+    if (updates.income !== undefined) {
+      dbUpdates['income'] = updates.income;
+      appliedUpdates.push(updateMessages.find((m) => m.includes('income')) || '');
+    }
+    if (updates.state !== undefined) {
+      dbUpdates['state'] = updates.state;
+      appliedUpdates.push(updateMessages.find((m) => m.includes('state')) || '');
+    }
+    if (updates.employment !== undefined) {
+      dbUpdates['employment'] = updates.employment;
+      appliedUpdates.push(updateMessages.find((m) => m.includes('employment')) || '');
+    }
+    if (updates.education !== undefined) {
+      dbUpdates['education'] = updates.education;
+      appliedUpdates.push(updateMessages.find((m) => m.includes('education')) || '');
+    }
+    if (updates.disability !== undefined) {
+      dbUpdates['is_disabled'] = updates.disability;
+    }
+    if (updates.minority !== undefined) {
+      dbUpdates['is_minority'] = updates.minority;
+    }
+
+    const profileUpdated = Object.keys(dbUpdates).length > 0;
+    if (profileUpdated && user) {
+      try {
+        await neo4jService.updateUserProfile(effectiveUserId, dbUpdates);
+      } catch (e) {
+        console.error('Profile update error', e);
+      }
+    }
+
+    // Build enriched user profile from latest DB values.
+    const freshUser = user ? (await neo4jService.getUserById(effectiveUserId)) || user : null;
+    const userProfile = {
+      userId: freshUser?.user_id || effectiveUserId,
+      email: freshUser?.email || null,
+      name: freshUser?.name || 'Guest User',
+      age: freshUser?.age,
+      income: freshUser?.income,
+      state: freshUser?.state,
+      employment: freshUser?.employment,
+      education: freshUser?.education,
+      gender: freshUser?.gender,
+      interests: freshUser?.interests,
+      social_category: freshUser?.social_category,
+      is_disabled: freshUser?.is_disabled,
+      is_minority: freshUser?.is_minority,
+      marital_status: freshUser?.marital_status,
+      family_size: freshUser?.family_size,
+      rural_urban: freshUser?.rural_urban,
+      occupation: freshUser?.occupation,
+      poverty_status: freshUser?.poverty_status,
+      ration_card: freshUser?.ration_card,
+      land_ownership: freshUser?.land_ownership,
+      district: freshUser?.district,
+      disability_type: freshUser?.disability_type,
+      minority_community: freshUser?.minority_community,
+      ...dbUpdates,
+    };
+
+    const normalizedHistory: ChatTurn[] = Array.isArray(conversationHistory)
+      ? conversationHistory
+          .filter((entry: any) => entry && typeof entry.content === 'string')
+          .map((entry: any) => ({
+            role: entry.role === 'assistant' ? 'assistant' : 'user',
+            content: String(entry.content).slice(0, 1200),
+          }))
+      : [];
+
+    // Token-budget context memory with rolling summary persisted per user.
+    const { modelHistory, summary } = await chatIntelligenceService.getContext(
+      effectiveUserId,
+      normalizedHistory
+    );
+
+    // Classify intent with short-lived cache.
+    const intentCacheKey = `chat:intent:${hashText(sanitizedMessage.toLowerCase())}`;
+    const cachedIntent = await redisService.get<{ intent: string; confidence: number }>(
+      intentCacheKey
+    );
+    const classified =
+      cachedIntent ||
+      (await mlService.classify(sanitizedMessage, effectiveUserId).then((result) => {
+        if (!result?.primary_intent) return null;
+        return { intent: result.primary_intent, confidence: result.confidence || 0 };
+      }));
+
+    if (!cachedIntent && classified) {
+      await redisService.set(intentCacheKey, classified, 120);
+    }
+
+    const intent = classified?.intent || 'scheme_search';
+
+    // Semantic retrieval + profile-weighted ranking + de-dup.
+    const retrieval = await chatIntelligenceService.retrieveSchemes(
+      sanitizedMessage,
+      userProfile,
+      6
+    );
+
+    // Enforce response time upper bound for security and predictable UX.
+    const mlRace = await Promise.race<
+      | { type: 'ok'; payload: Awaited<ReturnType<typeof mlService.chat>> }
+      | { type: 'timeout' }
+      | { type: 'error'; message: string }
+    >([
+      mlService
+        .chat(languageAwareMessage, userProfile, modelHistory)
+        .then((payload) => ({ type: 'ok' as const, payload }))
+        .catch((error: any) => ({
+          type: 'error' as const,
+          message: String(error?.message || 'ml_error'),
+        })),
+      new Promise((resolve) => {
+        setTimeout(() => resolve({ type: 'timeout' as const }), CHAT_RESPONSE_TIMEOUT_MS);
+      }),
+    ]);
+
+    const degraded = mlRace.type !== 'ok' || !mlRace.payload;
+    const degradedReason =
+      mlRace.type === 'timeout'
+        ? 'ml_timeout'
+        : mlRace.type === 'error'
+          ? mlRace.message
+          : degraded
+            ? 'ml_unavailable'
+            : null;
+
+    const structured = chatIntelligenceService.buildStructuredPayload(
+      mlRace.type === 'ok' && mlRace.payload?.response ? mlRace.payload.response : '',
+      intent,
+      retrieval.schemes,
+      degraded
+    );
+
+    if (replyLanguage !== 'en' && isLikelyEnglish(structured.summary)) {
+      structured.summary = localizeSummary(replyLanguage, structured.schemes.length);
+      structured.next_actions = localizeActions(replyLanguage);
+    }
+
+    // Prepend profile update messages if any
+    let responseText = structured.summary;
+    if (profileUpdated && appliedUpdates.length > 0) {
+      const updatePrefix = localizeUpdatePrefix(
+        appliedUpdates.filter(Boolean).join(' '),
+        replyLanguage
+      );
+      responseText = updatePrefix + '\n\n' + responseText;
+    }
+
+    // Observability trace for each chat turn.
+    const latencyMs = Date.now() - startedAt;
+    console.log(
+      JSON.stringify({
+        event: 'chat_turn',
+        traceId,
+        userId: effectiveUserId,
+        intent,
+        intentConfidence: classified?.confidence || 0,
+        latencyMs,
+        retrievalCount: retrieval.schemes.length,
+        retrievalCacheHit: retrieval.cacheHit,
+        contextSummaryChars: summary.length,
+        degraded,
+        degradedReason,
+        replyLanguage,
+      })
+    );
+
+    return res.json({
+      response: responseText,
+      suggestions:
+        mlRace.type === 'ok' && mlRace.payload?.suggestions?.length
+          ? mlRace.payload.suggestions
+          : structured.next_actions,
+      degraded,
+      structured,
+      schemes: structured.schemes,
+      trace: {
+        traceId,
+        intent,
+        latencyMs,
+        retrievalCount: structured.schemes.length,
+        degradedReason,
+        replyLanguage,
+      },
+    });
+  } catch (error: any) {
+    console.error('Chat error:', error);
+    return res.status(500).json({
+      error: 'Failed to process message',
+      details: error.message,
+      traceId,
+    });
+  }
 });
 
 // Health check with cache stats
@@ -633,14 +694,54 @@ app.get('/api/debug/users', async (_req, res) => {
 
 // ─── ReAct Agent Chat Endpoint (New, experimental) ────────────────────────────
 app.post('/api/react-chat', async (req, res) => {
-  const result = await chatOrchestrationService.process({
-    message: req.body?.message,
-    conversationHistory: req.body?.conversationHistory,
-    preferredLanguage: req.body?.preferredLanguage,
-    authorization: req.headers.authorization,
-    forceMode: 'react',
-  });
-  return res.status(result.statusCode).json(result.body);
+  try {
+    const { message, conversationHistory = [] } = req.body || {};
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Missing required field: message' });
+    }
+    console.log(`\n🤖 ReAct Chat: "${message}"`);
+
+    // Get user from token
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const userId =
+      token?.replace('mock_access_token_', '').replace('mock_refresh_token_', '') || 'admin123';
+    const user = await neo4jService.getUserById(userId);
+
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    // Extract profile updates from message
+    const extraction = ProfileExtractor.extract(message);
+    if (Object.keys(extraction.updates).length > 0) {
+      try {
+        await neo4jService.updateUserProfile(userId, extraction.updates);
+        console.log('✅ Profile auto-updated from message');
+      } catch (e) {
+        console.debug('Profile update skipped');
+      }
+    }
+
+    // Initialize tools if not already done
+    const { initializeTools, reactAgent } = await import('../agents');
+    initializeTools();
+
+    // Process with ReAct agent
+    const response = await reactAgent.process(message, userId, conversationHistory);
+
+    return res.json({
+      response: response.response,
+      thinking: response.thinking.map((t) => ({
+        type: t.type,
+        content: t.content,
+      })),
+      toolsUsed: response.actionsUsed.map((a) => a.toolName),
+      confidence: response.confidence,
+    });
+  } catch (error: any) {
+    console.error('ReAct chat error:', error);
+    return res.status(500).json({ error: 'Chat processing failed', details: error.message });
+  }
 });
 
 // ─── Admin Sync Endpoints (protected with X-Admin-Key or admin login) ────────
@@ -700,90 +801,6 @@ app.get('/api/admin/sync/status', async (req, res) => {
   } catch (error: any) {
     console.error('Sync status error:', error);
     return res.status(500).json({ error: 'Failed to get sync status', details: error.message });
-  }
-});
-
-app.get('/api/admin/settings', async (req, res) => {
-  if (!(await requireAdminAccess(req, res))) return;
-
-  try {
-    const settings = await getAdminSystemSettings(true);
-    return res.json({
-      success: true,
-      settings,
-    });
-  } catch (error: any) {
-    console.error('Admin settings fetch error:', error);
-    return res
-      .status(500)
-      .json({ error: 'Failed to fetch admin settings', details: error.message });
-  }
-});
-
-app.put('/api/admin/settings', async (req, res) => {
-  if (!(await requireAdminAccess(req, res))) return;
-
-  try {
-    const payload = req.body || {};
-    const updates: {
-      syncIntervalHours?: number;
-      maxUsers?: number;
-      maintenanceMode?: boolean;
-      analyticsEnabled?: boolean;
-    } = {};
-
-    if (typeof payload.syncIntervalHours !== 'undefined') {
-      const value = Number(payload.syncIntervalHours);
-      if (!Number.isFinite(value) || value < 1 || value > 168) {
-        return res.status(400).json({ error: 'syncIntervalHours must be between 1 and 168' });
-      }
-      updates.syncIntervalHours = Math.round(value);
-    }
-
-    if (typeof payload.maxUsers !== 'undefined') {
-      const value = Number(payload.maxUsers);
-      if (!Number.isFinite(value) || value < 1 || value > 50000000) {
-        return res.status(400).json({ error: 'maxUsers must be between 1 and 50000000' });
-      }
-      updates.maxUsers = Math.round(value);
-    }
-
-    if (typeof payload.maintenanceMode !== 'undefined') {
-      updates.maintenanceMode = Boolean(payload.maintenanceMode);
-    }
-
-    if (typeof payload.analyticsEnabled !== 'undefined') {
-      updates.analyticsEnabled = Boolean(payload.analyticsEnabled);
-    }
-
-    if (!Object.keys(updates).length) {
-      return res.status(400).json({ error: 'No valid settings fields provided' });
-    }
-
-    const saved = await neo4jService.updateAdminSettings(updates);
-    if (typeof updates.syncIntervalHours === 'number') {
-      schemeSyncAgent.setSyncIntervalHours(updates.syncIntervalHours);
-    }
-
-    adminSettingsCache = {
-      syncIntervalHours: saved.syncIntervalHours,
-      maxUsers: saved.maxUsers,
-      maintenanceMode: saved.maintenanceMode,
-      analyticsEnabled: saved.analyticsEnabled,
-      updatedAt: saved.updatedAt,
-    };
-    adminSettingsCacheAt = Date.now();
-
-    return res.json({
-      success: true,
-      message: 'Admin settings updated successfully',
-      settings: adminSettingsCache,
-    });
-  } catch (error: any) {
-    console.error('Admin settings update error:', error);
-    return res
-      .status(500)
-      .json({ error: 'Failed to update admin settings', details: error.message });
   }
 });
 
@@ -870,11 +887,9 @@ app.post('/api/admin/admins', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    const hashedPassword = await passwordService.hashPassword(String(password));
-
     const admin = await neo4jService.createAdminUser({
       email: String(email).trim(),
-      password: hashedPassword,
+      password: String(password),
       name: typeof name === 'string' ? name.trim() : undefined,
     });
 
@@ -980,11 +995,6 @@ app.delete('/api/admin/users/:userId', async (req, res) => {
 app.get('/api/admin/analytics', async (req, res) => {
   if (!(await requireAdminAccess(req, res))) return;
   try {
-    const settings = await getAdminSystemSettings();
-    if (!settings.analyticsEnabled) {
-      return res.status(403).json({ error: 'Analytics is disabled by administrator settings' });
-    }
-
     const [metrics, users] = await Promise.all([
       neo4jService.getAdminMetrics(),
       neo4jService.getAllUsers(),
@@ -1217,175 +1227,43 @@ app.get('/api/panchayat/me', async (req, res) => {
   }
 });
 
-app.put('/api/panchayat/me', async (req, res) => {
-  const userId = await requirePanchayatAuth(req, res);
-  if (!userId) return;
-
-  try {
-    const { name, panchayatName } = req.body || {};
-    const updates: { name?: string } = {};
-
-    if (typeof panchayatName !== 'undefined') {
-      return res
-        .status(400)
-        .json({ error: 'Panchayat assignment cannot be changed from this account' });
-    }
-
-    if (typeof name === 'string') {
-      const normalizedName = name.trim();
-      if (!normalizedName) {
-        return res.status(400).json({ error: 'Name cannot be empty' });
-      }
-      if (normalizedName.length > 120) {
-        return res.status(400).json({ error: 'Name is too long' });
-      }
-      updates.name = normalizedName;
-    }
-
-    if (!Object.keys(updates).length) {
-      return res.status(400).json({ error: 'No valid fields provided to update' });
-    }
-
-    const updated = await neo4jService.updatePanchayatUserProfile(userId, updates);
-    if (!updated) return res.status(404).json({ error: 'User not found' });
-
-    return res.json({ success: true, user: updated });
-  } catch (error: any) {
-    console.error('Panchayat profile update error:', error);
-    return res.status(500).json({ error: 'Failed to update profile', details: error.message });
-  }
-});
-
-app.put('/api/panchayat/password', async (req, res) => {
-  const userId = await requirePanchayatAuth(req, res);
-  if (!userId) return;
-
-  try {
-    const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current and new passwords are required' });
-    }
-
-    const panchayatUser = await neo4jService.getPanchayatUserAuthById(userId);
-    if (!panchayatUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const validCurrent = await passwordService.verifyPassword(
-      String(currentPassword),
-      panchayatUser.passwordHash
-    );
-    if (!validCurrent) {
-      return res.status(400).json({ error: 'Current password is incorrect' });
-    }
-
-    const passwordValidation = passwordService.validatePasswordStrength(String(newPassword));
-    if (!passwordValidation.valid) {
-      return res.status(400).json({ error: passwordValidation.message });
-    }
-
-    const samePassword = await passwordService.verifyPassword(
-      String(newPassword),
-      panchayatUser.passwordHash
-    );
-    if (samePassword) {
-      return res
-        .status(400)
-        .json({ error: 'New password must be different from current password' });
-    }
-
-    const newHash = await passwordService.hashPassword(String(newPassword));
-    const updated = await neo4jService.updatePanchayatUserPassword(userId, newHash);
-    if (!updated) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    return res.json({ success: true, message: 'Password updated successfully' });
-  } catch (error: any) {
-    console.error('Panchayat password update error:', error);
-    return res.status(500).json({ error: 'Failed to update password', details: error.message });
-  }
-});
-
 app.get('/api/panchayat/analytics', async (req, res) => {
   const userId = await requirePanchayatAuth(req, res);
   if (!userId) return;
   try {
-    const settings = await getAdminSystemSettings();
-    if (!settings.analyticsEnabled) {
-      return res.status(403).json({ error: 'Analytics is currently disabled by administrator' });
-    }
-
-    const panchayatUser = await neo4jService.getPanchayatUserById(userId);
-    if (!panchayatUser) return res.status(404).json({ error: 'Panchayat user not found' });
-
-    const [citizens, totalSchemes, enrichedSchemes] = await Promise.all([
-      neo4jService.getUsersByPanchayatScoped(
-        userId,
-        panchayatUser.state,
-        panchayatUser.district,
-        panchayatUser.panchayatName
-      ),
-      neo4jService.getSchemeCount(),
-      neo4jService.getEnrichedSchemeCount(),
+    const [metrics, users] = await Promise.all([
+      neo4jService.getAdminMetrics(),
+      neo4jService.getAllUsers(),
     ]);
 
-    const employmentCounts = new Map<string, number>();
-    const genderCounts = new Map<string, number>();
-    const registrationsByDate = new Map<string, number>();
-
-    const today = new Date();
-    const last7Days: string[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      last7Days.push(d.toISOString().slice(0, 10));
-    }
-
-    citizens.forEach((citizen: any) => {
-      const employment = String(citizen.employment || citizen.occupation || 'Unknown').trim();
-      const gender = String(citizen.gender || 'Not specified').trim();
-      const createdAt = String(citizen.created_at || citizen.createdAt || '');
-      const createdDate = createdAt.slice(0, 10);
-
-      employmentCounts.set(employment, (employmentCounts.get(employment) || 0) + 1);
-      genderCounts.set(gender, (genderCounts.get(gender) || 0) + 1);
-      if (createdDate) {
-        registrationsByDate.set(createdDate, (registrationsByDate.get(createdDate) || 0) + 1);
-      }
+    const stateCounts = new Map<string, number>();
+    const empCounts = new Map<string, number>();
+    users.forEach((u: any) => {
+      if (u.state) stateCounts.set(u.state, (stateCounts.get(u.state) || 0) + 1);
+      const emp = u.employment || u.occupation;
+      if (emp) empCounts.set(emp, (empCounts.get(emp) || 0) + 1);
     });
 
-    const totalCitizens = citizens.length;
-    const onboardedCitizens = citizens.filter((citizen: any) => citizen.onboarding_complete).length;
+    const byState = Array.from(stateCounts.entries())
+      .map(([state, count]) => ({ state, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    const byEmployment = Array.from(empCounts.entries())
+      .map(([employment, count]) => ({ employment, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
 
     return res.json({
       summary: {
-        totalCitizens,
-        onboardedCitizens,
-        pendingCitizens: totalCitizens - onboardedCitizens,
-        totalSchemes,
-        enrichedSchemes,
-        enrichmentRate:
-          totalSchemes > 0 ? Math.round((enrichedSchemes / totalSchemes) * 1000) / 10 : 0,
-        state: panchayatUser.state,
-        district: panchayatUser.district,
-        panchayatName: panchayatUser.panchayatName,
+        totalUsers: metrics.users.total,
+        totalSchemes: metrics.schemes.total,
+        onboardedUsers: metrics.users.onboarded,
+        enrichedSchemes: metrics.schemes.enriched,
+        enrichmentRate: metrics.schemes.enrichmentRate,
       },
-      trends: {
-        registrations: last7Days.map((date) => ({
-          date,
-          count: registrationsByDate.get(date) || 0,
-        })),
-      },
-      distribution: {
-        byEmployment: Array.from(employmentCounts.entries())
-          .map(([employment, count]) => ({ employment, count }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10),
-        byGender: Array.from(genderCounts.entries())
-          .map(([gender, count]) => ({ gender, count }))
-          .sort((a, b) => b.count - a.count),
-      },
+      trends: metrics.trends,
+      distribution: { byState, byEmployment },
     });
   } catch (error: any) {
     console.error('Panchayat analytics error:', error);
@@ -1519,9 +1397,6 @@ app.get('/api/panchayat/citizens', async (req, res) => {
     const q = String(req.query.q ?? '')
       .toLowerCase()
       .trim();
-    const onboarding = String(req.query.onboarding ?? 'all').toLowerCase();
-    const page = Math.max(1, Number(req.query.page ?? 1) || 1);
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 20) || 20));
     let citizens = await neo4jService.getUsersByPanchayatScoped(
       userId,
       panchayatUser.state,
@@ -1535,38 +1410,11 @@ app.get('/api/panchayat/citizens', async (req, res) => {
         const email = (u.email ?? '').toLowerCase();
         const district = (u.district ?? '').toLowerCase();
         const village = (u.village ?? '').toLowerCase();
-        const panchayatName = (u.panchayat_name ?? u.panchayatName ?? '').toLowerCase();
-        return (
-          name.includes(q) ||
-          email.includes(q) ||
-          district.includes(q) ||
-          village.includes(q) ||
-          panchayatName.includes(q)
-        );
+        return name.includes(q) || email.includes(q) || district.includes(q) || village.includes(q);
       });
     }
 
-    if (onboarding === 'complete') {
-      citizens = citizens.filter((u: any) =>
-        Boolean(u.onboarding_complete ?? u.onboardingComplete)
-      );
-    } else if (onboarding === 'pending') {
-      citizens = citizens.filter(
-        (u: any) => !Boolean(u.onboarding_complete ?? u.onboardingComplete)
-      );
-    }
-
-    const total = citizens.length;
-    const start = (page - 1) * limit;
-    const items = citizens.slice(start, start + limit);
-
-    return res.json({
-      items,
-      total,
-      page,
-      limit,
-      hasMore: start + items.length < total,
-    });
+    return res.json(citizens);
   } catch (error: any) {
     console.error('Panchayat citizens error:', error);
     return res.status(500).json({ error: 'Failed to fetch citizens', details: error.message });
@@ -1588,13 +1436,6 @@ app.post('/api/panchayat/citizens', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    const userCreationAllowed = await isUserCreationAllowed();
-    if (!userCreationAllowed) {
-      return res
-        .status(403)
-        .json({ error: 'Citizen registration limit reached. Contact administrator.' });
-    }
-
     const existing = await neo4jService.getUserByEmail(String(email).trim().toLowerCase());
     if (existing) {
       return res.status(409).json({ error: 'A citizen with this email already exists' });
@@ -1605,12 +1446,11 @@ app.post('/api/panchayat/citizens', async (req, res) => {
     const tempPassword =
       Math.random().toString(36).slice(2, 10) +
       Math.random().toString(36).slice(2, 10).toUpperCase();
-    const tempPasswordHash = await passwordService.hashPassword(tempPassword);
 
     await neo4jService.createUser({
       userId: citizenId,
       email: String(email).trim().toLowerCase(),
-      password: tempPasswordHash,
+      password: tempPassword,
       name: String(name).trim(),
       age: age ? Number(age) : undefined,
       gender: gender || undefined,
@@ -1618,15 +1458,15 @@ app.post('/api/panchayat/citizens', async (req, res) => {
       state: panchayatUser.state,
     });
 
-    // Set extra profile fields and panchayat association.
-    // Citizens registered by an operator still need to complete their own onboarding journey.
+    // Set extra profile fields and panchayat association
+    // Mark onboarding as complete since the panchayat operator has filled in the citizen's details
     await neo4jService.updateUserProfile(citizenId, {
       employment: employment || '',
       education: education || '',
       district: panchayatUser.district,
       panchayat_name: panchayatUser.panchayatName,
       registered_by_panchayat: userId,
-      onboarding_complete: false,
+      onboarding_complete: true,
     });
 
     return res.status(201).json({

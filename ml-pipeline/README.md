@@ -83,6 +83,27 @@ python scripts/benchmark_intent_inference.py --http-url http://127.0.0.1:8000/pr
 The benchmark prints mean, p50, p95, p99 and checks against the default target
 `p95 <= 100ms`.
 
+### Automated Intent Improvement Pipeline
+
+Run one command to rebuild dataset, retrain with quality gates, and write a
+dashboard JSON for trend tracking:
+
+```bash
+python scripts/run_intent_training_pipeline.py
+```
+
+Key outputs:
+
+- `data/training/intent_metrics_latest.json`
+- `data/training/intent_dashboard.json`
+- `data/training/intent_dashboard_history.json`
+
+Example with stricter gates:
+
+```bash
+python scripts/run_intent_training_pipeline.py --epochs 10 --batch-size 32 --min-accuracy 0.90 --min-f1 0.90
+```
+
 ### Training Device Policy (Development vs Production)
 
 The intent trainer enforces environment-aware device selection:

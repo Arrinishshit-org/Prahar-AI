@@ -1,11 +1,8 @@
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { intentService } from './services/intent_service';
-
-const execAsync = promisify(exec);
+import { seedGramPanchayats } from './services/gp-seed.service';
 
 function loadEnv(): void {
   const candidates = [
@@ -100,19 +97,17 @@ async function ensureGramPanchayatData(): Promise<void> {
     }
 
     console.log('🌱 GP data missing. Running auto-seed...');
-    const backendRoot = path.resolve(__dirname, '..');
-    const { stdout, stderr } = await execAsync('npx tsx scripts/seed-gram-panchayats.ts', {
-      cwd: backendRoot,
-      env: process.env,
-      maxBuffer: 20 * 1024 * 1024,
+    const result = await seedGramPanchayats(neo4jService, {
+      apiKey: process.env.DATA_GOV_IN_API_KEY,
+      resourceId: process.env.LGD_GP_RESOURCE_ID,
     });
-    if (stdout?.trim()) console.log(stdout.trim());
-    if (stderr?.trim()) console.warn(stderr.trim());
 
     const after = await neo4jService.getGramPanchayatCount();
-    console.log(`✅ GP auto-seed complete (${after.toLocaleString()} nodes).`);
+    console.log(
+      `✅ GP auto-seed complete (${after.toLocaleString()} nodes, ${result.inserted.toLocaleString()} inserted).`
+    );
   } catch (error) {
-    console.error('❌ GP auto-seed check failed:', error);
+    console.error('❌ GP auto-seed failed:', error);
   }
 }
 

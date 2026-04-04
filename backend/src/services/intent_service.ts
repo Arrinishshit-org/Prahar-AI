@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-const INTENT_BASE_URL = process.env.INTENT_SERVICE_URL || 'http://localhost:8000';
+const INTENT_BASE_URL =
+  process.env.INTENT_SERVICE_URL ||
+  process.env.ML_SERVICE_URL ||
+  (process.env.NODE_ENV === 'production' ? 'http://ml:8000' : 'http://localhost:8000');
 const TIMEOUT_MS = Math.max(250, Number(process.env.INTENT_SERVICE_TIMEOUT_MS || 2000));
 
 export interface IntentPredictionResult {
@@ -75,9 +78,7 @@ class IntentService {
   async isHealthy(): Promise<boolean> {
     try {
       const payload = await getWithTimeout('/health');
-      const legacyShapeOk = payload?.status === 'ok' && payload?.model_loaded;
-      const unifiedShapeOk = payload?.status === 'ok' && payload?.models?.intent_predictor;
-      return Boolean(legacyShapeOk || unifiedShapeOk);
+      return payload?.status === 'ok';
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.warn(
