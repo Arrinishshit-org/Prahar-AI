@@ -125,6 +125,10 @@ export async function seedGramPanchayats(
     stateFilter: options.stateFilter?.trim() || undefined,
   };
 
+  console.log(
+    `🌐 GP seed starting (resource=${config.resourceId}, batchSize=${config.batchSize}, fetchLimit=${config.fetchLimit}${config.stateFilter ? `, state=${config.stateFilter}` : ''})`
+  );
+
   let inserted = 0;
   let pagesFetched = 0;
   let totalReported = 0;
@@ -133,9 +137,13 @@ export async function seedGramPanchayats(
 
   const flush = async (): Promise<void> => {
     if (pending.length === 0) return;
+    const batchSize = pending.length;
     await neo4jService.bulkUpsertGramPanchayats(pending);
-    inserted += pending.length;
+    inserted += batchSize;
     pending = [];
+    if (inserted % Math.max(config.batchSize, 1000) === 0) {
+      console.log(`💾 GP seed progress: ${inserted.toLocaleString()} rows persisted...`);
+    }
   };
 
   const processPage = async (records: RawRecord[]): Promise<void> => {
@@ -155,6 +163,9 @@ export async function seedGramPanchayats(
   const firstPage = await fetchPage(config, offset);
   pagesFetched += 1;
   totalReported = firstPage.total;
+  console.log(
+    `📥 GP seed fetched page ${pagesFetched} (records=${firstPage.records.length}, reportedTotal=${totalReported})`
+  );
   await processPage(firstPage.records);
   offset += config.fetchLimit;
 
@@ -162,12 +173,19 @@ export async function seedGramPanchayats(
     const page = await fetchPage(config, offset);
     if (page.records.length === 0) break;
     pagesFetched += 1;
+    if (pagesFetched <= 3 || pagesFetched % 10 === 0) {
+      console.log(`📥 GP seed fetched page ${pagesFetched} (records=${page.records.length})`);
+    }
     await processPage(page.records);
     offset += config.fetchLimit;
     if (page.records.length < config.fetchLimit) break;
   }
 
   await flush();
+
+  console.log(
+    `✅ GP seed finished: persisted=${inserted.toLocaleString()}, pages=${pagesFetched}, reportedTotal=${totalReported}`
+  );
 
   return {
     inserted,

@@ -354,12 +354,21 @@ class SchemeSyncAgent {
         processed = batchEnd;
         await this.saveResumeState(processed, totalSchemes, syncRunId);
 
-        const failedInBatch = enrichedBatch.filter((s) => !s.page_scheme_id).length;
+        const enrichmentSkippedForBatch = enrichedBatch.every(
+          (s) => s.page_enriched_at === undefined && s.page_scheme_id === undefined
+        );
+        const failedInBatch = enrichmentSkippedForBatch
+          ? 0
+          : enrichedBatch.filter((s) => !s.page_scheme_id).length;
         const batchFailureRatio = batch.length > 0 ? failedInBatch / batch.length : 0;
         const overallPercent = ((processed / totalSchemes) * 100).toFixed(1);
         console.log(
           `💾 Batch persisted: ${processed}/${totalSchemes} (${overallPercent}%) | batchFailures=${failedInBatch}/${batch.length}`
         );
+
+        if (enrichmentSkippedForBatch) {
+          console.log('ℹ️  Page enrichment skipped for this batch; continuing core scheme sync.');
+        }
 
         if (
           batch.length >= this.PAUSE_MIN_BATCH_SIZE &&
