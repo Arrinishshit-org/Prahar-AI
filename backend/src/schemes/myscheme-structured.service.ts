@@ -288,10 +288,21 @@ class MySchemeStructuredService {
   }
 
   private extractChunkUrlFromHtml(html: string): string | null {
-    const match = html.match(
+    // First try to find absolute URL (legacy format)
+    let match = html.match(
       /https:\/\/cdn\.myscheme\.in\/_next\/static\/chunks\/pages\/schemes\/%5Bslug%5D-[^"']+/i
     );
-    return match?.[0] ?? null;
+    if (match?.[0]) return match[0];
+
+    // If not found, try to find relative URL (current format)
+    // Look for /_next/static/chunks/pages/schemes/[slug]- pattern
+    match = html.match(/\/_next\/static\/chunks\/pages\/schemes\/%5Bslug%5D-[^"'<>]+/i);
+    if (match?.[0]) {
+      // Construct full URL with CDN domain
+      return `https://cdn.myscheme.in${match[0]}`;
+    }
+
+    return null;
   }
 
   private extractApiConfigFromChunk(chunkJs: string): PageApiConfig | null {
