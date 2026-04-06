@@ -131,20 +131,26 @@ app.use(ts.translationMiddleware());
 
 // ─── Seed admin user (called after neo4jService.init()) ──────────────────────
 export async function seedAdminUser() {
-  const admin = await neo4jService.getUserByEmail('admin@example.com');
+  // Get admin credentials from environment variables with fallbacks
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'password';
+  const adminUserId = process.env.ADMIN_USER_ID || 'admin123';
+  const adminName = process.env.ADMIN_NAME || 'Admin User';
+
+  const admin = await neo4jService.getUserByEmail(adminEmail);
   if (!admin) {
     await neo4jService.createUser({
-      userId: 'admin123',
-      email: 'admin@example.com',
-      password: 'password',
-      name: 'Admin User',
+      userId: adminUserId,
+      email: adminEmail,
+      password: adminPassword,
+      name: adminName,
       isAdmin: true,
     });
-    console.log('✅ Admin user seeded');
+    console.log(`✅ Admin user seeded (${adminEmail})`);
   }
 
   // Admin should never be blocked by onboarding.
-  const ensuredAdmin = await neo4jService.getUserByEmail('admin@example.com');
+  const ensuredAdmin = await neo4jService.getUserByEmail(adminEmail);
   if (ensuredAdmin && !ensuredAdmin.onboarding_complete) {
     await neo4jService.updateUserProfile(ensuredAdmin.user_id, {
       onboarding_complete: true,
