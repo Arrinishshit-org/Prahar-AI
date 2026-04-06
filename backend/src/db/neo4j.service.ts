@@ -1643,6 +1643,19 @@ class Neo4jDbService {
     return Promise.all(rows.map((r: any) => this.nodeToUser(r.u)));
   }
 
+  async updateUserPassword(userId: string, password: string): Promise<void> {
+    await this.connection.executeWrite(
+      `MATCH (u:User { user_id: $userId })
+       SET u.password = $password,
+           u.updated_at = toString(datetime())`,
+      { userId, password }
+    );
+
+    await redisService.del(`user:${userId}`);
+    await redisService.delPattern(`schemes:user:${userId}:*`);
+    await redisService.delPattern(`recommendations:${userId}:*`);
+  }
+
   async updateUserProfile(userId: string, fields: Record<string, any>): Promise<void> {
     const allowed = [
       'name',

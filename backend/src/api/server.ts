@@ -136,6 +136,10 @@ export async function seedAdminUser() {
   const adminPassword = process.env.ADMIN_PASSWORD || 'password';
   const adminUserId = process.env.ADMIN_USER_ID || 'admin123';
   const adminName = process.env.ADMIN_NAME || 'Admin User';
+  let created = false;
+  let passwordUpdated = false;
+  let nameUpdated = false;
+  let onboardingUpdated = false;
 
   const admin = await neo4jService.getUserByEmail(adminEmail);
   if (!admin) {
@@ -146,7 +150,18 @@ export async function seedAdminUser() {
       name: adminName,
       isAdmin: true,
     });
-    console.log(`✅ Admin user seeded (${adminEmail})`);
+    created = true;
+  } else {
+    // Keep env credentials authoritative for existing seeded admin.
+    if (admin.password !== adminPassword) {
+      await neo4jService.updateUserPassword(admin.user_id, adminPassword);
+      passwordUpdated = true;
+    }
+
+    if (admin.name !== adminName) {
+      await neo4jService.updateUserProfile(admin.user_id, { name: adminName });
+      nameUpdated = true;
+    }
   }
 
   // Admin should never be blocked by onboarding.
@@ -156,6 +171,22 @@ export async function seedAdminUser() {
       onboarding_complete: true,
       is_admin: true,
     });
+    onboardingUpdated = true;
+  }
+
+  if (created) {
+    console.log(`✅ Admin user seeded (${adminEmail})`);
+    return;
+  }
+
+  if (passwordUpdated || nameUpdated || onboardingUpdated) {
+    const changes: string[] = [];
+    if (passwordUpdated) changes.push('password');
+    if (nameUpdated) changes.push('name');
+    if (onboardingUpdated) changes.push('onboarding');
+    console.log(`✅ Admin user reconciled (${adminEmail}) [updated: ${changes.join(', ')}]`);
+  } else {
+    console.log(`ℹ️  Admin user already present and up-to-date (${adminEmail})`);
   }
 }
 
